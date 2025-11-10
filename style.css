@@ -15,11 +15,73 @@ main {
     max-width: 800px;
     margin: 20px auto;
 }
+.data-inputs {
+    margin-bottom: 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+.json-input-box {
+    display: flex;
+    flex-direction: column;
+}
+.json-input-box label {
+    font-size: 1.1rem;
+    margin-bottom: 5px;
+}
+textarea {
+    width: 100%;
+    background-color: #252525;
+    color: #e0e0e0;
+    border: 1px solid #444;
+    border-radius: 5px;
+    font-family: "Courier New", Courier, monospace;
+    padding: 10px;
+    box-sizing: border-box;
+    margin-bottom: 10px;
+}
+
+/* New button styles */
+#add-character-button {
+    background-color: #006421;
+    color: white;
+    font-size: 1rem;
+    padding: 8px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+#add-character-button:hover {
+    background-color: #004d1a;
+}
+
+/* New party list styles */
+#party-list-container {
+    background-color: #252525;
+    border: 1px solid #444;
+    border-radius: 5px;
+    padding: 0 15px 15px 15px;
+}
+#party-list-container h4 {
+    margin-bottom: 10px;
+}
+#party-list {
+    min-height: 100px;
+}
+.party-member {
+    background-color: #333;
+    padding: 5px 10px;
+    border-radius: 3px;
+    margin-bottom: 5px;
+    font-family: monospace;
+}
+
+
 .controls {
     text-align: center;
     margin-bottom: 20px;
 }
-button {
+#run-button { /* Changed button to id selector */
     font-size: 1.2rem;
     padding: 10px 20px;
     background-color: #007acc;
@@ -28,9 +90,10 @@ button {
     border-radius: 5px;
     cursor: pointer;
 }
-button:hover {
+#run-button:hover {
     background-color: #005f9e;
 }
+
 .log-container {
     background-color: #252525;
     border: 1px solid #444;
@@ -38,8 +101,8 @@ button:hover {
     padding: 15px;
 }
 pre {
-    white-space: pre-wrap; /* Allows text to wrap */
-    word-wrap: break-word; /* Breaks long words */
+    white-space: pre-wrap;
+    word-wrap: break-word;
     font-family: "Courier New", Courier, monospace;
     font-size: 0.9rem;
     background-color: #1e1e1e;

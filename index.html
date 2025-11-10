@@ -11,6 +11,20 @@
         <h1>Daggerheart Monte Carlo Simulator</h1>
     </header>
     <main>
+        <div class="data-inputs">
+            <div class="json-input-box">
+                <label for="character-json">Paste Character JSON from Local Storage:</label>
+                <textarea id="character-json" rows="8"></textarea>
+                <button id="add-character-button">Add Player to Party</button>
+            </div>
+            
+            <div id="party-list-container">
+                <h4>Current Party:</h4>
+                <div id="party-list">
+                    </div>
+            </div>
+        </div>
+
         <div class="controls">
             <button id="run-button">Run Simulation</button>
         </div>
