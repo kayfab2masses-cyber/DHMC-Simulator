@@ -11,10 +11,6 @@
         <h1>Daggerheart Monte Carlo Simulator</h1>
     </header>
 
-    <div class="controls-main">
-        <button id="run-button">Run Simulation (using 'Active Scene')</button>
-    </div>
-
     <div class="simulator-layout">
 
         <div class="layout-column" id="input-column">
@@ -22,12 +18,18 @@
             <div class="json-input-box">
                 <label for="character-json">Paste Player JSON:</label>
                 <textarea id="character-json" rows="8" placeholder="Paste player JSON here..."></textarea>
-                <button id="add-character-button" class="add-button">Add Player to Pool</button>
+                <div class="button-row">
+                    <button id="add-character-button" class="add-button">Add Player to Pool</button>
+                    <button id="remove-character-button" class="remove-button">Remove Last Player</button>
+                </div>
             </div>
             <div class="json-input-box">
                 <label for="adversary-json">Paste Adversary JSON:</label>
                 <textarea id="adversary-json" rows="8" placeholder="Paste adversary JSON here..."></textarea>
-                <button id="add-adversary-button" class="add-button">Add Adversary to Pool</button>
+                <div class="button-row">
+                    <button id="add-adversary-button" class="add-button">Add Adversary to Pool</button>
+                    <button id="remove-adversary-button" class="remove-button">Remove Last Adversary</button>
+                </div>
             </div>
         </div>
 
@@ -61,7 +63,12 @@
     </div>
 
     <div class="log-container">
-        <h3>Simulation Log:</h3>
+        <div class="log-header">
+            <h3>Simulation Log:</h3>
+            <div class="controls-main">
+                <button id="run-button">Run Simulation</button>
+            </div>
+        </div>
         <pre id="log-output"></pre>
     </div>
 
@@ -95,6 +102,7 @@
         </div>
     </div>
 
+    <script src="data/srd_adversaries.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

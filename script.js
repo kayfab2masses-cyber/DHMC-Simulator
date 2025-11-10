@@ -17,6 +17,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Column 2 & 3: Event delegation for dynamic buttons
     document.getElementById('pool-column').addEventListener('click', handlePoolClick);
     document.getElementById('scene-column').addEventListener('click', handleSceneClick);
+    document.getElementById('remove-character-button').addEventListener('click', removeLastCharacter);
+    document.getElementById('remove-adversary-button').addEventListener('click', removeLastAdversary);
     
     // SRD Modal Listeners
     document.getElementById('open-srd-modal').addEventListener('click', openSRDModal);
@@ -28,20 +30,13 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('srd-type-filter').addEventListener('change', renderSRDAdversaries);
     document.getElementById('srd-adversary-list').addEventListener('click', handleSRDListClick);
     
-    // Load the SRD database *then* render the UI that depends on it
     loadSRDDatabase(); 
-    
-    // Render the non-dependent UI
     renderPools();
     renderActiveScene();
 });
 
 // --- DATA & POOL MANAGEMENT ---
 
-/**
- * Fetches the SRD adversaries from our new JSON file
- * and *then* renders the modal list. THIS IS THE FIX.
- */
 async function loadSRDDatabase() {
     try {
         const response = await fetch('data/srd_adversaries.json');
@@ -50,8 +45,6 @@ async function loadSRDDatabase() {
         }
         SRD_ADVERSARIES = await response.json();
         logToScreen(`Successfully loaded ${SRD_ADVERSARIES.length} adversaries from SRD catalog.`);
-        
-        // NOW that SRD_ADVERSARIES has data, we can safely render the modal list.
         renderSRDAdversaries(); 
     } catch (error) {
         logToScreen(`--- FATAL ERROR --- Could not load SRD Adversary JSON: ${error.message}`);
@@ -59,9 +52,6 @@ async function loadSRDDatabase() {
     }
 }
 
-/**
- * Adds a character from the text box, checking for duplicates.
- */
 function addCharacterToPool() {
     const jsonTextBox = document.getElementById('character-json');
     try {
@@ -82,18 +72,49 @@ function addCharacterToPool() {
     } catch (e) { logToScreen(`--- ERROR --- \nInvalid Character JSON. ${e.message}`); }
 }
 
+/**
+ * --- UPDATED ---
+ * Adds an adversary from the text box, checking for duplicates in the pool.
+ */
 function addAdversaryToPool() {
     const jsonTextBox = document.getElementById('adversary-json');
     try {
         const newAdversary = JSON.parse(jsonTextBox.value);
         if (!newAdversary.name || !newAdversary.difficulty) throw new Error('JSON missing "name" or "difficulty"');
         
+        // --- NEW: Check for duplicate names in the pool ---
+        const isDuplicate = adversaryPool.some(a => a.name === newAdversary.name);
+        if (isDuplicate) {
+            logToScreen(`--- ERROR --- \nAn adversary named '${newAdversary.name}' is already in the pool.`);
+            return;
+        }
+
         newAdversary.simId = `adv-master-${Date.now()}`;
         adversaryPool.push(newAdversary);
         logToScreen(`Added ${newAdversary.name} to Adversary Pool.`);
         jsonTextBox.value = '';
         renderPools();
     } catch (e) { logToScreen(`--- ERROR --- \nInvalid Adversary JSON. ${e.message}`); }
+}
+
+function removeLastCharacter() {
+    if (playerPool.length > 0) {
+        const removedChar = playerPool.pop();
+        logToScreen(`Removed ${removedChar.name} from player pool.`);
+        renderPools();
+    } else {
+        logToScreen("Player pool is already empty.");
+    }
+}
+
+function removeLastAdversary() {
+    if (adversaryPool.length > 0) {
+        const removedAdv = adversaryPool.pop();
+        logToScreen(`Removed ${removedAdv.name} from adversary pool.`);
+        renderPools();
+    } else {
+        logToScreen("Adversary pool is already empty.");
+    }
 }
 
 // --- DYNAMIC CLICK HANDLERS ---
@@ -104,14 +125,12 @@ function handlePoolClick(event) {
     if (!agentId) return; 
 
     if (target.classList.contains('move-button')) {
-        // Player logic (MOVE)
         let playerIndex = playerPool.findIndex(p => p.simId === agentId);
         if (playerIndex > -1) {
             const agent = playerPool.splice(playerIndex, 1)[0];
             activeParty.push(agent);
             logToScreen(`Moved ${agent.name} to Active Scene.`);
         } else {
-            // Adversary logic (COPY)
             const agentTemplate = adversaryPool.find(a => a.simId === agentId);
             if (agentTemplate) {
                 const newAgentInstance = JSON.parse(JSON.stringify(agentTemplate));
@@ -123,12 +142,10 @@ function handlePoolClick(event) {
     }
     
     if (target.classList.contains('flush-button')) {
-        // Flush from Player Pool
         let playerIndex = playerPool.findIndex(p => p.simId === agentId);
         if (playerIndex > -1) {
             logToScreen(`Flushed ${playerPool.splice(playerIndex, 1)[0].name} from pool.`);
         } else {
-            // Flush from Adversary Pool
             let adversaryIndex = adversaryPool.findIndex(a => a.simId === agentId);
             if (adversaryIndex > -1) {
                 logToScreen(`Flushed ${adversaryPool.splice(adversaryIndex, 1)[0].name} from pool.`);
@@ -145,14 +162,12 @@ function handleSceneClick(event) {
     if (!agentId) return; 
 
     if (target.classList.contains('move-button')) {
-        // Player logic (MOVE BACK)
         let playerIndex = activeParty.findIndex(p => p.simId === agentId);
         if (playerIndex > -1) {
             const agent = activeParty.splice(playerIndex, 1)[0];
             playerPool.push(agent);
             logToScreen(`Moved ${agent.name} back to Player Pool.`);
         } else {
-            // Adversary logic (DELETE INSTANCE)
             let adversaryIndex = activeAdversaries.findIndex(a => a.simId === agentId);
             if (adversaryIndex > -1) {
                 const agent = activeAdversaries.splice(adversaryIndex, 1)[0];
@@ -245,10 +260,6 @@ function closeSRDModal() {
     document.getElementById('srd-modal-overlay').classList.add('hidden');
 }
 
-/**
- * Renders the SRD adversary list based on filters.
- * Now it safely checks if SRD_ADVERSARIES is loaded.
- */
 function renderSRDAdversaries() {
     const tier = document.getElementById('srd-tier-filter').value;
     const type = document.getElementById('srd-type-filter').value;
@@ -256,7 +267,6 @@ function renderSRDAdversaries() {
     
     listDiv.innerHTML = ''; 
     
-    // If the database isn't loaded yet, show a loading message.
     if (SRD_ADVERSARIES.length === 0) {
         listDiv.innerHTML = '<div class="pool-item"><span>Loading database...</span></div>';
         return;
@@ -287,6 +297,13 @@ function renderSRDAdversaries() {
 function addAdversaryFromSRD(name) {
     const advData = SRD_ADVERSARIES.find(a => a.name === name);
     if (!advData) return;
+
+    // --- NEW: Check for duplicate names in the pool ---
+    const isDuplicate = adversaryPool.some(a => a.name === advData.name);
+    if (isDuplicate) {
+        logToScreen(`--- ERROR --- \n'${advData.name}' is already in the Adversary Pool.`);
+        return;
+    }
 
     const newAdversary = JSON.parse(JSON.stringify(advData));
     newAdversary.simId = `adv-master-${Date.now()}`;

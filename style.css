@@ -66,17 +66,31 @@ textarea {
     box-sizing: border-box;
     margin-bottom: 10px;
 }
-.add-button {
-    background-color: #006421;
-    color: white;
+.button-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+.add-button, .remove-button {
     font-size: 1rem;
     padding: 8px;
     border: none;
     border-radius: 5px;
     cursor: pointer;
 }
+.add-button {
+    background-color: #006421;
+    color: white;
+}
 .add-button:hover {
     background-color: #004d1a;
+}
+.remove-button {
+    background-color: #a40000;
+    color: white;
+}
+.remove-button:hover {
+    background-color: #7d0000;
 }
 
 /* --- Columns 2 & 3: Lists --- */
@@ -150,10 +164,10 @@ textarea {
 }
 .flush-button:hover { background: #7d0000; }
 
-/* --- Run Button (Moved) & Log --- */
+/* --- Run Button & Log --- */
 .controls-main {
-    text-align: center;
-    margin-top: 20px;
+    text-align: right; /* Aligns button to the right */
+    flex-grow: 1; /* Pushes button to the far right */
 }
 #run-button {
     font-size: 1.2rem;
@@ -174,6 +188,18 @@ textarea {
     padding: 15px;
     margin-top: 20px;
 }
+/* NEW: Log Header Style */
+.log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #555;
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+}
+.log-header h3 {
+    margin: 0;
+}
 pre {
     white-space: pre-wrap;
     word-wrap: break-word;
@@ -187,7 +213,7 @@ pre {
     overflow-y: auto;
 }
 
-/* --- NEW: Modal (Pop-out) Styles --- */
+/* --- Modal (Pop-out) Styles --- */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -249,5 +275,5 @@ pre {
     max-height: 400px;
 }
 .srd-item .agent-name {
-    cursor: help; /* Show '?' cursor to indicate hover */
+    cursor: help;
 }
