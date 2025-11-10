@@ -96,7 +96,6 @@ function addAdversaryToPool() {
         const newAdversary = JSON.parse(jsonTextBox.value);
         if (!newAdversary.name || !newAdversary.difficulty) throw new Error('JSON missing "name" or "difficulty"');
         
-        // --- NEW: Check for duplicate names in the pool ---
         const isDuplicate = adversaryPool.some(a => a.name === newAdversary.name);
         if (isDuplicate) {
             logToScreen(`--- ERROR --- \nAn adversary named '${newAdversary.name}' is already in the pool.`);
@@ -599,13 +598,12 @@ function executeGMTurn(gameState) {
         switch (chosenAction.name) {
             case 'Hobbling Strike':
                 // We need to find the damage for this. Your new JSON 'effect' field is just text.
-                // The old chat log had "3d4+10" for this. I'll use that as a placeholder.
-                // This is the next thing we must fix in the JSON data.
+                // The JSON for Dire Wolf has "3d4+10 direct physical damage".
                 executeGMFeature_HobblingStrike(adversary, target, "3d4+10");
                 break;
             
             case 'Bite': // From the Bear
-                // The JSON has "3d4+10" in the effect text.
+                // The JSON has "3d4+10 physical damage".
                 executeGMFeature_HobblingStrike(adversary, target, "3d4+10"); // Re-using this logic for now
                 logToScreen(`  ${target.name} is now Restrained! (Logic not yet implemented)`);
                 break;
@@ -837,6 +835,6 @@ function logToScreen(message) {
    const logOutput = document.getElementById('log-output');
    if (logOutput) {
        logOutput.textContent += message + '\n';
-       logOutput.scrollTop = LogOutput.scrollHeight; 
+       logOutput.scrollTop = logOutput.scrollHeight; 
    }
 }
