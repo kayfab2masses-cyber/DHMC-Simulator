@@ -40,7 +40,6 @@ document.addEventListener('DOMContentLoaded', () => {
 // --- DATA & POOL MANAGEMENT ---
 
 /**
- * --- UPDATED ---
  * Fetches the SRD adversaries from our new JSON file
  * and looks for the "adversaries" key inside it.
  */
@@ -87,7 +86,6 @@ function addCharacterToPool() {
 }
 
 /**
- * --- UPDATED ---
  * Adds an adversary from the text box, checking for duplicates in the pool.
  */
 function addAdversaryToPool() {
@@ -314,14 +312,12 @@ function renderSRDAdversaries() {
 }
 
 /**
- * --- UPDATED ---
  * Adds an adversary from the SRD, checking for duplicates in the pool.
  */
 function addAdversaryFromSRD(name) {
     const advData = SRD_ADVERSARIES.find(a => a.name === name);
     if (!advData) return;
 
-    // --- NEW: Check for duplicate names in the pool ---
     const isDuplicate = adversaryPool.some(a => a.name === advData.name);
     if (isDuplicate) {
         logToScreen(`--- ERROR --- \n'${advData.name}' is already in the Adversary Pool.`);
@@ -388,7 +384,6 @@ function instantiatePlayerAgent(data) {
 }
 
 /**
- * --- UPDATED ---
  * Instantiates an adversary agent from the new JSON structure.
  */
 function instantiateAdversaryAgent(data) {
@@ -482,7 +477,7 @@ async function runSimulation() {
     });
     logToScreen('Final Adversary State:');
     gameState.adversaries.forEach(a => {
-        logToScreen(`- ${a.name}: ${a.current_hp} / ${a.max_hp} HP`);
+        logToScreen(`- ${a.name}: ${a.current_hp} / ${a.max_hp} HP | ${a.current_stress} / ${a.max_stress} Stress`);
     });
     logToScreen(`Final Resources: ${gameState.hope} Hope, ${gameState.fear} Fear`);
 }
@@ -550,38 +545,41 @@ function executePCTurn(player, gameState) {
 }
 
 /**
- * --- UPDATED: GM AI v2.0 ---
- * The GM can now read its features and spend Stress to use them.
+ * --- UPDATED: GM AI v2.1 ---
+ * The GM now picks a RANDOM living adversary to act
+ * and checks for FEAR costs.
  */
 function executeGMTurn(gameState) {
-    const adversary = gameState.adversaries.find(a => a.current_hp > 0);
+    // --- NEW AI: Find ALL living adversaries
+    const livingAdversaries = gameState.adversaries.filter(a => a.current_hp > 0);
+    if (livingAdversaries.length === 0) return 'COMBAT_OVER';
+
+    // --- NEW AI: Pick a RANDOM one to act
+    const adversary = livingAdversaries[Math.floor(Math.random() * livingAdversaries.length)];
+    
     const target = gameState.players.find(p => p.current_hp > 0);
-    if (!adversary || !target) return 'COMBAT_OVER';
+    if (!target) return 'COMBAT_OVER';
 
     logToScreen(`> GM SPOTLIGHT: ${adversary.name} acts (attacking ${target.name})...`);
 
-    // --- NEW GM AI DECISION ---
-    // 1. Find all "action" features
+    // --- GM AI DECISION (NOW CHECKS FEAR) ---
     const allActions = adversary.features.filter(f => f.type === 'action');
     let chosenAction = null;
 
-    // 2. Check which ones are affordable
     for (const action of allActions) {
         if (!action.cost) { // Free actions are always affordable
             chosenAction = action;
             break; 
         } else if (action.cost.type === 'stress' && (adversary.current_stress + action.cost.value <= adversary.max_stress)) {
             chosenAction = action; // We can afford this stress cost
-            break; // AI v2.0: Just use the first one it finds
+            break; 
         } else if (action.cost.type === 'fear' && (gameState.fear >= action.cost.value)) {
             chosenAction = action; // We can afford this fear cost
-            break; // AI v2.0: Just use the first one it finds
+            break;
         }
     }
 
-    // 3. Execute the chosen action (or default to basic attack)
     if (chosenAction) {
-        // Pay the cost
         if (chosenAction.cost) {
             if (chosenAction.cost.type === 'stress') {
                 adversary.current_stress += chosenAction.cost.value;
@@ -592,24 +590,22 @@ function executeGMTurn(gameState) {
             }
         }
 
-        // We must hard-code the logic for each feature we want to simulate.
         logToScreen(`  Using Feature: ${chosenAction.name}!`);
         
         switch (chosenAction.name) {
             case 'Hobbling Strike':
-                // We need to find the damage for this. Your new JSON 'effect' field is just text.
-                // The JSON for Dire Wolf has "3d4+10 direct physical damage".
                 executeGMFeature_HobblingStrike(adversary, target, "3d4+10");
                 break;
-            
             case 'Bite': // From the Bear
-                // The JSON has "3d4+10 physical damage".
-                executeGMFeature_HobblingStrike(adversary, target, "3d4+10"); // Re-using this logic for now
-                logToScreen(`  ${target.name} is now Restrained! (Logic not yet implemented)`);
+                executeGMFeature_Bite(adversary, target, "3d4+10");
                 break;
-            
-            // We can add more 'case' statements here for other features
-            
+            case 'Detain': // From Bladed Guard
+                executeGMFeature_Detain(adversary, target);
+                break;
+            // ADD NEW FEATURE LOGIC HERE
+            // case 'Earth Eruption':
+            //     ...
+            //     break;
             default:
                 logToScreen(`  (Feature logic for '${chosenAction.name}' not yet implemented. Defaulting to basic attack.)`);
                 executeGMBasicAttack(adversary, target);
@@ -624,12 +620,11 @@ function executeGMTurn(gameState) {
 }
 
 /**
- * --- NEW ---
  * Logic for the GM's basic attack.
  */
 function executeGMBasicAttack(adversary, target) {
     const roll = rollD20();
-    const totalAttack = roll + adversary.attack.modifier; // Use the standardized 'modifier'
+    const totalAttack = roll + adversary.attack.modifier; 
     
     logToScreen(`  Roll: 1d20(${roll}) + ${adversary.attack.modifier} = ${totalAttack} vs Evasion ${target.evasion}`);
 
@@ -651,36 +646,81 @@ function executeGMBasicAttack(adversary, target) {
 }
 
 /**
- * --- NEW ---
- * The "brain" logic for a specific adversary feature.
- * NOTE: This is a placeholder. We need to parse the 'effect' string from the JSON.
+ * --- UPDATED: BUG FIX ---
+ * Specific "brain" logic for adversary features.
  */
 function executeGMFeature_HobblingStrike(adversary, target, damageRoll) {
     logToScreen(`  Making a special attack roll for ${adversary.name}'s feature...`);
     const roll = rollD20();
-    const totalAttack = roll + adversary.attack.modifier; // Uses standard attack bonus
+    const totalAttack = roll + adversary.attack.modifier; 
     
     logToScreen(`  Roll: 1d20(${roll}) + ${adversary.attack.modifier} = ${totalAttack} vs Evasion ${target.evasion}`);
 
     if (totalAttack >= target.evasion) {
         logToScreen('  HIT!');
         let critBonus = 0;
-
         if (roll === 20) {
             logToScreen('  CRITICAL HIT!');
             critBonus = parseDiceString(damageRoll).maxDie;
         }
         
         const damageTotal = rollDamage(damageRoll, 1, critBonus); 
-        
-        // This feature deals DIRECT damage
         logToScreen(`  Dealing ${damageTotal} DIRECT damage!`);
         applyDamage(damageTotal, adversary, target, true); // true = isDirectDamage
         
-        // Apply the Vulnerable condition
+        // BUG FIX: Only apply condition on a HIT
         if (!target.conditions.includes('Vulnerable')) {
             target.conditions.push('Vulnerable');
             logToScreen(`  ${target.name} is now Vulnerable!`);
+        }
+    } else {
+        logToScreen('  MISS!');
+    }
+}
+
+function executeGMFeature_Bite(adversary, target, damageRoll) {
+    logToScreen(`  Making a special attack roll for ${adversary.name}'s feature...`);
+    const roll = rollD20();
+    const totalAttack = roll + adversary.attack.modifier; 
+    
+    logToScreen(`  Roll: 1d20(${roll}) + ${adversary.attack.modifier} = ${totalAttack} vs Evasion ${target.evasion}`);
+
+    if (totalAttack >= target.evasion) {
+        logToScreen('  HIT!');
+        let critBonus = 0;
+        if (roll === 20) {
+            logToScreen('  CRITICAL HIT!');
+            critBonus = parseDiceString(damageRoll).maxDie;
+        }
+        
+        const damageTotal = rollDamage(damageRoll, 1, critBonus); 
+        applyDamage(damageTotal, adversary, target, false); // Is NOT direct damage
+        
+        // BUG FIX: Only apply condition on a HIT
+        if (!target.conditions.includes('Restrained')) {
+            target.conditions.push('Restrained');
+            logToScreen(`  ${target.name} is now Restrained! (Logic not yet implemented)`);
+        }
+    } else {
+        logToScreen('  MISS!');
+    }
+}
+
+function executeGMFeature_Detain(adversary, target) {
+    logToScreen(`  Making a special attack roll for ${adversary.name}'s feature...`);
+    const roll = rollD20();
+    const totalAttack = roll + adversary.attack.modifier; 
+    
+    logToScreen(`  Roll: 1d20(${roll}) + ${adversary.attack.modifier} = ${totalAttack} vs Evasion ${target.evasion}`);
+
+    if (totalAttack >= target.evasion) {
+        logToScreen('  HIT!');
+        // This attack does no damage, it just applies a condition.
+        
+        // BUG FIX: Only apply condition on a HIT
+        if (!target.conditions.includes('Restrained')) {
+            target.conditions.push('Restrained');
+            logToScreen(`  ${target.name} is now Restrained! (Logic not yet implemented)`);
         }
     } else {
         logToScreen('  MISS!');
@@ -726,9 +766,7 @@ function processRollResources(result, gameState, player) {
 }
 
 /**
- * --- UPDATED ---
  * Applies damage to a target and logs the result.
- * Now has 'isDirectDamage' flag and reverted AI.
  */
 function applyDamage(damageTotal, attacker, target, isDirectDamage = false) {
     let hpToMark = 0;
@@ -743,7 +781,6 @@ function applyDamage(damageTotal, attacker, target, isDirectDamage = false) {
     logToScreen(`  Calculated Severity: ${originalHPMark} HP`);
 
     // 2. Simple Player AI: Use an Armor Slot if it reduces HP marked.
-    // Bypassed if damage is "direct"
     if (target.type === 'player' && target.current_armor_slots > 0 && hpToMark > 0 && !isDirectDamage) {
         target.current_armor_slots--;
         hpToMark--;
