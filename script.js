@@ -7,11 +7,16 @@ let SRD_ADVERSARIES = []; // This will hold our loaded SRD database
 
 // --- EVENT LISTENERS ---
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('run-button').addEventListener('click', runSimulation);
+    // Column 1 Buttons
     document.getElementById('add-character-button').addEventListener('click', addCharacterToPool);
     document.getElementById('add-adversary-button').addEventListener('click', addAdversaryToPool);
-    document.getElementById('remove-character-button').addEventListener('click', removeLastCharacter);
-    document.getElementById('remove-adversary-button').addEventListener('click', removeLastAdversary);
+    
+    // Main Run Button
+    document.getElementById('run-button').addEventListener('click', runSimulation);
+    
+    // Column 2 & 3: Event delegation for dynamic buttons
+    document.getElementById('pool-column').addEventListener('click', handlePoolClick);
+    document.getElementById('scene-column').addEventListener('click', handleSceneClick);
     
     // SRD Modal Listeners
     document.getElementById('open-srd-modal').addEventListener('click', openSRDModal);
@@ -23,25 +28,42 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('srd-type-filter').addEventListener('change', renderSRDAdversaries);
     document.getElementById('srd-adversary-list').addEventListener('click', handleSRDListClick);
     
-    loadSRDDatabase();
+    // --- THIS IS THE FIX ---
+    // Load the database, AND *THEN* render the UI that depends on it.
+    loadSRDDatabase(); 
+    
+    // These do NOT depend on the database, so they are safe to run.
     renderPools();
     renderActiveScene();
 });
 
 // --- DATA & POOL MANAGEMENT ---
 
+/**
+ * --- THIS IS THE FIX ---
+ * Fetches the SRD adversaries from our JSON file
+ * and *then* renders the modal list.
+ */
 async function loadSRDDatabase() {
     try {
         const response = await fetch('data/srd_adversaries.json');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
         SRD_ADVERSARIES = await response.json();
         logToScreen(`Successfully loaded ${SRD_ADVERSARIES.length} adversaries from SRD catalog.`);
-        renderSRDAdversaries();
+        
+        // NOW that SRD_ADVERSARIES has data, we can safely render the list.
+        renderSRDAdversaries(); 
     } catch (error) {
         logToScreen(`--- FATAL ERROR --- Could not load SRD Adversary JSON: ${error.message}`);
         console.error("Failed to fetch SRD data:", error);
     }
 }
 
+/**
+ * Adds a character from the text box, checking for duplicates.
+ */
 function addCharacterToPool() {
     const jsonTextBox = document.getElementById('character-json');
     try {
@@ -74,26 +96,6 @@ function addAdversaryToPool() {
         jsonTextBox.value = '';
         renderPools();
     } catch (e) { logToScreen(`--- ERROR --- \nInvalid Adversary JSON. ${e.message}`); }
-}
-
-function removeLastCharacter() {
-    if (party.length > 0) {
-        const removedChar = party.pop();
-        logToScreen(`Removed ${removedChar.name} from party.`);
-        updatePartyListUI();
-    } else {
-        logToScreen("Party is already empty.");
-    }
-}
-
-function removeLastAdversary() {
-    if (adversaries.length > 0) {
-        const removedAdv = adversaries.pop();
-        logToScreen(`Removed ${removedAdv.name} from scene.`);
-        updateAdversaryListUI();
-    } else {
-        logToScreen("Adversary list is already empty.");
-    }
 }
 
 // --- DYNAMIC CLICK HANDLERS ---
@@ -239,12 +241,22 @@ function closeSRDModal() {
     document.getElementById('srd-modal-overlay').classList.add('hidden');
 }
 
+/**
+ * --- UPDATED ---
+ * This function now safely checks if SRD_ADVERSARIES has loaded.
+ */
 function renderSRDAdversaries() {
     const tier = document.getElementById('srd-tier-filter').value;
     const type = document.getElementById('srd-type-filter').value;
     const listDiv = document.getElementById('srd-adversary-list');
     
     listDiv.innerHTML = ''; 
+    
+    // If the database isn't loaded yet, show a loading message.
+    if (SRD_ADVERSARIES.length === 0) {
+        listDiv.innerHTML = '<div class="pool-item"><span>Loading database...</span></div>';
+        return;
+    }
     
     const filteredList = SRD_ADVERSARIES.filter(adv => {
         const tierMatch = (tier === 'any' || adv.tier == tier);
@@ -573,7 +585,10 @@ function applyDamage(damageTotal, attacker, target) {
     
     if (originalHPMark > hpToMark) {
         logToScreen(`  Final HP marked: ${hpToMark}.`);
+    } else if (originalHPMark > 0) {
+        logToScreen(`  Final HP marked: ${hpToMark}.`);
     }
+    
     logToScreen(`  ${target.name} HP: ${target.current_hp} / ${target.max_hp}`);
 
     if (target.current_hp <= 0) {
