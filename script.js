@@ -28,11 +28,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('srd-type-filter').addEventListener('change', renderSRDAdversaries);
     document.getElementById('srd-adversary-list').addEventListener('click', handleSRDListClick);
     
-    // --- THIS IS THE FIX ---
-    // Load the database, AND *THEN* render the UI that depends on it.
+    // Load the SRD database *then* render the UI that depends on it
     loadSRDDatabase(); 
     
-    // These do NOT depend on the database, so they are safe to run.
+    // Render the non-dependent UI
     renderPools();
     renderActiveScene();
 });
@@ -40,9 +39,8 @@ document.addEventListener('DOMContentLoaded', () => {
 // --- DATA & POOL MANAGEMENT ---
 
 /**
- * --- THIS IS THE FIX ---
- * Fetches the SRD adversaries from our JSON file
- * and *then* renders the modal list.
+ * Fetches the SRD adversaries from our new JSON file
+ * and *then* renders the modal list. THIS IS THE FIX.
  */
 async function loadSRDDatabase() {
     try {
@@ -53,7 +51,7 @@ async function loadSRDDatabase() {
         SRD_ADVERSARIES = await response.json();
         logToScreen(`Successfully loaded ${SRD_ADVERSARIES.length} adversaries from SRD catalog.`);
         
-        // NOW that SRD_ADVERSARIES has data, we can safely render the list.
+        // NOW that SRD_ADVERSARIES has data, we can safely render the modal list.
         renderSRDAdversaries(); 
     } catch (error) {
         logToScreen(`--- FATAL ERROR --- Could not load SRD Adversary JSON: ${error.message}`);
@@ -106,12 +104,14 @@ function handlePoolClick(event) {
     if (!agentId) return; 
 
     if (target.classList.contains('move-button')) {
+        // Player logic (MOVE)
         let playerIndex = playerPool.findIndex(p => p.simId === agentId);
         if (playerIndex > -1) {
             const agent = playerPool.splice(playerIndex, 1)[0];
             activeParty.push(agent);
             logToScreen(`Moved ${agent.name} to Active Scene.`);
         } else {
+            // Adversary logic (COPY)
             const agentTemplate = adversaryPool.find(a => a.simId === agentId);
             if (agentTemplate) {
                 const newAgentInstance = JSON.parse(JSON.stringify(agentTemplate));
@@ -123,10 +123,12 @@ function handlePoolClick(event) {
     }
     
     if (target.classList.contains('flush-button')) {
+        // Flush from Player Pool
         let playerIndex = playerPool.findIndex(p => p.simId === agentId);
         if (playerIndex > -1) {
             logToScreen(`Flushed ${playerPool.splice(playerIndex, 1)[0].name} from pool.`);
         } else {
+            // Flush from Adversary Pool
             let adversaryIndex = adversaryPool.findIndex(a => a.simId === agentId);
             if (adversaryIndex > -1) {
                 logToScreen(`Flushed ${adversaryPool.splice(adversaryIndex, 1)[0].name} from pool.`);
@@ -143,12 +145,14 @@ function handleSceneClick(event) {
     if (!agentId) return; 
 
     if (target.classList.contains('move-button')) {
+        // Player logic (MOVE BACK)
         let playerIndex = activeParty.findIndex(p => p.simId === agentId);
         if (playerIndex > -1) {
             const agent = activeParty.splice(playerIndex, 1)[0];
             playerPool.push(agent);
             logToScreen(`Moved ${agent.name} back to Player Pool.`);
         } else {
+            // Adversary logic (DELETE INSTANCE)
             let adversaryIndex = activeAdversaries.findIndex(a => a.simId === agentId);
             if (adversaryIndex > -1) {
                 const agent = activeAdversaries.splice(adversaryIndex, 1)[0];
@@ -242,8 +246,8 @@ function closeSRDModal() {
 }
 
 /**
- * --- UPDATED ---
- * This function now safely checks if SRD_ADVERSARIES has loaded.
+ * Renders the SRD adversary list based on filters.
+ * Now it safely checks if SRD_ADVERSARIES is loaded.
  */
 function renderSRDAdversaries() {
     const tier = document.getElementById('srd-tier-filter').value;
@@ -556,9 +560,8 @@ function processRollResources(result, gameState, player) {
 }
 
 /**
- * --- UPDATED ---
+ * --- REVERTED TO SIMPLE AI ---
  * Applies damage to a target and logs the result.
- * Reverted to simple Armor Slot AI and clearer logging.
  */
 function applyDamage(damageTotal, attacker, target) {
     let hpToMark = 0;
@@ -573,7 +576,6 @@ function applyDamage(damageTotal, attacker, target) {
     logToScreen(`  Calculated Severity: ${originalHPMark} HP`);
 
     // 2. Simple Player AI: Use an Armor Slot if it reduces HP marked.
-    // This is the "always use" logic, not the "conservative" one.
     if (target.type === 'player' && target.current_armor_slots > 0 && hpToMark > 0) {
         target.current_armor_slots--;
         hpToMark--;
