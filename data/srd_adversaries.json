@@ -23,7 +23,18 @@
           "type": "passive",
           "cost": null,
           "value": 3,
-          "effect": "The Burrower can be spotlighted up to three times per GM turn. Spend Fear as usual to spotlight them."
+          "effect": "The Burrower can be spotlighted up to three times per GM turn. Spend Fear as usual to spotlight them.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "SPECIAL_RULE",
+                "target": "SELF",
+                "details": {
+                  "rule": "Can be spotlighted up to 3 times per GM turn."
+                }
+              }
+            ]
+          }
         },
         {
           "name": "Earth Eruption",
@@ -33,21 +44,103 @@
             "value": 1
           },
           "value": null,
-          "effect": "Mark a Stress to have the Burrower burst out of the ground. All creatures within Very Close range must succeed on an Agility Reaction Roll or be knocked over, making them Vulnerable until they next act."
+          "effect": "Mark a Stress to have the Burrower burst out of the ground. All creatures within Very Close range must succeed on an Agility Reaction Roll or be knocked over, making them Vulnerable until they next act.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "FORCE_REACTION_ROLL",
+                "target": "ALL_IN_RANGE",
+                "range": "Very Close",
+                "details": {
+                  "roll_type": "agility",
+                  "difficulty_text": "Succeed on",
+                  "on_fail": {
+                    "apply_condition": "Vulnerable",
+                    "duration_text": "until they next act"
+                  }
+                }
+              }
+            ]
+          }
         },
         {
           "name": "Spit Acid",
           "type": "action",
           "cost": null,
           "value": null,
-          "effect": "Make an attack against all targets in front of the Burrower within Close range. Targets the Burrower succeeds against take 2d6 physical damage and must mark an Armor Slot without receiving its benefits (they can still use armor to reduce the damage). If they can't mark an Armor Slot, they must mark an additional HP and you gain a Fear."
+          "effect": "Make an attack against all targets in front of the Burrower within Close range. Targets the Burrower succeeds against take 2d6 physical damage and must mark an Armor Slot without receiving its benefits (they can still use armor to reduce the damage). If they can't mark an Armor Slot, they must mark an additional HP and you gain a Fear.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "ATTACK_ROLL",
+                "target": "ALL_IN_RANGE",
+                "range": "Close",
+                "details": {
+                  "target_description": "all targets in front of the Burrower",
+                  "on_success": [
+                    {
+                      "action_type": "DEAL_DAMAGE",
+                      "damage_string": "2d6 phy",
+                      "is_direct": false
+                    },
+                    {
+                      "action_type": "APPLY_CONDITION",
+                      "condition": "Marked Armor Slot (no benefit)",
+                      "duration_text": "N/A"
+                    },
+                    {
+                      "action_type": "CONDITIONAL_EFFECT",
+                      "condition_text": "If they can't mark an Armor Slot",
+                      "on_trigger": [
+                        {
+                          "action_type": "DEAL_DAMAGE",
+                          "damage_string": "1 hp",
+                          "is_direct": true
+                        },
+                        {
+                          "action_type": "GAIN_RESOURCE",
+                          "target": "GM",
+                          "details": {
+                            "resource": "Fear",
+                            "value": 1
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
         },
         {
           "name": "Acid Bath",
           "type": "reaction",
           "cost": null,
           "value": null,
-          "effect": "When the Burrower takes Severe damage, all creatures within Close range are bathed in their acidic blood, taking 1d10 physical damage. This splash covers the ground within Very Close range with blood, and all creatures other than the Burrower who move through it take 1d6 physical damage."
+          "effect": "When the Burrower takes Severe damage, all creatures within Close range are bathed in their acidic blood, taking 1d10 physical damage. This splash covers the ground within Very Close range with blood, and all creatures other than the Burrower who move through it take 1d6 physical damage.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "DEAL_DAMAGE",
+                "target": "ALL_IN_RANGE",
+                "range": "Close",
+                "details": {
+                  "damage_string": "1d10 phy",
+                  "is_direct": true
+                }
+              },
+              {
+                "action_type": "CREATE_HAZARD",
+                "target": "AREA",
+                "range": "Very Close",
+                "details": {
+                  "hazard_name": "Acidic Blood",
+                  "effect_string": "all creatures (other than Burrower) who move through it take 1d6 physical damage"
+                }
+              }
+            ]
+          }
         }
       ]
     },
@@ -74,7 +167,25 @@
           "type": "passive",
           "cost": null,
           "value": null,
-          "effect": "Targets who mark HP from the Bear's standard attack are knocked back to Very Close range."
+          "effect": "Targets who mark HP from the Bear's standard attack are knocked back to Very Close range.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "CONDITIONAL_EFFECT",
+                "condition_text": "On standard attack success that causes target to mark HP",
+                "on_trigger": [
+                  {
+                    "action_type": "APPLY_CONDITION",
+                    "target": "PRIMARY_TARGET",
+                    "condition": "Knocked Back",
+                    "details": {
+                      "range": "Very Close"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "Bite",
@@ -84,14 +195,49 @@
             "value": 1
           },
           "value": null,
-          "effect": "Mark a Stress to make an attack against a target within Melee range. On a success, deal 3d4+10 physical damage and the target is Restrained until they break free with a successful Strength Roll."
+          "effect": "Mark a Stress to make an attack against a target within Melee range. On a success, deal 3d4+10 physical damage and the target is Restrained until they break free with a successful Strength Roll.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "ATTACK_ROLL",
+                "target": "PRIMARY_TARGET",
+                "range": "Melee",
+                "details": {
+                  "on_success": [
+                    {
+                      "action_type": "DEAL_DAMAGE",
+                      "damage_string": "3d4+10 phy",
+                      "is_direct": false
+                    },
+                    {
+                      "action_type": "APPLY_CONDITION",
+                      "condition": "Restrained",
+                      "duration_text": "until they break free with a successful Strength Roll"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
         },
         {
           "name": "Momentum",
           "type": "reaction",
           "cost": null,
           "value": null,
-          "effect": "When the Bear makes a successful attack against a PC, you gain a Fear."
+          "effect": "When the Bear makes a successful attack against a PC, you gain a Fear.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "GAIN_RESOURCE",
+                "target": "GM",
+                "details": {
+                  "resource": "Fear",
+                  "value": 1
+                }
+              }
+            ]
+          }
         }
       ]
     },
@@ -121,7 +267,33 @@
             "value": 1
           },
           "value": null,
-          "effect": "Mark a Stress to say something mocking and force a target within Close range to make a Presence Reaction Roll (14) to see if they can save face. On a failure, the target must mark 2 Stress and is Vulnerable until the scene ends."
+          "effect": "Mark a Stress to say something mocking and force a target within Close range to make a Presence Reaction Roll (14) to see if they can save face. On a failure, the target must mark 2 Stress and is Vulnerable until the scene ends.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "FORCE_REACTION_ROLL",
+                "target": "PRIMARY_TARGET",
+                "range": "Close",
+                "details": {
+                  "roll_type": "presence",
+                  "difficulty": 14,
+                  "difficulty_text": "Reaction Roll (14)",
+                  "on_fail": [
+                    {
+                      "action_type": "DEAL_DAMAGE",
+                      "damage_string": "2 stress",
+                      "is_direct": true
+                    },
+                    {
+                      "action_type": "APPLY_CONDITION",
+                      "condition": "Vulnerable",
+                      "duration_text": "until the scene ends"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
         },
         {
           "name": "Scapegoat",
@@ -131,7 +303,19 @@
             "value": 1
           },
           "value": null,
-          "effect": "Spend a Fear and target a PC. The Courtier convinces a crowd or prominent individual that the target is the cause of their current conflict or misfortune."
+          "effect": "Spend a Fear and target a PC. The Courtier convinces a crowd or prominent individual that the target is the cause of their current conflict or misfortune.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "NARRATIVE_EFFECT",
+                "target": "PRIMARY_TARGET",
+                "range": "N/A",
+                "details": {
+                  "effect_description": "Convinces a crowd or prominent individual that the target is the cause of their current conflict or misfortune."
+                }
+              }
+            ]
+          }
         }
       ]
     },
@@ -158,14 +342,45 @@
           "type": "passive",
           "cost": null,
           "value": "1d4+1",
-          "effect": "When the Mosquitoes have marked half or more of their HP, their standard attack deals 1d4+1 physical damage instead."
+          "effect": "When the Mosquitoes have marked half or more of their HP, their standard attack deals 1d4+1 physical damage instead.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "CONDITIONAL_EFFECT",
+                "condition_text": "When HP is <= half",
+                "on_trigger": [
+                  {
+                    "action_type": "MODIFY_STAT",
+                    "target": "SELF",
+                    "details": {
+                      "stat": "standard_attack_damage",
+                      "new_value": "1d4+1 phy"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "Flying",
           "type": "passive",
           "cost": null,
           "value": null,
-          "effect": "While flying, the Mosquitoes have a +2 bonus to their Difficulty."
+          "effect": "While flying, the Mosquitoes have a +2 bonus to their Difficulty.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "MODIFY_STAT",
+                "target": "SELF",
+                "details": {
+                  "stat": "Difficulty",
+                  "modifier": "+2",
+                  "condition_text": "While flying"
+                }
+              }
+            ]
+          }
         },
         {
           "name": "Bloodsucker",
@@ -175,7 +390,19 @@
             "value": 1
           },
           "value": null,
-          "effect": "When the Mosquitoes' attack causes a target to mark HP, you can mark a Stress to force the target to mark an additional HP."
+          "effect": "When the Mosquitoes' attack causes a target to mark HP, you can mark a Stress to force the target to mark an additional HP.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "DEAL_DAMAGE",
+                "target": "PRIMARY_TARGET",
+                "details": {
+                  "damage_string": "1 hp",
+                  "is_direct": true
+                }
+              }
+            ]
+          }
         }
       ]
     },
@@ -202,7 +429,33 @@
           "type": "passive",
           "cost": null,
           "value": null,
-          "effect": "If the Wolf makes a successful standard attack and another Dire Wolf is within Melee range of the target, deal 1d6+5 physical damage instead of their standard damage and you gain a Fear."
+          "effect": "If the Wolf makes a successful standard attack and another Dire Wolf is within Melee range of the target, deal 1d6+5 physical damage instead of their standard damage and you gain a Fear.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "CONDITIONAL_EFFECT",
+                "condition_text": "On standard attack success AND another Dire Wolf is within Melee of target",
+                "on_trigger": [
+                  {
+                    "action_type": "MODIFY_STAT",
+                    "target": "SELF",
+                    "details": {
+                      "stat": "standard_attack_damage",
+                      "new_value": "1d6+5 phy"
+                    }
+                  },
+                  {
+                    "action_type": "GAIN_RESOURCE",
+                    "target": "GM",
+                    "details": {
+                      "resource": "Fear",
+                      "value": 1
+                    }
+                  }
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "Hobbling Strike",
@@ -212,7 +465,30 @@
             "value": 1
           },
           "value": null,
-          "effect": "Mark a Stress to make an attack against a target within Melee range. On a success, deal 3d4+10 direct physical damage and make them Vulnerable until they clear at least 1 HP."
+          "effect": "Mark a Stress to make an attack against a target within Melee range. On a success, deal 3d4+10 direct physical damage and make them Vulnerable until they clear at least 1 HP.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "ATTACK_ROLL",
+                "target": "PRIMARY_TARGET",
+                "range": "Melee",
+                "details": {
+                  "on_success": [
+                    {
+                      "action_type": "DEAL_DAMAGE",
+                      "damage_string": "3d4+10 phy",
+                      "is_direct": true
+                    },
+                    {
+                      "action_type": "APPLY_CONDITION",
+                      "condition": "Vulnerable",
+                      "duration_text": "until they clear at least 1 HP"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
         }
       ]
     },
@@ -239,17 +515,52 @@
           "type": "passive",
           "cost": null,
           "value": null,
-          "effect": "A creature who tries to move within Very Close range of the Guard must succeed on an Agility Roll. If additional Bladed Guards are standing in a line alongside the first, and each is within Melee range of another guard in the line, the Difficulty increases by the total number of guards in that line."
+          "effect": "A creature who tries to move within Very Close range of the Guard must succeed on an Agility Roll. If additional Bladed Guards are standing in a line alongside the first, and each is within Melee range of another guard in the line, the Difficulty increases by the total number of guards in that line.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "FORCE_ROLL",
+                "trigger": "Move within Very Close range",
+                "target": "MOVING_CREATURE",
+                "details": {
+                  "roll_type": "agility",
+                  "difficulty_text": "Succeed on",
+                  "difficulty_modifier": {
+                    "bonus": "+N (total guards in line)"
+                  }
+                }
+              }
+            ]
+          }
         },
         {
           "name": "Detain",
           "type": "action",
-          "cost": {
-            "type": "stress",
-            "value": 1
-          },
+          "cost": null,
           "value": null,
-          "effect": "Make an attack against a target within Very Close range. On a success, mark a Stress to Restrain the target until they break free with a successful attack, Finesse Roll, or Strength Roll."
+          "effect": "Make an attack against a target within Very Close range. On a success, mark a Stress to Restrain the target until they break free with a successful attack, Finesse Roll, or Strength Roll.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "ATTACK_ROLL",
+                "target": "PRIMARY_TARGET",
+                "range": "Very Close",
+                "details": {
+                  "on_success": [
+                    {
+                      "action_type": "APPLY_CONDITION",
+                      "cost": {
+                        "type": "stress",
+                        "value": 1
+                      },
+                      "condition": "Restrained",
+                      "duration_text": "until they break free with a successful attack, Finesse Roll, or Strength Roll"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
         }
       ]
     },
@@ -279,21 +590,64 @@
             "value": 2
           },
           "value": null,
-          "effect": "Spend 2 Fear to spotlight the Head Guard and up to 2d4 allies within Far range."
+          "effect": "Spend 2 Fear to spotlight the Head Guard and up to 2d4 allies within Far range.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "SPOTLIGHT",
+                "target": "SELF",
+                "details": {}
+              },
+              {
+                "action_type": "SPOTLIGHT",
+                "target": "ALLIES_IN_RANGE",
+                "range": "Far",
+                "details": {
+                  "count": "2d4"
+                }
+              }
+            ]
+          }
         },
         {
           "name": "On My Signal",
           "type": "reaction",
           "cost": null,
           "value": 5,
-          "effect": "Countdown (5). When the Head Guard is in the spotlight for the first time, activate the countdown. It ticks down when a PC makes an attack roll. When it triggers, all Archer Guards within Far range make a standard attack with advantage against the nearest target within their range. If any attacks succeed on the same target, combine their damage."
+          "effect": "Countdown (5). When the Head Guard is in the spotlight for the first time, activate the countdown. It ticks down when a PC makes an attack roll. When it triggers, all Archer Guards within Far range make a standard attack with advantage against the nearest target within their range. If any attacks succeed on the same target, combine their damage.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "SPECIAL_RULE",
+                "target": "ALL_ALLIES",
+                "details": {
+                  "rule": "Countdown (5)",
+                  "trigger_activate": "Head Guard spotlighted for first time",
+                  "trigger_tick": "PC makes an attack roll",
+                  "on_trigger": "All Archer Guards within Far range make a standard attack with advantage against the nearest target. Combine damage if multiple hits on same target."
+                }
+              }
+            ]
+          }
         },
         {
           "name": "Momentum",
           "type": "reaction",
           "cost": null,
           "value": null,
-          "effect": "When the Head Guard makes a successful attack against a PC, you gain a Fear."
+          "effect": "When the Head Guard makes a successful attack against a PC, you gain a Fear.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "GAIN_RESOURCE",
+                "target": "GM",
+                "details": {
+                  "resource": "Fear",
+                  "value": 1
+                }
+              }
+            ]
+          }
         }
       ]
     },
@@ -320,17 +674,58 @@
           "type": "action",
           "cost": null,
           "value": null,
-          "effect": "Choose a target within Far range and temporarily Curse them. While the target is Cursed, you can mark a Stress when that target rolls with Hope to make the roll be with Fear instead."
+          "effect": "Choose a target within Far range and temporarily Curse them. While the target is Cursed, you can mark a Stress when that target rolls with Hope to make the roll be with Fear instead.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "APPLY_CONDITION",
+                "target": "PRIMARY_TARGET",
+                "range": "Far",
+                "details": {
+                  "condition": "Cursed",
+                  "duration_text": "temporary",
+                  "sub_effect": {
+                    "trigger": "Target rolls with Hope",
+                    "cost": {
+                      "type": "stress",
+                      "value": 1
+                    },
+                    "effect": "Make the roll be with Fear instead."
+                  }
+                }
+              }
+            ]
+          }
         },
         {
           "name": "Chaotic Flux",
           "type": "action",
-          "cost": {
-            "type": "stress",
-            "value": 1
-          },
+          "cost": null,
           "value": null,
-          "effect": "Make an attack against up to three targets within Very Close range. Mark a Stress to deal 2d6+3 magic damage to targets the Hexer succeeded against."
+          "effect": "Make an attack against up to three targets within Very Close range. Mark a Stress to deal 2d6+3 magic damage to targets the Hexer succeeded against.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "ATTACK_ROLL",
+                "target": "MULTI_TARGET",
+                "range": "Very Close",
+                "details": {
+                  "target_count": 3,
+                  "on_success": [
+                    {
+                      "action_type": "DEAL_DAMAGE",
+                      "cost": {
+                        "type": "stress",
+                        "value": 1
+                      },
+                      "damage_string": "2d6+3 mag",
+                      "is_direct": false
+                    }
+                  ]
+                }
+              }
+            ]
+          }
         }
       ]
     },
@@ -357,7 +752,26 @@
           "type": "passive",
           "cost": null,
           "value": 3,
-          "effect": "The Zombie is defeated when they take any damage. For every 3 damage a PC deals to the Zombie, defeat an additional Minion within range the attack would succeed against."
+          "effect": "The Zombie is defeated when they take any damage. For every 3 damage a PC deals to the Zombie, defeat an additional Minion within range the attack would succeed against.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "SPECIAL_RULE",
+                "target": "SELF",
+                "details": {
+                  "rule": "Defeated on any damage."
+                }
+              },
+              {
+                "action_type": "SPECIAL_RULE",
+                "target": "ALLIES_IN_RANGE",
+                "details": {
+                  "rule": "For every 3 damage taken, defeat an additional Minion within range.",
+                  "parent_value": 3
+                }
+              }
+            ]
+          }
         },
         {
           "name": "Group Attack",
@@ -367,7 +781,32 @@
             "value": 1
           },
           "value": null,
-          "effect": "Spend a Fear to choose a target and spotlight all Rotted Zombies within Close range of them. Those Minions move into Melee range of the target and make one shared attack roll. On a success, they deal 2 physical damage each. Combine this damage."
+          "effect": "Spend a Fear to choose a target and spotlight all Rotted Zombies within Close range of them. Those Minions move into Melee range of the target and make one shared attack roll. On a success, they deal 2 physical damage each. Combine this damage.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "SPECIAL_ATTACK",
+                "target": "PRIMARY_TARGET",
+                "range": "Close",
+                "details": {
+                  "special_rule": "SHARED_ATTACK_ROLL_ALL_ZOMBIES",
+                  "sub_actions": [
+                    "Spotlight all Rotted Zombies within Close",
+                    "Move into Melee"
+                  ],
+                  "on_success": [
+                    {
+                      "action_type": "DEAL_DAMAGE",
+                      "damage_string": "2 phy",
+                      "is_direct": true,
+                      "special_rule": "PER_ZOMBIE",
+                      "combine_damage": true
+                    }
+                  ]
+                }
+              }
+            ]
+          }
         }
       ]
     },
@@ -394,17 +833,54 @@
           "type": "passive",
           "cost": null,
           "value": null,
-          "effect": "When two or more adversaries are within Very Close range of a creature, all damage the Archer deals to that creature is doubled."
+          "effect": "When two or more adversaries are within Very Close range of a creature, all damage the Archer deals to that creature is doubled.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "CONDITIONAL_EFFECT",
+                "condition_text": "Target has 2+ adversaries within Very Close range",
+                "on_trigger": [
+                  {
+                    "action_type": "MODIFY_DAMAGE",
+                    "target": "PRIMARY_TARGET",
+                    "details": {
+                      "multiplier": 2
+                    }
+                  }
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "Deadly Shot",
           "type": "action",
-          "cost": {
-            "type": "stress",
-            "value": 1
-          },
+          "cost": null,
           "value": null,
-          "effect": "Make an attack against a Vulnerable target within Far range. On a success, mark a Stress to deal 3d4+8 physical damage."
+          "effect": "Make an attack against a Vulnerable target within Far range. On a success, mark a Stress to deal 3d4+8 physical damage.",
+          "parsed_effect": {
+            "actions": [
+              {
+                "action_type": "ATTACK_ROLL",
+                "target": "PRIMARY_TARGET",
+                "range": "Far",
+                "details": {
+                  "target_condition": "Vulnerable",
+                  "on_success": [
+                    {
+                      "action_type": "DEAL_DAMAGE",
+                      "cost": {
+                        "type": "stress",
+                        "value": 1
+                      },
+                      "damage_string": "3d4+8 phy",
+                      "is_direct": false
+                    }
+                  ]
+                }
+              }
+            ]
+          }
         }
       ]
     }
