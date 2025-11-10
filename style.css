@@ -12,13 +12,16 @@ header {
     padding-bottom: 10px;
 }
 main {
-    max-width: 800px;
+    max-width: 960px; /* Increased max-width to accommodate 2x2 grid */
     margin: 20px auto;
 }
+
+/* Updated grid for 2x2 layout */
 .data-inputs {
     margin-bottom: 20px;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr; /* Two columns for input and list */
+    grid-template-rows: auto auto; /* Two rows for players and adversaries */
     gap: 20px;
 }
 .json-input-box {
@@ -41,8 +44,8 @@ textarea {
     margin-bottom: 10px;
 }
 
-/* New button styles */
-#add-character-button {
+/* Button styles */
+#add-character-button, #add-adversary-button { /* Applied to both add buttons */
     background-color: #006421;
     color: white;
     font-size: 1rem;
@@ -51,24 +54,27 @@ textarea {
     border-radius: 5px;
     cursor: pointer;
 }
-#add-character-button:hover {
+#add-character-button:hover, #add-adversary-button:hover {
     background-color: #004d1a;
 }
 
-/* New party list styles */
-#party-list-container {
+
+/* List container styles (for both party and adversary) */
+#party-list-container, #adversary-list-container {
     background-color: #252525;
     border: 1px solid #444;
     border-radius: 5px;
     padding: 0 15px 15px 15px;
 }
-#party-list-container h4 {
+#party-list-container h4, #adversary-list-container h4 {
     margin-bottom: 10px;
 }
-#party-list {
+#party-list, #adversary-list {
     min-height: 100px;
+    max-height: 200px; /* Added max-height for scroll */
+    overflow-y: auto;
 }
-.party-member {
+.party-member, .adversary-member { /* Styles for individual items in lists */
     background-color: #333;
     padding: 5px 10px;
     border-radius: 3px;
@@ -79,9 +85,10 @@ textarea {
 
 .controls {
     text-align: center;
+    margin-top: 20px; /* Added margin to separate from lists */
     margin-bottom: 20px;
 }
-#run-button { /* Changed button to id selector */
+#run-button {
     font-size: 1.2rem;
     padding: 10px 20px;
     background-color: #007acc;

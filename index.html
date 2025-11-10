@@ -13,8 +13,8 @@
     <main>
         <div class="data-inputs">
             <div class="json-input-box">
-                <label for="character-json">Paste Character JSON from Local Storage:</label>
-                <textarea id="character-json" rows="8"></textarea>
+                <label for="character-json">Paste Player JSON from Local Storage:</label>
+                <textarea id="character-json" rows="8" placeholder="Paste player character JSON here..."></textarea>
                 <button id="add-character-button">Add Player to Party</button>
             </div>
             
@@ -23,6 +23,19 @@
                 <div id="party-list">
                     </div>
             </div>
+
+            <div class="json-input-box">
+                <label for="adversary-json">Paste Adversary JSON (or leave empty for Dire Wolf):</label>
+                <textarea id="adversary-json" rows="8" placeholder="Paste adversary JSON here..."></textarea>
+                <button id="add-adversary-button">Add Adversary to Scene</button>
+            </div>
+
+            <div id="adversary-list-container">
+                <h4>Current Adversaries:</h4>
+                <div id="adversary-list">
+                    </div>
+            </div>
+
         </div>
 
         <div class="controls">
