@@ -513,8 +513,13 @@ function determineNextSpotlight(lastOutcome, gameState) {
 }
 
 function executePCTurn(player, gameState) {
-    const target = gameState.adversaries.find(a => a.current_hp > 0);
-    if (!target) return 'COMBAT_OVER';
+    // --- UPDATED: PC AI v2.1 ---
+    // The PC will "focus fire" on the most-damaged adversary
+    let targets = gameState.adversaries.filter(a => a.current_hp > 0);
+    if (targets.length === 0) return 'COMBAT_OVER';
+    
+    // Find the target with the lowest HP
+    const target = targets.reduce((prev, curr) => (prev.current_hp < curr.current_hp) ? prev : curr);
 
     logToScreen(`> ${player.name}'s turn (attacking ${target.name})...`);
 
@@ -557,8 +562,11 @@ function executeGMTurn(gameState) {
     // --- NEW AI: Pick a RANDOM one to act
     const adversary = livingAdversaries[Math.floor(Math.random() * livingAdversaries.length)];
     
-    const target = gameState.players.find(p => p.current_hp > 0);
-    if (!target) return 'COMBAT_OVER';
+    // --- NEW AI: Target the player with the lowest HP
+    const livingPlayers = gameState.players.filter(p => p.current_hp > 0);
+    if (livingPlayers.length === 0) return 'COMBAT_OVER';
+    
+    const target = livingPlayers.reduce((prev, curr) => (prev.current_hp < curr.current_hp) ? prev : curr);
 
     logToScreen(`> GM SPOTLIGHT: ${adversary.name} acts (attacking ${target.name})...`);
 
@@ -602,8 +610,11 @@ function executeGMTurn(gameState) {
             case 'Detain': // From Bladed Guard
                 executeGMFeature_Detain(adversary, target);
                 break;
+            case 'Earth Eruption': // From Acid Burrower
+                executeGMFeature_EarthEruption(adversary, target, gameState);
+                break;
             // ADD NEW FEATURE LOGIC HERE
-            // case 'Earth Eruption':
+            // case 'Spit Acid':
             //     ...
             //     break;
             default:
@@ -646,7 +657,7 @@ function executeGMBasicAttack(adversary, target) {
 }
 
 /**
- * --- UPDATED: BUG FIX ---
+ * --- NEW / UPDATED ---
  * Specific "brain" logic for adversary features.
  */
 function executeGMFeature_HobblingStrike(adversary, target, damageRoll) {
@@ -724,6 +735,26 @@ function executeGMFeature_Detain(adversary, target) {
         }
     } else {
         logToScreen('  MISS!');
+    }
+}
+
+function executeGMFeature_EarthEruption(adversary, target, gameState) {
+    // "All creatures within Very Close range must succeed on an Agility Reaction Roll or be knocked over..."
+    // For now, we'll just have the primary target make the roll.
+    // The JSON doesn't specify the difficulty, so I'll default to 12.
+    const reactionDifficulty = 12; 
+    logToScreen(`  ${target.name} must make an Agility Reaction Roll (Diff ${reactionDifficulty})!`);
+    
+    const reactionSuccess = executeReactionRoll(target, reactionDifficulty);
+    
+    if (reactionSuccess) {
+        logToScreen(`  ${target.name} succeeds the Reaction Roll!`);
+    } else {
+        logToScreen(`  ${target.name} fails the Reaction Roll!`);
+        if (!target.conditions.includes('Vulnerable')) {
+            target.conditions.push('Vulnerable');
+            logToScreen(`  ${target.name} is now Vulnerable!`);
+        }
     }
 }
 
@@ -809,6 +840,24 @@ function applyDamage(damageTotal, attacker, target, isDirectDamage = false) {
 
 function rollD20() { return Math.floor(Math.random() * 20) + 1; }
 function rollD12() { return Math.floor(Math.random() * 12) + 1; }
+
+/**
+ * --- NEW ---
+ * Executes a non-Duality, d20 Reaction Roll.
+ * Does NOT generate Hope or Fear.
+ */
+function executeReactionRoll(target, difficulty) {
+    const roll = rollD20();
+    // For now, we assume Agility. This will need to be smarter later.
+    const traitName = 'agility';
+    const traitMod = target.traits[traitName] || 0;
+    const total = roll + traitMod;
+    
+    logToScreen(`  ${target.name} makes a Reaction Roll (Difficulty ${difficulty})...`);
+    logToScreen(`  Roll: 1d20(${roll}) + ${traitName}(${traitMod}) = ${total}`);
+    
+    return total >= difficulty;
+}
 
 function executeActionRoll(difficulty, traitModifier, otherModifiers) {
     const hopeRoll = rollD12();
