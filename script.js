@@ -10,16 +10,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Column 1 Buttons
     document.getElementById('add-character-button').addEventListener('click', addCharacterToPool);
     document.getElementById('add-adversary-button').addEventListener('click', addAdversaryToPool);
-
-    // Main Run Button
     document.getElementById('run-button').addEventListener('click', runSimulation);
-
-    // Column 2 & 3: Event delegation for dynamic buttons
+    // Column 2 & 3 Buttons
     document.getElementById('pool-column').addEventListener('click', handlePoolClick);
     document.getElementById('scene-column').addEventListener('click', handleSceneClick);
     document.getElementById('remove-character-button').addEventListener('click', removeLastCharacter);
     document.getElementById('remove-adversary-button').addEventListener('click', removeLastAdversary);
-
     // SRD Modal Listeners
     document.getElementById('open-srd-modal').addEventListener('click', openSRDModal);
     document.getElementById('close-srd-modal').addEventListener('click', closeSRDModal);
@@ -30,19 +26,13 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('srd-type-filter').addEventListener('change', renderSRDAdversaries);
     document.getElementById('srd-adversary-list').addEventListener('click', handleSRDListClick);
 
-    // Load the SRD database *then* render the UI that depends on it
-    loadSRDDatabase();
-    // Render the non-dependent UI
+    loadSRDDatabase(); 
     renderPools();
     renderActiveScene();
 });
 
 // --- DATA & POOL MANAGEMENT ---
 
-/**
- * Fetches the SRD adversaries from our new JSON file
- * and looks for the "adversaries" key inside it.
- */
 async function loadSRDDatabase() {
     try {
         const response = await fetch('data/srd_adversaries.json');
@@ -50,33 +40,25 @@ async function loadSRDDatabase() {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
-        
-        // This now correctly reads your new structure
-        SRD_ADVERSARIES = data.adversaries; 
-        
+        SRD_ADVERSARIES = data.adversaries; // Correctly read the nested array
         logToScreen(`Successfully loaded ${SRD_ADVERSARIES.length} adversaries from SRD catalog.`);
-        renderSRDAdversaries(); // Render the modal list now that we have data
+        renderSRDAdversaries(); 
     } catch (error) {
         logToScreen(`--- FATAL ERROR --- Could not load SRD Adversary JSON: ${error.message}`);
         console.error("Failed to fetch SRD data:", error);
     }
 }
 
-/**
- * Adds a character from the text box, checking for duplicates.
- */
 function addCharacterToPool() {
     const jsonTextBox = document.getElementById('character-json');
     try {
         const newCharacter = JSON.parse(jsonTextBox.value);
         if (!newCharacter.name || !newCharacter.traits) throw new Error('JSON missing "name" or "traits"');
-        
         const isDuplicate = playerPool.some(p => p.name === newCharacter.name);
         if (isDuplicate) {
             logToScreen(`--- ERROR --- \nA player named '${newCharacter.name}' is already in the pool.`);
             return;
         }
-
         newCharacter.simId = `player-${Date.now()}`;
         playerPool.push(newCharacter);
         logToScreen(`Added ${newCharacter.name} to Player Pool.`);
@@ -85,21 +67,16 @@ function addCharacterToPool() {
     } catch (e) { logToScreen(`--- ERROR --- \nInvalid Character JSON. ${e.message}`); }
 }
 
-/**
- * Adds an adversary from the text box, checking for duplicates in the pool.
- */
 function addAdversaryToPool() {
     const jsonTextBox = document.getElementById('adversary-json');
     try {
         const newAdversary = JSON.parse(jsonTextBox.value);
         if (!newAdversary.name || !newAdversary.difficulty) throw new Error('JSON missing "name" or "difficulty"');
-        
         const isDuplicate = adversaryPool.some(a => a.name === newAdversary.name);
         if (isDuplicate) {
             logToScreen(`--- ERROR --- \nAn adversary named '${newAdversary.name}' is already in the pool.`);
             return;
         }
-
         newAdversary.simId = `adv-master-${Date.now()}`;
         adversaryPool.push(newAdversary);
         logToScreen(`Added ${newAdversary.name} to Adversary Pool.`);
@@ -113,9 +90,7 @@ function removeLastCharacter() {
         const removedChar = playerPool.pop();
         logToScreen(`Removed ${removedChar.name} from player pool.`);
         renderPools();
-    } else {
-        logToScreen("Player pool is already empty.");
-    }
+    } else { logToScreen("Player pool is already empty."); }
 }
 
 function removeLastAdversary() {
@@ -123,9 +98,7 @@ function removeLastAdversary() {
         const removedAdv = adversaryPool.pop();
         logToScreen(`Removed ${removedAdv.name} from adversary pool.`);
         renderPools();
-    } else {
-        logToScreen("Adversary pool is already empty.");
-    }
+    } else { logToScreen("Adversary pool is already empty."); }
 }
 
 // --- DYNAMIC CLICK HANDLERS ---
@@ -136,14 +109,12 @@ function handlePoolClick(event) {
     if (!agentId) return; 
 
     if (target.classList.contains('move-button')) {
-        // Player logic (MOVE)
         let playerIndex = playerPool.findIndex(p => p.simId === agentId);
         if (playerIndex > -1) {
             const agent = playerPool.splice(playerIndex, 1)[0];
             activeParty.push(agent);
             logToScreen(`Moved ${agent.name} to Active Scene.`);
         } else {
-            // Adversary logic (COPY)
             const agentTemplate = adversaryPool.find(a => a.simId === agentId);
             if (agentTemplate) {
                 const newAgentInstance = JSON.parse(JSON.stringify(agentTemplate));
@@ -155,12 +126,10 @@ function handlePoolClick(event) {
     }
     
     if (target.classList.contains('flush-button')) {
-        // Flush from Player Pool
         let playerIndex = playerPool.findIndex(p => p.simId === agentId);
         if (playerIndex > -1) {
             logToScreen(`Flushed ${playerPool.splice(playerIndex, 1)[0].name} from pool.`);
         } else {
-            // Flush from Adversary Pool
             let adversaryIndex = adversaryPool.findIndex(a => a.simId === agentId);
             if (adversaryIndex > -1) {
                 logToScreen(`Flushed ${adversaryPool.splice(adversaryIndex, 1)[0].name} from pool.`);
@@ -177,14 +146,12 @@ function handleSceneClick(event) {
     if (!agentId) return;
 
     if (target.classList.contains('move-button')) {
-        // Player logic (MOVE BACK)
         let playerIndex = activeParty.findIndex(p => p.simId === agentId);
         if (playerIndex > -1) {
             const agent = activeParty.splice(playerIndex, 1)[0];
             playerPool.push(agent);
             logToScreen(`Moved ${agent.name} back to Player Pool.`);
         } else {
-            // Adversary logic (DELETE INSTANCE)
             let adversaryIndex = activeAdversaries.findIndex(a => a.simId === agentId);
             if (adversaryIndex > -1) {
                 const agent = activeAdversaries.splice(adversaryIndex, 1)[0];
@@ -206,16 +173,13 @@ function handleSRDListClick(event) {
     }
 }
 
-
 // --- DYNAMIC UI RENDERING ---
 
 function renderPools() {
     const playerListDiv = document.getElementById('player-pool-list');
     const adversaryListDiv = document.getElementById('adversary-pool-list');
-    
     playerListDiv.innerHTML = '';
     adversaryListDiv.innerHTML = '';
-
     playerPool.forEach(char => {
         playerListDiv.innerHTML += `
             <div class="pool-item">
@@ -224,10 +188,8 @@ function renderPools() {
                     <button class="flush-button" data-id="${char.simId}" title="Remove from Pool">X</button>
                     <button class="move-button" data-id="${char.simId}" title="Add to Active Scene">&gt;</button>
                 </div>
-            </div>
-        `;
+            </div>`;
     });
-    
     adversaryPool.forEach(adv => {
         adversaryListDiv.innerHTML += `
             <div class="pool-item">
@@ -236,43 +198,35 @@ function renderPools() {
                     <button class="flush-button" data-id="${adv.simId}" title="Remove from Pool">X</button>
                     <button class="move-button" data-id="${adv.simId}" title="Add to Active Scene">&gt;</button>
                 </div>
-            </div>
-        `;
+            </div>`;
     });
 }
 
 function renderActiveScene() {
     const partyListDiv = document.getElementById('active-party-list');
     const adversaryListDiv = document.getElementById('active-adversary-list');
-    
     partyListDiv.innerHTML = '';
     adversaryListDiv.innerHTML = '';
-    
     activeParty.forEach(char => {
         partyListDiv.innerHTML += `
             <div class="scene-item">
                 <button class="move-button" data-id="${char.simId}" title="Return to Pool">&lt;</button>
                 <span class="agent-name">${char.name} (Lvl ${char.level})</span>
-            </div>
-        `;
+            </div>`;
     });
-    
     activeAdversaries.forEach(adv => {
         adversaryListDiv.innerHTML += `
             <div class="scene-item">
                 <button class="move-button" data-id="${adv.simId}" title="Return to Pool">&lt;</button>
                 <span class="agent-name">${adv.name} (Diff ${adv.difficulty})</span>
-            </div>
-        `;
+            </div>`;
     });
 }
 
 // --- SRD Modal Functions ---
-
 function openSRDModal() {
     document.getElementById('srd-modal-overlay').classList.remove('hidden');
 }
-
 function closeSRDModal() {
     document.getElementById('srd-modal-overlay').classList.add('hidden');
 }
@@ -281,58 +235,45 @@ function renderSRDAdversaries() {
     const tier = document.getElementById('srd-tier-filter').value;
     const type = document.getElementById('srd-type-filter').value;
     const listDiv = document.getElementById('srd-adversary-list');
-    
     listDiv.innerHTML = ''; 
-    
     if (SRD_ADVERSARIES.length === 0) {
         listDiv.innerHTML = '<div class="pool-item"><span>Loading database...</span></div>';
         return;
     }
-    
     const filteredList = SRD_ADVERSARIES.filter(adv => {
         const tierMatch = (tier === 'any' || adv.tier == tier);
         const typeMatch = (type === 'any' || adv.type === type);
         return tierMatch && typeMatch;
     });
-
     if (filteredList.length === 0) {
         listDiv.innerHTML = '<div class="pool-item"><span>No adversaries match filters.</span></div>';
         return;
     }
-    
     filteredList.forEach(adv => {
         let features = adv.features.map(f => `• ${f.name} (${f.type})`).join('\n');
         listDiv.innerHTML += `
             <div class="srd-item" data-name="${adv.name}">
                 <span class="agent-name" title="${features}">${adv.name} (T${adv.tier} ${adv.type})</span>
                 <button class="move-button" title="Add to Adversary Pool">Add</button>
-            </div>
-        `;
+            </div>`;
     });
 }
 
-/**
- * Adds an adversary from the SRD, checking for duplicates in the pool.
- */
 function addAdversaryFromSRD(name) {
     const advData = SRD_ADVERSARIES.find(a => a.name === name);
     if (!advData) return;
-
     const isDuplicate = adversaryPool.some(a => a.name === advData.name);
     if (isDuplicate) {
         logToScreen(`--- ERROR --- \n'${advData.name}' is already in the Adversary Pool.`);
         return;
     }
-
     const newAdversary = JSON.parse(JSON.stringify(advData));
     newAdversary.simId = `adv-master-${Date.now()}`;
-    
     adversaryPool.push(newAdversary);
     logToScreen(`Added ${newAdversary.name} from SRD to Adversary Pool.`);
     renderPools(); 
     closeSRDModal(); 
 }
-
 
 // --- PARSING & INSTANTIATION FUNCTIONS ---
 
@@ -391,12 +332,10 @@ function instantiateAdversaryAgent(data) {
         ...data, 
         id: data.simId,
         type: 'adversary',
-        // Use the new keys from your JSON
         current_hp: data.hp, 
         max_hp: data.hp,
         current_stress: 0,
         max_stress: data.stress,
-        // Standardize the attack bonus key
         attack: {
             ...data.attack,
             modifier: data.attack.bonus 
@@ -405,7 +344,6 @@ function instantiateAdversaryAgent(data) {
     };
     return agent;
 }
-
 
 // --- SPOTLIGHT SIMULATION ENGINE ---
 
@@ -513,12 +451,10 @@ function determineNextSpotlight(lastOutcome, gameState) {
 }
 
 function executePCTurn(player, gameState) {
-    // --- UPDATED: PC AI v2.1 ---
-    // The PC will "focus fire" on the most-damaged adversary
     let targets = gameState.adversaries.filter(a => a.current_hp > 0);
     if (targets.length === 0) return 'COMBAT_OVER';
     
-    // Find the target with the lowest HP
+    // PC AI: Focus fire on the most-damaged adversary
     const target = targets.reduce((prev, curr) => (prev.current_hp < curr.current_hp) ? prev : curr);
 
     logToScreen(`> ${player.name}'s turn (attacking ${target.name})...`);
@@ -550,44 +486,43 @@ function executePCTurn(player, gameState) {
 }
 
 /**
- * --- UPDATED: GM AI v2.1 ---
- * The GM now picks a RANDOM living adversary to act
- * and checks for FEAR costs.
+ * --- UPDATED: GM AI v3.0 (The "True AI" Brain) ---
+ * This function now reads the `parsed_effect` object
+ * and executes its logic instead of using a giant switch statement.
  */
 function executeGMTurn(gameState) {
-    // --- NEW AI: Find ALL living adversaries
+    // 1. Find a random living adversary to act
     const livingAdversaries = gameState.adversaries.filter(a => a.current_hp > 0);
     if (livingAdversaries.length === 0) return 'COMBAT_OVER';
-
-    // --- NEW AI: Pick a RANDOM one to act
     const adversary = livingAdversaries[Math.floor(Math.random() * livingAdversaries.length)];
     
-    // --- NEW AI: Target the player with the lowest HP
+    // 2. Find a target (lowest HP player)
     const livingPlayers = gameState.players.filter(p => p.current_hp > 0);
     if (livingPlayers.length === 0) return 'COMBAT_OVER';
-    
     const target = livingPlayers.reduce((prev, curr) => (prev.current_hp < curr.current_hp) ? prev : curr);
 
-    logToScreen(`> GM SPOTLIGHT: ${adversary.name} acts (attacking ${target.name})...`);
+    logToScreen(`> GM SPOTLIGHT: ${adversary.name} acts (targeting ${target.name})...`);
 
-    // --- GM AI DECISION (NOW CHECKS FEAR) ---
-    const allActions = adversary.features.filter(f => f.type === 'action');
+    // 3. Find an affordable action
+    const affordableActions = adversary.features.filter(f => {
+        if (f.type !== 'action' || !f.parsed_effect) return false;
+        if (!f.cost) return true; // Free action
+        if (f.cost.type === 'stress' && (adversary.current_stress + f.cost.value <= adversary.max_stress)) return true;
+        if (f.cost.type === 'fear' && (gameState.fear >= f.cost.value)) return true;
+        return false;
+    });
+
     let chosenAction = null;
-
-    for (const action of allActions) {
-        if (!action.cost) { // Free actions are always affordable
-            chosenAction = action;
-            break; 
-        } else if (action.cost.type === 'stress' && (adversary.current_stress + action.cost.value <= adversary.max_stress)) {
-            chosenAction = action; // We can afford this stress cost
-            break; 
-        } else if (action.cost.type === 'fear' && (gameState.fear >= action.cost.value)) {
-            chosenAction = action; // We can afford this fear cost
-            break;
-        }
+    if (affordableActions.length > 0) {
+        // AI v3.0: Just pick the first affordable action.
+        // (We can make this smarter later, e.g., check 'target_condition')
+        chosenAction = affordableActions[0];
     }
 
+    // 4. Execute the action (or default to basic attack)
     if (chosenAction) {
+        logToScreen(`  Using Feature: ${chosenAction.name}!`);
+        // Pay the cost
         if (chosenAction.cost) {
             if (chosenAction.cost.type === 'stress') {
                 adversary.current_stress += chosenAction.cost.value;
@@ -597,31 +532,13 @@ function executeGMTurn(gameState) {
                 logToScreen(`  GM spends ${chosenAction.cost.value} Fear (Total: ${gameState.fear})`);
             }
         }
-
-        logToScreen(`  Using Feature: ${chosenAction.name}!`);
         
-        switch (chosenAction.name) {
-            case 'Hobbling Strike':
-                executeGMFeature_HobblingStrike(adversary, target, "3d4+10");
-                break;
-            case 'Bite': // From the Bear
-                executeGMFeature_Bite(adversary, target, "3d4+10");
-                break;
-            case 'Detain': // From Bladed Guard
-                executeGMFeature_Detain(adversary, target);
-                break;
-            case 'Earth Eruption': // From Acid Burrower
-                executeGMFeature_EarthEruption(adversary, target, gameState);
-                break;
-            // ADD NEW FEATURE LOGIC HERE
-            // case 'Spit Acid':
-            //     ...
-            //     break;
-            default:
-                logToScreen(`  (Feature logic for '${chosenAction.name}' not yet implemented. Defaulting to basic attack.)`);
-                executeGMBasicAttack(adversary, target);
-                break;
+        // --- THIS IS THE NEW BRAIN ---
+        // Execute every action defined in the `parsed_effect`
+        for (const action of chosenAction.parsed_effect.actions) {
+            executeParsedEffect(action, adversary, target, gameState);
         }
+
     } else {
         logToScreen(`  (No affordable features found. Defaulting to basic attack.)`);
         executeGMBasicAttack(adversary, target);
@@ -629,6 +546,116 @@ function executeGMTurn(gameState) {
     
     return 'GM_TURN_COMPLETE'; 
 }
+
+/**
+ * --- NEW: The "True AI" Brain ---
+ * This is the central executor that reads a `parsed_effect` action
+ * and makes it happen in the simulation.
+ */
+function executeParsedEffect(action, adversary, target, gameState) {
+    let primaryTarget = target; // The default target
+    let targets = [target];     // The list of all targets
+    
+    // 1. Determine Target(s)
+    if (action.target === "ALL_IN_RANGE") {
+        targets = gameState.players.filter(p => p.current_hp > 0); // TODO: Add range check
+        logToScreen(`  Action targets ALL living players!`);
+    }
+    // ... other target types like SELF, ATTACKER, etc. can be added here
+    
+    // 2. Execute Action Type
+    switch (action.action_type) {
+        case 'ATTACK_ROLL':
+            // Loop through all targets (for AOE attacks like "Spit Acid")
+            for (const t of targets) {
+                logToScreen(`  Making an attack roll against ${t.name}...`);
+                const roll = rollD20();
+                const totalAttack = roll + adversary.attack.modifier;
+                logToScreen(`  Roll: 1d20(${roll}) + ${adversary.attack.modifier} = ${totalAttack} vs Evasion ${t.evasion}`);
+                
+                if (totalAttack >= t.evasion) {
+                    logToScreen('  HIT!');
+                    // Execute all on_success actions
+                    if (action.details.on_success) {
+                        for (const successAction of action.details.on_success) {
+                            executeParsedEffect(successAction, adversary, t, gameState);
+                        }
+                    }
+                } else {
+                    logToScreen('  MISS!');
+                    // TODO: Execute on_fail actions if they exist
+                }
+            }
+            break;
+
+        case 'FORCE_REACTION_ROLL':
+            // Loop through all targets (for AOE like "Earth Eruption")
+            for (const t of targets) {
+                const details = action.details;
+                const difficulty = details.difficulty || 12; // Default diff if not specified
+                logToScreen(`  ${t.name} must make a ${details.roll_type.toUpperCase()} Reaction Roll (Diff ${difficulty})!`);
+                
+                const reactionSuccess = executeReactionRoll(t, details.roll_type, difficulty);
+                
+                if (reactionSuccess) {
+                    logToScreen(`  ${t.name} succeeds the Reaction Roll!`);
+                    // TODO: Execute on_success actions
+                } else {
+                    logToScreen(`  ${t.name} fails the Reaction Roll!`);
+                    // Execute all on_fail actions
+                    if (details.on_fail) {
+                        // This is a bit of a hack for now, we should formalize this
+                        if (details.on_fail.apply_condition) {
+                            applyCondition(t, details.on_fail.apply_condition);
+                        }
+                    }
+                }
+            }
+            break;
+            
+        case 'DEAL_DAMAGE':
+            let critBonus = 0; // TODO: Check for crits
+            const damageTotal = rollDamage(action.damage_string, 1, critBonus);
+            const isDirect = action.is_direct || false;
+            logToScreen(`  Dealing ${damageTotal} ${isDirect ? 'DIRECT' : ''} damage!`);
+            applyDamage(damageTotal, adversary, primaryTarget, isDirect);
+            break;
+            
+        case 'APPLY_CONDITION':
+            // This is for *conditional* costs, like "Detain"
+            if (action.cost) {
+                if (action.cost.type === 'stress' && adversary.current_stress + action.cost.value <= adversary.max_stress) {
+                    adversary.current_stress += action.cost.value;
+                    logToScreen(`  ${adversary.name} marks ${action.cost.value} Stress to apply effect.`);
+                    applyCondition(primaryTarget, action.condition);
+                } else {
+                    logToScreen(`  ${adversary.name} could not afford Stress cost to apply ${action.condition}.`);
+                }
+            } else {
+                // This is for *unconditional* conditions, like from "Bite"
+                applyCondition(primaryTarget, action.condition);
+            }
+            break;
+
+        // ... other action_types like GAIN_RESOURCE, SPECIAL_RULE, etc.
+        
+        default:
+            logToScreen(`  (Logic for action_type '${action.action_type}' not yet implemented.)`);
+    }
+}
+
+/**
+ * --- NEW HELPER ---
+ * Applies a condition to a target.
+ */
+function applyCondition(target, condition) {
+    if (!target.conditions.includes(condition)) {
+        target.conditions.push(condition);
+        logToScreen(`  ${target.name} is now ${condition}!`);
+        // TODO: We need to add logic for what these conditions *do*
+    }
+}
+
 
 /**
  * Logic for the GM's basic attack.
@@ -653,108 +680,6 @@ function executeGMBasicAttack(adversary, target) {
         applyDamage(damageTotal, adversary, target);
     } else {
         logToScreen('  MISS!');
-    }
-}
-
-/**
- * --- NEW / UPDATED ---
- * Specific "brain" logic for adversary features.
- */
-function executeGMFeature_HobblingStrike(adversary, target, damageRoll) {
-    logToScreen(`  Making a special attack roll for ${adversary.name}'s feature...`);
-    const roll = rollD20();
-    const totalAttack = roll + adversary.attack.modifier; 
-    
-    logToScreen(`  Roll: 1d20(${roll}) + ${adversary.attack.modifier} = ${totalAttack} vs Evasion ${target.evasion}`);
-
-    if (totalAttack >= target.evasion) {
-        logToScreen('  HIT!');
-        let critBonus = 0;
-        if (roll === 20) {
-            logToScreen('  CRITICAL HIT!');
-            critBonus = parseDiceString(damageRoll).maxDie;
-        }
-        
-        const damageTotal = rollDamage(damageRoll, 1, critBonus); 
-        logToScreen(`  Dealing ${damageTotal} DIRECT damage!`);
-        applyDamage(damageTotal, adversary, target, true); // true = isDirectDamage
-        
-        // BUG FIX: Only apply condition on a HIT
-        if (!target.conditions.includes('Vulnerable')) {
-            target.conditions.push('Vulnerable');
-            logToScreen(`  ${target.name} is now Vulnerable!`);
-        }
-    } else {
-        logToScreen('  MISS!');
-    }
-}
-
-function executeGMFeature_Bite(adversary, target, damageRoll) {
-    logToScreen(`  Making a special attack roll for ${adversary.name}'s feature...`);
-    const roll = rollD20();
-    const totalAttack = roll + adversary.attack.modifier; 
-    
-    logToScreen(`  Roll: 1d20(${roll}) + ${adversary.attack.modifier} = ${totalAttack} vs Evasion ${target.evasion}`);
-
-    if (totalAttack >= target.evasion) {
-        logToScreen('  HIT!');
-        let critBonus = 0;
-        if (roll === 20) {
-            logToScreen('  CRITICAL HIT!');
-            critBonus = parseDiceString(damageRoll).maxDie;
-        }
-        
-        const damageTotal = rollDamage(damageRoll, 1, critBonus); 
-        applyDamage(damageTotal, adversary, target, false); // Is NOT direct damage
-        
-        // BUG FIX: Only apply condition on a HIT
-        if (!target.conditions.includes('Restrained')) {
-            target.conditions.push('Restrained');
-            logToScreen(`  ${target.name} is now Restrained! (Logic not yet implemented)`);
-        }
-    } else {
-        logToScreen('  MISS!');
-    }
-}
-
-function executeGMFeature_Detain(adversary, target) {
-    logToScreen(`  Making a special attack roll for ${adversary.name}'s feature...`);
-    const roll = rollD20();
-    const totalAttack = roll + adversary.attack.modifier; 
-    
-    logToScreen(`  Roll: 1d20(${roll}) + ${adversary.attack.modifier} = ${totalAttack} vs Evasion ${target.evasion}`);
-
-    if (totalAttack >= target.evasion) {
-        logToScreen('  HIT!');
-        // This attack does no damage, it just applies a condition.
-        
-        // BUG FIX: Only apply condition on a HIT
-        if (!target.conditions.includes('Restrained')) {
-            target.conditions.push('Restrained');
-            logToScreen(`  ${target.name} is now Restrained! (Logic not yet implemented)`);
-        }
-    } else {
-        logToScreen('  MISS!');
-    }
-}
-
-function executeGMFeature_EarthEruption(adversary, target, gameState) {
-    // "All creatures within Very Close range must succeed on an Agility Reaction Roll or be knocked over..."
-    // For now, we'll just have the primary target make the roll.
-    // The JSON doesn't specify the difficulty, so I'll default to 12.
-    const reactionDifficulty = 12; 
-    logToScreen(`  ${target.name} must make an Agility Reaction Roll (Diff ${reactionDifficulty})!`);
-    
-    const reactionSuccess = executeReactionRoll(target, reactionDifficulty);
-    
-    if (reactionSuccess) {
-        logToScreen(`  ${target.name} succeeds the Reaction Roll!`);
-    } else {
-        logToScreen(`  ${target.name} fails the Reaction Roll!`);
-        if (!target.conditions.includes('Vulnerable')) {
-            target.conditions.push('Vulnerable');
-            logToScreen(`  ${target.name} is now Vulnerable!`);
-        }
     }
 }
 
@@ -842,19 +767,15 @@ function rollD20() { return Math.floor(Math.random() * 20) + 1; }
 function rollD12() { return Math.floor(Math.random() * 12) + 1; }
 
 /**
- * --- NEW ---
  * Executes a non-Duality, d20 Reaction Roll.
- * Does NOT generate Hope or Fear.
  */
-function executeReactionRoll(target, difficulty) {
+function executeReactionRoll(target, trait, difficulty) {
     const roll = rollD20();
-    // For now, we assume Agility. This will need to be smarter later.
-    const traitName = 'agility';
-    const traitMod = target.traits[traitName] || 0;
+    const traitMod = target.traits[trait.toLowerCase()] || 0;
     const total = roll + traitMod;
     
-    logToScreen(`  ${target.name} makes a Reaction Roll (Difficulty ${difficulty})...`);
-    logToScreen(`  Roll: 1d20(${roll}) + ${traitName}(${traitMod}) = ${total}`);
+    logToScreen(`  ${target.name} makes a ${trait.toUpperCase()} Reaction Roll (Difficulty ${difficulty})...`);
+    logToScreen(`  Roll: 1d20(${roll}) + ${trait}(${traitMod}) = ${total}`);
     
     return total >= difficulty;
 }
