@@ -1,125 +1,230 @@
 // --- GLOBAL STATE ---
-let party = []; // Holds the raw JSON data pasted by the user
-let adversaries = []; // Holds the raw JSON data pasted by the user
+let playerPool = [];      // Column 2: Player Library
+let adversaryPool = [];   // Column 2: Adversary Library
+let activeParty = [];     // Column 3: Players in the next sim
+let activeAdversaries = []; // Column 3: Adversaries in the next sim
 
 // --- EVENT LISTENERS ---
 document.addEventListener('DOMContentLoaded', () => {
+    // Column 1 Buttons
+    document.getElementById('add-character-button').addEventListener('click', addCharacterToPool);
+    document.getElementById('add-adversary-button').addEventListener('click', addAdversaryToPool);
+    
+    // Main Run Button
     document.getElementById('run-button').addEventListener('click', runSimulation);
-    document.getElementById('add-character-button').addEventListener('click', addCharacterFromPaste);
-    document.getElementById('add-adversary-button').addEventListener('click', addAdversaryFromPaste);
+    
+    // Column 2 & 3: Event delegation for dynamic buttons
+    document.getElementById('pool-column').addEventListener('click', handlePoolClick);
+    document.getElementById('scene-column').addEventListener('click', handleSceneClick);
+    
     loadDefaultAdversary();
 });
 
-// --- DATA INPUT & UI FUNCTIONS ---
+// --- DATA & POOL MANAGEMENT ---
 
-function addCharacterFromPaste() {
+function addCharacterToPool() {
     const jsonTextBox = document.getElementById('character-json');
     try {
         const newCharacter = JSON.parse(jsonTextBox.value);
         if (!newCharacter.name || !newCharacter.traits) throw new Error('JSON missing "name" or "traits"');
-        party.push(newCharacter);
-        logToScreen(`Added ${newCharacter.name} to party.`);
+        
+        // Add a unique ID for tracking
+        newCharacter.simId = `player-${Date.now()}`;
+        
+        playerPool.push(newCharacter);
+        logToScreen(`Added ${newCharacter.name} to Player Pool.`);
         jsonTextBox.value = '';
-        updatePartyListUI();
+        renderPools(); // Update UI
     } catch (e) { logToScreen(`--- ERROR --- \nInvalid Character JSON. ${e.message}`); }
 }
 
-function addAdversaryFromPaste() {
+function addAdversaryToPool() {
     const jsonTextBox = document.getElementById('adversary-json');
     try {
         const newAdversary = JSON.parse(jsonTextBox.value);
         if (!newAdversary.name || !newAdversary.difficulty) throw new Error('JSON missing "name" or "difficulty"');
-        adversaries.push(newAdversary);
-        logToScreen(`Added ${newAdversary.name} to scene.`);
+        
+        newAdversary.simId = `adv-${Date.now()}`;
+        
+        adversaryPool.push(newAdversary);
+        logToScreen(`Added ${newAdversary.name} to Adversary Pool.`);
         jsonTextBox.value = '';
-        updateAdversaryListUI();
+        renderPools(); // Update UI
     } catch (e) { logToScreen(`--- ERROR --- \nInvalid Adversary JSON. ${e.message}`); }
 }
 
 async function loadDefaultAdversary() {
-    if (adversaries.length > 0) return;
+    if (adversaryPool.length > 0) return;
     try {
         const wolfResponse = await fetch('data/dire_wolf.json');
         const direWolf = await wolfResponse.json();
-        adversaries.push(direWolf);
-        logToScreen(`Loaded default Adversary: ${direWolf.name}`);
-        updateAdversaryListUI();
+        direWolf.simId = `adv-${Date.now()}`;
+        adversaryPool.push(direWolf);
+        logToScreen(`Loaded default ${direWolf.name} into Adversary Pool.`);
+        renderPools();
     } catch (error) { logToScreen(`--- ERROR --- Could not load default Dire Wolf: ${error.message}`); }
 }
 
-function updatePartyListUI() {
-    const partyListDiv = document.getElementById('party-list');
-    partyListDiv.innerHTML = '';
-    party.forEach((character, index) => {
-        const div = document.createElement('div');
-        div.className = 'party-member';
-        div.textContent = `${index + 1}: ${character.name} (Lvl ${character.level} ${character.class.name})`;
-        partyListDiv.appendChild(div);
-    });
+// --- DYNAMIC CLICK HANDLERS (Event Delegation) ---
+
+function handlePoolClick(event) {
+    const target = event.target;
+    const agentId = target.dataset.id;
+    if (!agentId) return; // Didn't click a button
+
+    if (target.classList.contains('move-button')) {
+        // Find in Player Pool
+        let agentIndex = playerPool.findIndex(p => p.simId === agentId);
+        if (agentIndex > -1) {
+            const agent = playerPool.splice(agentIndex, 1)[0];
+            activeParty.push(agent);
+        } else {
+            // Find in Adversary Pool
+            agentIndex = adversaryPool.findIndex(a => a.simId === agentId);
+            if (agentIndex > -1) {
+                const agent = adversaryPool.splice(agentIndex, 1)[0];
+                activeAdversaries.push(agent);
+            }
+        }
+    }
+    
+    if (target.classList.contains('flush-button')) {
+        // Find and remove from Player Pool
+        let agentIndex = playerPool.findIndex(p => p.simId === agentId);
+        if (agentIndex > -1) {
+            const agent = playerPool.splice(agentIndex, 1)[0];
+            logToScreen(`Flushed ${agent.name} from pool.`);
+        } else {
+            // Find and remove from Adversary Pool
+            agentIndex = adversaryPool.findIndex(a => a.simId === agentId);
+            if (agentIndex > -1) {
+                const agent = adversaryPool.splice(agentIndex, 1)[0];
+                logToScreen(`Flushed ${agent.name} from pool.`);
+            }
+        }
+    }
+    
+    // Re-render both columns
+    renderPools();
+    renderActiveScene();
 }
 
-function updateAdversaryListUI() {
-    const adversaryListDiv = document.getElementById('adversary-list');
+function handleSceneClick(event) {
+    const target = event.target;
+    const agentId = target.dataset.id;
+    if (!agentId) return; // Didn't click a button
+
+    if (target.classList.contains('move-button')) {
+        // Find in Active Party
+        let agentIndex = activeParty.findIndex(p => p.simId === agentId);
+        if (agentIndex > -1) {
+            const agent = activeParty.splice(agentIndex, 1)[0];
+            playerPool.push(agent);
+        } else {
+            // Find in Active Adversaries
+            agentIndex = activeAdversaries.findIndex(a => a.simId === agentId);
+            if (agentIndex > -1) {
+                const agent = activeAdversaries.splice(agentIndex, 1)[0];
+                adversaryPool.push(agent);
+            }
+        }
+    }
+    
+    // Re-render both columns
+    renderPools();
+    renderActiveScene();
+}
+
+
+// --- DYNAMIC UI RENDERING ---
+
+function renderPools() {
+    const playerListDiv = document.getElementById('player-pool-list');
+    const adversaryListDiv = document.getElementById('adversary-pool-list');
+    
+    playerListDiv.innerHTML = '';
     adversaryListDiv.innerHTML = '';
-    adversaries.forEach((adversary, index) => {
-        const div = document.createElement('div');
-        div.className = 'adversary-member';
-        div.textContent = `${index + 1}: ${adversary.name} (Diff ${adversary.difficulty})`;
-        adversaryListDiv.appendChild(div);
+
+    playerPool.forEach(char => {
+        playerListDiv.innerHTML += `
+            <div class="pool-item">
+                <span class="agent-name">${char.name} (Lvl ${char.level})</span>
+                <button class="flush-button" data-id="${char.simId}">X</button>
+                <button class="move-button" data-id="${char.simId}">Add to Scene &gt;</button>
+            </div>
+        `;
+    });
+    
+    adversaryPool.forEach(adv => {
+        adversaryListDiv.innerHTML += `
+            <div class="pool-item">
+                <span class="agent-name">${adv.name} (Diff ${adv.difficulty})</span>
+                <button class="flush-button" data-id="${adv.simId}">X</button>
+                <button class="move-button" data-id="${adv.simId}">Add to Scene &gt;</button>
+            </div>
+        `;
     });
 }
 
-// --- PARSING & INSTANTIATION FUNCTIONS ---
+function renderActiveScene() {
+    const partyListDiv = document.getElementById('active-party-list');
+    const adversaryListDiv = document.getElementById('active-adversary-list');
+    
+    partyListDiv.innerHTML = '';
+    adversaryListDiv.innerHTML = '';
+    
+    activeParty.forEach(char => {
+        partyListDiv.innerHTML += `
+            <div class="scene-item">
+                <button class="move-button" data-id="${char.simId}">&lt; Remove</button>
+                <span class="agent-name">${char.name} (Lvl ${char.level})</span>
+            </div>
+        `;
+    });
+    
+    activeAdversaries.forEach(adv => {
+        adversaryListDiv.innerHTML += `
+            <div class="scene-item">
+                <button class="move-button" data-id="${adv.simId}">&lt; Remove</button>
+                <span class="agent-name">${adv.name} (Diff ${adv.difficulty})</span>
+            </div>
+        `;
+    });
+}
 
-/**
- * --- THIS IS THE NEW "BRAIN" ---
- * Takes the raw JSON from your builder and creates a clean "Agent"
- * that the simulator can use. This now matches your JSON structure.
- */
+// --- PARSING & INSTANTIATION FUNCTIONS (Unchanged from last time) ---
+
 function instantiatePlayerAgent(data) {
-    // 1. Fix for 'spellcast_trait: null'
     let spellcastTrait = null;
     if (data.subclass.spellcast_trait) {
         spellcastTrait = data.subclass.spellcast_trait.toLowerCase();
     }
-
-    // 2. Calculate Max HP from your JSON structure
     let max_hp = data.class.starting_hp;
     if (data.advancementsTaken && data.advancementsTaken.add_hp) {
         max_hp += data.advancementsTaken.add_hp;
     }
-
-    // 3. Calculate Max Stress from your JSON structure
-    let max_stress = 6; // Daggerheart default
+    let max_stress = 6; 
     if (data.advancementsTaken && data.advancementsTaken.add_stress) {
         max_stress += data.advancementsTaken.add_stress;
     }
-    // Check for "At Ease" feature from Vengeance Guardian
     if (data.subclass.foundation_feature.name.includes("At Ease")) {
         max_stress += 1;
     }
-
-    // 4. Set starting Hope (max is 6)
     let max_hope = 6;
-    let current_hope = 2; // All PCs start with 2 Hope
+    let current_hope = 2; 
 
-    // 5. Create the agent
     const agent = {
-        id: `${data.name}-${Math.random().toString(36).substring(2, 9)}`,
+        id: data.simId, // Use the ID we gave it
         name: data.name,
         type: 'player',
-        
-        // Live Combat Stats (Calculated)
         current_hp: max_hp,
         max_hp: max_hp,
-        current_stress: 0, // Stress is tracked as "filled", so 0 is empty
+        current_stress: 0, 
         max_stress: max_stress,
         current_hope: current_hope,
         max_hope: max_hope,
-        armor_slots: data.equipment.armor ? data.equipment.armor.score : 0, // Get armor score
-        current_armor_slots: data.equipment.armor ? data.equipment.armor.score : 0, // Live tracker
-        
-        // Base Stats (Read directly from your JSON)
+        armor_slots: data.equipment.armor ? data.equipment.armor.score : 0, 
+        current_armor_slots: data.equipment.armor ? data.equipment.armor.score : 0, 
         traits: data.traits,
         spellcastTrait: spellcastTrait,
         proficiency: data.proficiency,
@@ -128,8 +233,6 @@ function instantiatePlayerAgent(data) {
             major: data.majorThreshold,
             severe: data.severeThreshold
         },
-        
-        // Full data for AI to use later
         primary_weapon: data.equipment.primary,
         features: data.features,
         domainCards: data.domainCards,
@@ -140,10 +243,10 @@ function instantiatePlayerAgent(data) {
 
 function instantiateAdversaryAgent(data) {
     const agent = {
-        ...data,
-        id: `${data.name}-${Math.random().toString(36).substring(2, 9)}`,
+        ...data, 
+        id: data.simId, // Use the ID we gave it
         type: 'adversary',
-        current_hp: data.hp_max || data.hp,
+        current_hp: data.hp_max || data.hp, 
         max_hp: data.hp_max || data.hp,
         current_stress: 0,
         max_stress: data.stress_max || data.stress
@@ -151,23 +254,24 @@ function instantiateAdversaryAgent(data) {
     return agent;
 }
 
-
-// --- SPOTLIGHT SIMULATION ENGINE ---
+// --- SPOTLIGHT SIMULATION ENGINE (Unchanged from last time) ---
 
 async function runSimulation() {
     logToScreen('======================================');
     logToScreen('INITIALIZING NEW SIMULATION...');
     logToScreen('======================================');
 
-    if (party.length === 0) { logToScreen('--- ERROR --- \nAdd a player.'); return; }
-    if (adversaries.length === 0) { logToScreen('--- ERROR --- \nAdd an adversary.'); return; }
+    // --- 1. VALIDATE & INSTANTIATE (NOW USES ACTIVE LISTS) ---
+    if (activeParty.length === 0) { logToScreen('--- ERROR --- \nAdd a player to the Active Scene.'); return; }
+    if (activeAdversaries.length === 0) { logToScreen('--- ERROR --- \nAdd an adversary to the Active Scene.'); return; }
 
     let playerAgents, adversaryAgents;
     try {
-        playerAgents = party.map(instantiatePlayerAgent);
-        adversaryAgents = adversaries.map(instantiateAdversaryAgent);
+        // Create "live" instances *from the active lists*
+        playerAgents = activeParty.map(instantiatePlayerAgent);
+        adversaryAgents = activeAdversaries.map(instantiateAdversaryAgent);
     } catch (e) {
-        logToScreen(`--- ERROR --- \nFailed to parse pasted JSON. \nThis usually means a key property is missing (like 'subclass' or 'class'). \n${e.message}`);
+        logToScreen(`--- ERROR --- \nFailed to parse agent JSON. \n${e.message}`);
         console.error("Error during instantiation:", e);
         return;
     }
@@ -184,7 +288,7 @@ async function runSimulation() {
     logToScreen(`Simulation Initialized. Hope: ${gameState.hope}, Fear: ${gameState.fear}`);
     logToScreen('Instantiated Player Agents:');
     playerAgents.forEach(agent => {
-        logToScreen(`- ${agent.name} (HP: ${agent.max_hp}, Stress: ${agent.max_stress}, Evasion: ${agent.evasion}, Spell-Trait: ${agent.spellcastTrait || 'None'})`);
+        logToScreen(`- ${agent.name} (HP: ${agent.max_hp}, Stress: ${agent.max_stress}, Evasion: ${agent.evasion})`);
     });
 
     logToScreen('--- COMBAT BEGINS ---');
@@ -253,17 +357,12 @@ function determineNextSpotlight(lastOutcome, gameState) {
     }
 }
 
-/**
- * A simple "AI" for a PC's turn. Returns the roll outcome.
- * AI is updated to use the primary weapon trait.
- */
 function executePCTurn(player, gameState) {
     const target = gameState.adversaries.find(a => a.current_hp > 0);
     if (!target) return 'COMBAT_OVER';
 
     logToScreen(`> ${player.name}'s turn (attacking ${target.name})...`);
 
-    // AI v2: Use the primary weapon's trait for the attack.
     const traitName = player.primary_weapon.trait.toLowerCase();
     const traitMod = player.traits[traitName];
     
@@ -275,23 +374,20 @@ function executePCTurn(player, gameState) {
     if (result.outcome === 'CRITICAL_SUCCESS' || result.outcome === 'SUCCESS_WITH_HOPE' || result.outcome === 'SUCCESS_WITH_FEAR') {
         let damageString = player.primary_weapon?.damage || "1d4";
         let proficiency = player.proficiency;
+        let critBonus = 0; 
 
         if (result.outcome === 'CRITICAL_SUCCESS') {
             logToScreen('  CRITICAL HIT!');
-            const critDamage = parseDiceString(damageString).maxDie;
-            damageString += `+${critDamage}`; 
+            critBonus = parseDiceString(damageString).maxDie; 
         }
 
-        const damageTotal = rollDamage(damageString, proficiency);
-        applyDamage(damageTotal, player, target); // Pass 'player' as the attacker
+        const damageTotal = rollDamage(damageString, proficiency, critBonus); 
+        applyDamage(damageTotal, player, target); 
     }
     
     return result.outcome; 
 }
 
-/**
- * A simple "AI" for a GM's turn. Returns 'GM_TURN_COMPLETE'.
- */
 function executeGMTurn(gameState) {
     const adversary = gameState.adversaries.find(a => a.current_hp > 0);
     const target = gameState.players.find(p => p.current_hp > 0);
@@ -306,8 +402,16 @@ function executeGMTurn(gameState) {
 
     if (totalAttack >= target.evasion) {
         logToScreen('  HIT!');
-        const damageTotal = rollDamage(adversary.attack.damage, 1); 
-        applyDamage(damageTotal, adversary, target); // Pass 'adversary' as the attacker
+        let damageString = adversary.attack.damage;
+        let critBonus = 0;
+
+        if (roll === 20) { 
+             logToScreen('  CRITICAL HIT!');
+             critBonus = parseDiceString(damageString).maxDie;
+        }
+
+        const damageTotal = rollDamage(damageString, 1, critBonus); 
+        applyDamage(damageTotal, adversary, target);
     } else {
         logToScreen('  MISS!');
     }
@@ -328,7 +432,7 @@ function processRollResources(result, gameState, player) {
     switch (result.outcome) {
         case 'CRITICAL_SUCCESS':
             gameState.hope = Math.min(player.max_hope, gameState.hope + 1); 
-            player.current_stress = Math.max(0, player.current_stress - 1); // Clear 1 Stress
+            player.current_stress = Math.max(0, player.current_stress - 1); 
             logToScreen(`  Resource: +1 Hope (Total: ${gameState.hope}), ${player.name} clears 1 Stress.`);
             break;
         case 'SUCCESS_WITH_HOPE':
@@ -350,10 +454,6 @@ function processRollResources(result, gameState, player) {
     }
 }
 
-/**
- * Applies damage to a target and logs the result.
- * Now includes simple Armor Slot AI.
- */
 function applyDamage(damageTotal, attacker, target) {
     let hpToMark = 0;
     
@@ -361,8 +461,8 @@ function applyDamage(damageTotal, attacker, target) {
     else if (damageTotal >= target.thresholds.major) hpToMark = 2;
     else if (damageTotal > 0) hpToMark = 1;
 
-    // Simple Player AI: Use an Armor Slot if it helps
     if (target.type === 'player' && target.current_armor_slots > 0 && hpToMark > 0) {
+        // Simple Player AI: Use an Armor Slot if it helps reduce HP marked
         target.current_armor_slots--;
         hpToMark--;
         logToScreen(`  ${target.name} marks 1 Armor Slot to reduce damage! (Slots left: ${target.current_armor_slots})`);
@@ -375,7 +475,6 @@ function applyDamage(damageTotal, attacker, target) {
 
     if (target.current_hp <= 0) {
         logToScreen(`  *** ${target.name} has been defeated! ***`);
-        // TODO: Implement Death Move logic for players
     }
 }
 
@@ -402,11 +501,10 @@ function executeActionRoll(difficulty, traitModifier, otherModifiers) {
     };
 }
 
-function rollDamage(damageString, proficiency) {
+function rollDamage(damageString, proficiency, critBonus = 0) {
     const { numDice, dieType, modifier, maxDie } = parseDiceString(damageString);
     let totalDamage = 0;
     
-    // PC damage dice are multiplied by proficiency
     let diceToRoll = (proficiency > 1) ? (numDice * proficiency) : numDice;
     
     if (dieType > 0) {
@@ -416,6 +514,8 @@ function rollDamage(damageString, proficiency) {
     }
     
     totalDamage += modifier;
+    totalDamage += critBonus; // Add the flat crit bonus here
+    
     return totalDamage;
 }
 
