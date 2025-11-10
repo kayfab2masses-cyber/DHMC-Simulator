@@ -141,8 +141,8 @@ async function runSimulation() {
     // --- 2. RUN THE EVENT-DRIVEN COMBAT LOOP ---
     // This loop runs as long as combat isn't over.
     // It processes one "turn" (one spotlight) at a time.
-    let simulationSteps = 0;
-    while (!isCombatOver(gameState) && simulationSteps < 50) { // Added a safety break
+    let simulationSteps = 0; // Safety break
+    while (!isCombatOver(gameState) && simulationSteps < 50) {
         
         let lastOutcome = '';
 
@@ -156,16 +156,16 @@ async function runSimulation() {
                 lastOutcome = executePCTurn(actingPlayer, gameState);
                 gameState.lastPlayerSpotlight = gameState.spotlight; // Save who just went
             } else {
-                lastOutcome = 'pc_is_down'; // Skip this PC
+                lastOutcome = 'PC_DOWN'; // Skip this PC
             }
         }
         
         // --- 5. CONTROL FLOW DECISION ---
-        // This is the core Daggerheart mechanic [cite: 19737-19742]
+        // This is the core Daggerheart mechanic [cite: 279, 1814-1820, 1871-1872]
         determineNextSpotlight(lastOutcome, gameState);
 
-        // Add a small delay so the log can be read (and to prevent browser freezes)
-        await new Promise(resolve => setTimeout(resolve, 50)); // 50ms delay
+        // Add a small delay so the log can be read
+        await new Promise(resolve => setTimeout(resolve, 50)); 
         simulationSteps++;
     }
 
@@ -187,29 +187,30 @@ async function runSimulation() {
 /**
  * --- NEW ---
  * Decides who gets the spotlight next based on the last roll.
+ * This is the core "event-driven control flow."
  */
 function determineNextSpotlight(lastOutcome, gameState) {
     logToScreen(`  Control Flow: Last outcome was [${lastOutcome}]`);
     
     switch (lastOutcome) {
-        case 'Critical Success':
-        case 'Success with Hope':
-        case 'pc_is_down':
-            // Spotlight passes to the next PC in order
+        case 'CRITICAL_SUCCESS':
+        case 'SUCCESS_WITH_HOPE':
+        case 'PC_DOWN':
+            // Spotlight passes to the next PC in order [cite: 1814-1820]
             const nextPCIndex = (gameState.lastPlayerSpotlight + 1) % gameState.players.length;
             gameState.spotlight = nextPCIndex;
             logToScreen(`  Spotlight passes to PC: ${gameState.players[nextPCIndex].name}`);
             break;
             
-        case 'Success with Fear':
-        case 'Failure with Hope':
-        case 'Failure with Fear':
-            // Spotlight is seized by the GM! [cite: 19739-19741, 21367, 21369]
+        case 'SUCCESS_WITH_FEAR':
+        case 'FAILURE_WITH_HOPE':
+        case 'FAILURE_WITH_FEAR':
+            // Spotlight is seized by the GM! 
             gameState.spotlight = 'GM';
             logToScreen(`  Spotlight seized by GM!`);
             break;
             
-        case 'gm_turn_ends':
+        case 'GM_TURN_COMPLETE':
             // GM turn is over, spotlight returns to the *next* PC
             const returnPCIndex = (gameState.lastPlayerSpotlight + 1) % gameState.players.length;
             gameState.spotlight = returnPCIndex;
@@ -224,26 +225,30 @@ function determineNextSpotlight(lastOutcome, gameState) {
  */
 function executePCTurn(player, gameState) {
     const target = gameState.adversaries.find(a => a.current_hp > 0);
-    if (!target) return 'combat_over'; // No targets left
+    if (!target) return 'COMBAT_OVER'; // No targets left
 
     logToScreen(`> ${player.name}'s turn (attacking ${target.name})...`);
 
+    // Simple AI: Use spellcast trait if available, otherwise first trait.
     const traitName = player.spellcastTrait || Object.keys(player.traits)[0];
     const traitMod = player.traits[traitName];
     
     const result = executeActionRoll(target.difficulty, traitMod, 0);
     logToScreen(`  Roll: ${result.total} vs Diff ${result.difficulty} (${result.outcome})`);
 
-    processRollResources(result, gameState);
+    processRollResources(result, gameState); // Update Hope/Fear
 
-    if (result.outcome === 'Critical Success' || result.outcome.startsWith('Success')) {
+    if (result.outcome === 'CRITICAL_SUCCESS' || result.outcome === 'SUCCESS_WITH_HOPE' || result.outcome === 'SUCCESS_WITH_FEAR') {
         let damageString = player.primary_weapon?.damage || "1d4";
         let proficiency = player.proficiency;
 
-        if (result.outcome === 'Critical Success') {
+        if (result.outcome === 'CRITICAL_SUCCESS') {
             logToScreen('  CRITICAL HIT!');
             const critDamage = parseDiceString(damageString).maxDie;
             damageString += `+${critDamage}`;
+            // A Crit also clears 1 Stress [cite: 1841-1843]
+            player.current_stress = Math.max(0, player.current_stress - 1);
+            logToScreen(`  ${player.name} clears 1 Stress.`);
         }
 
         const damageTotal = rollDamage(damageString, proficiency);
@@ -254,19 +259,19 @@ function executePCTurn(player, gameState) {
 }
 
 /**
- * A simple "AI" for a GM's turn. Returns 'gm_turn_ends'.
+ * A simple "AI" for a GM's turn. Returns 'GM_TURN_COMPLETE'.
  */
 function executeGMTurn(gameState) {
     // GM AI: 1. Find a living adversary. 2. Find a living player. 3. Attack.
     const adversary = gameState.adversaries.find(a => a.current_hp > 0);
     const target = gameState.players.find(p => p.current_hp > 0);
     
-    if (!adversary || !target) return 'combat_over';
+    if (!adversary || !target) return 'COMBAT_OVER';
 
     logToScreen(`> GM SPOTLIGHT: ${adversary.name} acts (attacking ${target.name})...`);
     
-    // We'll add Fear spending AI here later
-    // For now, the GM just spotlights one adversary for free [cite: 19740]
+    // This is where the GM AI would decide to spend Fear [cite: 2652-2657]
+    // For now, the GM just spotlights one adversary for free
     
     const roll = rollD20();
     const totalAttack = roll + adversary.attack.modifier;
@@ -275,13 +280,13 @@ function executeGMTurn(gameState) {
 
     if (totalAttack >= target.evasion) {
         logToScreen('  HIT!');
-        const damageTotal = rollDamage(adversary.attack.damage, 1);
+        const damageTotal = rollDamage(adversary.attack.damage, 1); // Adversary prof is 1 for this
         applyDamage(damageTotal, target);
     } else {
         logToScreen('  MISS!');
     }
     
-    return 'gm_turn_ends'; // Signal that the GM turn is over
+    return 'GM_TURN_COMPLETE'; // Signal that the GM turn is over
 }
 
 /**
@@ -307,14 +312,14 @@ function isCombatOver(gameState) {
  */
 function processRollResources(result, gameState) {
     switch (result.outcome) {
-        case 'Critical Success':
-        case 'Success with Hope':
-        case 'Failure with Hope':
+        case 'CRITICAL_SUCCESS':
+        case 'SUCCESS_WITH_HOPE':
+        case 'FAILURE_WITH_HOPE':
             gameState.hope = Math.min(6, gameState.hope + 1); // Max 6 hope
             logToScreen(`  Resource: +1 Hope (Total: ${gameState.hope})`);
             break;
-        case 'Success with Fear':
-        case 'Failure with Fear':
+        case 'SUCCESS_WITH_FEAR':
+        case 'FAILURE_WITH_FEAR':
             gameState.fear++;
             logToScreen(`  Resource: +1 Fear (Total: ${gameState.fear})`);
             break;
@@ -327,7 +332,7 @@ function processRollResources(result, gameState) {
 function applyDamage(damageTotal, target) {
     let hpToMark = 0;
     
-    // Compare damage to thresholds [cite: 19751]
+    // Compare damage to thresholds [cite: 1971-1975]
     if (damageTotal >= target.thresholds.severe) {
         hpToMark = 3;
     } else if (damageTotal >= target.thresholds.major) {
@@ -336,7 +341,7 @@ function applyDamage(damageTotal, target) {
         hpToMark = 1;
     }
 
-    // TODO: Implement Armor Slot mitigation logic [cite: 19752]
+    // TODO: Implement Armor Slot mitigation logic [cite: 2453-2454]
     
     target.current_hp -= hpToMark;
     
@@ -345,6 +350,7 @@ function applyDamage(damageTotal, target) {
 
     if (target.current_hp <= 0) {
         logToScreen(`  *** ${target.name} has been defeated! ***`);
+        // TODO: Implement Death Move logic for players [cite: 2117-2128]
     }
 }
 
@@ -353,44 +359,40 @@ function applyDamage(damageTotal, target) {
 function rollD20() { return Math.floor(Math.random() * 20) + 1; }
 function rollD12() { return Math.floor(Math.random() * 12) + 1; }
 
+/**
+ * The Core Resolution Engine. Returns a string for the outcome.
+ */
 function executeActionRoll(difficulty, traitModifier, otherModifiers) {
     const hopeRoll = rollD12();
     const fearRoll = rollD12();
-
     const safeTraitModifier = typeof traitModifier === 'number' ? traitModifier : 0;
     const safeOtherModifiers = typeof otherModifiers === 'number' ? otherModifiers : 0;
-
     const baseSum = hopeRoll + fearRoll;
     const total = baseSum + safeTraitModifier + safeOtherModifiers;
     let outcome = '';
 
-    if (hopeRoll === fearRoll) { outcome = 'Critical Success'; } 
-    else if (total >= difficulty) { outcome = (hopeRoll > fearRoll) ? 'Success with Hope' : 'Success with Fear'; } 
-    else { outcome = (hopeRoll > fearRoll) ? 'Failure with Hope' : 'Failure with Fear'; }
+    // The Conditional Matrix [cite: 1841-1845, 1833-1840]
+    if (hopeRoll === fearRoll) { outcome = 'CRITICAL_SUCCESS'; } 
+    else if (total >= difficulty) { outcome = (hopeRoll > fearRoll) ? 'SUCCESS_WITH_HOPE' : 'SUCCESS_WITH_FEAR'; } 
+    else { outcome = (hopeRoll > fearRoll) ? 'FAILURE_WITH_HOPE' : 'FAILURE_WITH_FEAR'; }
 
     return {
-        hopeRoll, fearRoll, baseSum,
-        traitModifier: safeTraitModifier,
-        otherModifiers: safeOtherModifiers,
-        total, difficulty, outcome
+        hopeRoll, fearRoll, total, difficulty, outcome
     };
 }
 
 function rollDamage(damageString, proficiency) {
     const { numDice, dieType, modifier, maxDie } = parseDiceString(damageString);
     let totalDamage = 0;
-    let proficiencyDice = (proficiency === 0) ? 1 : proficiency; // PC attacks (Prof 1+)
-
-    // For adversaries, their damage string (e.g., "1d6+2") already has the # of dice.
-    // Their "proficiency" is 1 for our calculation.
-    if (damageString.includes('d')) {
-         // PC damage dice are multiplied by proficiency [cite: 21531]
-         // Adversary damage dice are NOT (their proficiency is 1 for this function)
-         let diceToRoll = (proficiency > 1) ? (numDice * proficiency) : numDice;
-         
-         for (let i = 0; i < diceToRoll; i++) {
+    
+    // PC damage dice are multiplied by proficiency [cite: 468-469, 2002-2004]
+    // Adversary proficiency is 1 for this function
+    let diceToRoll = (proficiency > 1) ? (numDice * proficiency) : numDice;
+    
+    if (dieType > 0) {
+        for (let i = 0; i < diceToRoll; i++) {
             totalDamage += Math.floor(Math.random() * dieType) + 1;
-         }
+        }
     }
     
     totalDamage += modifier;
@@ -405,15 +407,14 @@ function parseDiceString(damageString = "1d4") {
     const dicePart = modSplit[0];
     const dieSplit = dicePart.split('d');
     
-    if (dieSplit[0] === '') { // Handle "d12+3" format
+    if (dieSplit[0] === '') { // Handle "d12+3"
         numDice = 1;
         dieType = parseInt(dieSplit[1]) || 4;
-    } else if (dieSplit.length > 1) { // Handle "1d12+3" format
+    } else if (dieSplit.length > 1) { // Handle "1d12+3"
         numDice = parseInt(dieSplit[0]) || 1;
         dieType = parseInt(dieSplit[1]) || 4;
-    } else { // Handle "3" (no dice, just modifier)
-        numDice = 0;
-        dieType = 0;
+    } else if (!damageString.includes('d')) { // Handle "3"
+        numDice = 0; dieType = 0;
         modifier = parseInt(dieSplit[0]) || 0;
     }
     return { numDice, dieType, modifier, maxDie: dieType };
