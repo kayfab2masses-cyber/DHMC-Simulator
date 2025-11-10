@@ -3,62 +3,92 @@ let party = []; // Holds the raw JSON data pasted by the user
 let adversaries = []; // Holds the raw JSON data pasted by the user
 
 // --- EVENT LISTENERS ---
+// This block runs when the page is fully loaded
 document.addEventListener('DOMContentLoaded', () => {
     // Find and set up all our buttons
     document.getElementById('run-button').addEventListener('click', runSimulation);
     document.getElementById('add-character-button').addEventListener('click', addCharacterFromPaste);
     document.getElementById('add-adversary-button').addEventListener('click', addAdversaryFromPaste);
+    
+    // Load the default adversary on page load
     loadDefaultAdversary();
 });
 
-// --- DATA INPUT & UI FUNCTIONS (No Changes) ---
+// --- DATA INPUT & UI FUNCTIONS ---
 
+/**
+ * Adds a character from the text box to the global 'party' array.
+ */
 function addCharacterFromPaste() {
     const jsonTextBox = document.getElementById('character-json');
     try {
         const newCharacter = JSON.parse(jsonTextBox.value);
+        // Basic validation: ensure it has a name and traits to be useful
         if (!newCharacter.name || !newCharacter.traits) throw new Error('JSON missing "name" or "traits"');
-        party.push(newCharacter);
+        
+        party.push(newCharacter); // Add the raw JSON to the party
         logToScreen(`Added ${newCharacter.name} to party.`);
-        jsonTextBox.value = '';
+        jsonTextBox.value = ''; // Clear the text box
         updatePartyListUI();
-    } catch (e) { logToScreen(`--- ERROR --- \nInvalid Character JSON. ${e.message}`); }
+    } catch (e) { 
+        logToScreen(`--- ERROR --- \nInvalid Character JSON. ${e.message}`); 
+    }
 }
 
+/**
+ * Adds an adversary from the text box to the global 'adversaries' array.
+ */
 function addAdversaryFromPaste() {
     const jsonTextBox = document.getElementById('adversary-json');
     try {
         const newAdversary = JSON.parse(jsonTextBox.value);
+        // Basic validation: ensure it has a name and difficulty
         if (!newAdversary.name || !newAdversary.difficulty) throw new Error('JSON missing "name" or "difficulty"');
-        adversaries.push(newAdversary);
+        
+        adversaries.push(newAdversary); // Add the raw JSON
         logToScreen(`Added ${newAdversary.name} to scene.`);
-        jsonTextBox.value = '';
+        jsonTextBox.value = ''; // Clear the text box
         updateAdversaryListUI();
-    } catch (e) { logToScreen(`--- ERROR --- \nInvalid Adversary JSON. ${e.message}`); }
+    } catch (e) { 
+        logToScreen(`--- ERROR --- \nInvalid Adversary JSON. ${e.message}`); 
+    }
 }
 
+/**
+ * Loads the default Dire Wolf adversary automatically on page load.
+ */
 async function loadDefaultAdversary() {
-    if (adversaries.length > 0) return;
+    // Only load if the list is empty
+    if (adversaries.length > 0) return; 
     try {
         const wolfResponse = await fetch('data/dire_wolf.json');
         const direWolf = await wolfResponse.json();
         adversaries.push(direWolf);
         logToScreen(`Loaded default Adversary: ${direWolf.name}`);
         updateAdversaryListUI();
-    } catch (error) { logToScreen(`--- ERROR --- Could not load default Dire Wolf: ${error.message}`); }
+    } catch (error) { 
+        logToScreen(`--- ERROR --- Could not load default Dire Wolf: ${error.message}`); 
+    }
 }
 
+/**
+ * Updates the "Current Party" list on the HTML page.
+ */
 function updatePartyListUI() {
     const partyListDiv = document.getElementById('party-list');
     partyListDiv.innerHTML = '';
     party.forEach((character, index) => {
         const div = document.createElement('div');
         div.className = 'party-member';
+        // Use .class.name, which we know works from your JSON
         div.textContent = `${index + 1}: ${character.name} (Lvl ${character.level} ${character.class.name})`;
         partyListDiv.appendChild(div);
     });
 }
 
+/**
+ * Updates the "Current Adversaries" list on the HTML page.
+ */
 function updateAdversaryListUI() {
     const adversaryListDiv = document.getElementById('adversary-list');
     adversaryListDiv.innerHTML = '';
@@ -70,42 +100,64 @@ function updateAdversaryListUI() {
     });
 }
 
-// --- PARSING & INSTANTIATION FUNCTIONS (No Changes) ---
+// --- PARSING & INSTANTIATION FUNCTIONS ---
 
+/**
+ * This is our "parser" or "translator".
+ * It takes the raw JSON from your builder and turns it into a clean "Agent"
+ * that the simulator can use.
+ */
 function instantiatePlayerAgent(data) {
+    // Find the spellcast trait from the subclass data
     const spellcastTrait = data.subclass.spellcast_trait.toLowerCase();
-    return {
+    
+    // Create a new, clean "Agent" object
+    const agent = {
         id: `${data.name}-${Math.random().toString(36).substring(2, 9)}`,
         name: data.name,
         type: 'player',
+        // Live Combat Stats (using your builder's structure)
         current_hp: data.stats.hp,
         max_hp: data.stats.hp,
         current_stress: data.stats.stress,
         max_stress: data.stats.stress,
         armor_slots: data.equipment.armor.score,
-        traits: data.traits,
-        spellcastTrait: spellcastTrait,
+        // Base Stats (using your builder's structure)
+        traits: data.traits, // e.g., { strength: -1, agility: 0, ... }
+        spellcastTrait: spellcastTrait, // e.g., "presence"
         proficiency: data.proficiency,
         evasion: data.evasion,
-        thresholds: { major: data.majorThreshold, severe: data.severeThreshold },
+        thresholds: {
+            major: data.majorThreshold,
+            severe: data.severeThreshold
+        },
+        // We will parse these later
         primary_weapon: data.equipment.primary,
         features: data.features,
         domainCards: data.domainCards,
         experiences: data.experiences
     };
+    return agent;
 }
 
+/**
+ * Instantiates an adversary agent.
+ */
 function instantiateAdversaryAgent(data) {
-    return {
-        ...data,
+    // We add current_hp/stress so we can track it during combat
+    const agent = {
+        ...data, // Copy all properties from the JSON (name, difficulty, etc.)
         id: `${data.name}-${Math.random().toString(36).substring(2, 9)}`,
         type: 'adversary',
-        current_hp: data.hp_max || data.hp,
+        // Use hp_max if it exists, otherwise hp
+        current_hp: data.hp_max || data.hp, 
         max_hp: data.hp_max || data.hp,
         current_stress: data.stress_max || data.stress,
         max_stress: data.stress_max || data.stress
     };
+    return agent;
 }
+
 
 // --- *NEW* SPOTLIGHT SIMULATION ENGINE ---
 
@@ -121,9 +173,16 @@ async function runSimulation() {
     if (party.length === 0) { logToScreen('--- ERROR --- \nAdd a player.'); return; }
     if (adversaries.length === 0) { logToScreen('--- ERROR --- \nAdd an adversary.'); return; }
 
-    const playerAgents = party.map(instantiatePlayerAgent);
-    const adversaryAgents = adversaries.map(instantiateAdversaryAgent);
-
+    let playerAgents, adversaryAgents;
+    try {
+        // This is where it was failing from your JSON
+        playerAgents = party.map(instantiatePlayerAgent);
+        adversaryAgents = adversaries.map(instantiateAdversaryAgent);
+    } catch (e) {
+        logToScreen(`--- ERROR --- \nFailed to parse pasted JSON. \nIs the 'subclass' or 'stats' data missing? \n${e.message}`);
+        return;
+    }
+    
     // Create the central "Game State" object
     const gameState = {
         players: playerAgents,
@@ -139,8 +198,6 @@ async function runSimulation() {
     logToScreen(`Spotlight starts on: ${gameState.players[0].name}`);
 
     // --- 2. RUN THE EVENT-DRIVEN COMBAT LOOP ---
-    // This loop runs as long as combat isn't over.
-    // It processes one "turn" (one spotlight) at a time.
     let simulationSteps = 0; // Safety break
     while (!isCombatOver(gameState) && simulationSteps < 50) {
         
@@ -161,11 +218,9 @@ async function runSimulation() {
         }
         
         // --- 5. CONTROL FLOW DECISION ---
-        // This is the core Daggerheart mechanic [cite: 279, 1814-1820, 1871-1872]
         determineNextSpotlight(lastOutcome, gameState);
 
-        // Add a small delay so the log can be read
-        await new Promise(resolve => setTimeout(resolve, 50)); 
+        await new Promise(resolve => setTimeout(resolve, 50)); // 50ms delay
         simulationSteps++;
     }
 
@@ -185,7 +240,6 @@ async function runSimulation() {
 }
 
 /**
- * --- NEW ---
  * Decides who gets the spotlight next based on the last roll.
  * This is the core "event-driven control flow."
  */
@@ -196,7 +250,7 @@ function determineNextSpotlight(lastOutcome, gameState) {
         case 'CRITICAL_SUCCESS':
         case 'SUCCESS_WITH_HOPE':
         case 'PC_DOWN':
-            // Spotlight passes to the next PC in order [cite: 1814-1820]
+            // Spotlight passes to the next PC in order
             const nextPCIndex = (gameState.lastPlayerSpotlight + 1) % gameState.players.length;
             gameState.spotlight = nextPCIndex;
             logToScreen(`  Spotlight passes to PC: ${gameState.players[nextPCIndex].name}`);
@@ -205,7 +259,7 @@ function determineNextSpotlight(lastOutcome, gameState) {
         case 'SUCCESS_WITH_FEAR':
         case 'FAILURE_WITH_HOPE':
         case 'FAILURE_WITH_FEAR':
-            // Spotlight is seized by the GM! 
+            // Spotlight is seized by the GM!
             gameState.spotlight = 'GM';
             logToScreen(`  Spotlight seized by GM!`);
             break;
@@ -215,6 +269,10 @@ function determineNextSpotlight(lastOutcome, gameState) {
             const returnPCIndex = (gameState.lastPlayerSpotlight + 1) % gameState.players.length;
             gameState.spotlight = returnPCIndex;
             logToScreen(`  Spotlight returns to PC: ${gameState.players[returnPCIndex].name}`);
+            break;
+        
+        case 'COMBAT_OVER':
+            // Do nothing, the loop will end
             break;
     }
 }
@@ -229,15 +287,16 @@ function executePCTurn(player, gameState) {
 
     logToScreen(`> ${player.name}'s turn (attacking ${target.name})...`);
 
-    // Simple AI: Use spellcast trait if available, otherwise first trait.
-    const traitName = player.spellcastTrait || Object.keys(player.traits)[0];
+    // Simple AI: Use spellcast trait if available, otherwise primary weapon trait
+    const traitName = player.spellcastTrait || player.primary_weapon?.trait?.toLowerCase() || Object.keys(player.traits)[0];
     const traitMod = player.traits[traitName];
     
     const result = executeActionRoll(target.difficulty, traitMod, 0);
     logToScreen(`  Roll: ${result.total} vs Diff ${result.difficulty} (${result.outcome})`);
 
-    processRollResources(result, gameState); // Update Hope/Fear
+    processRollResources(result, gameState, player); // Update Hope/Fear/Stress
 
+    // Check for success
     if (result.outcome === 'CRITICAL_SUCCESS' || result.outcome === 'SUCCESS_WITH_HOPE' || result.outcome === 'SUCCESS_WITH_FEAR') {
         let damageString = player.primary_weapon?.damage || "1d4";
         let proficiency = player.proficiency;
@@ -245,10 +304,7 @@ function executePCTurn(player, gameState) {
         if (result.outcome === 'CRITICAL_SUCCESS') {
             logToScreen('  CRITICAL HIT!');
             const critDamage = parseDiceString(damageString).maxDie;
-            damageString += `+${critDamage}`;
-            // A Crit also clears 1 Stress [cite: 1841-1843]
-            player.current_stress = Math.max(0, player.current_stress - 1);
-            logToScreen(`  ${player.name} clears 1 Stress.`);
+            damageString += `+${critDamage}`; // Add max die value
         }
 
         const damageTotal = rollDamage(damageString, proficiency);
@@ -262,7 +318,6 @@ function executePCTurn(player, gameState) {
  * A simple "AI" for a GM's turn. Returns 'GM_TURN_COMPLETE'.
  */
 function executeGMTurn(gameState) {
-    // GM AI: 1. Find a living adversary. 2. Find a living player. 3. Attack.
     const adversary = gameState.adversaries.find(a => a.current_hp > 0);
     const target = gameState.players.find(p => p.current_hp > 0);
     
@@ -270,15 +325,14 @@ function executeGMTurn(gameState) {
 
     logToScreen(`> GM SPOTLIGHT: ${adversary.name} acts (attacking ${target.name})...`);
     
-    // This is where the GM AI would decide to spend Fear [cite: 2652-2657]
-    // For now, the GM just spotlights one adversary for free
+    // TODO: Add GM Fear spend logic
     
     const roll = rollD20();
     const totalAttack = roll + adversary.attack.modifier;
     
     logToScreen(`  Roll: 1d20(${roll}) + ${adversary.attack.modifier} = ${totalAttack} vs Evasion ${target.evasion}`);
 
-    if (totalAttack >= target.evasion) {
+    if (totalAttack >= target.evasion) { // Check against Evasion
         logToScreen('  HIT!');
         const damageTotal = rollDamage(adversary.attack.damage, 1); // Adversary prof is 1 for this
         applyDamage(damageTotal, target);
@@ -310,15 +364,25 @@ function isCombatOver(gameState) {
 /**
  * Updates the game state (Hope/Fear) based on a roll's outcome.
  */
-function processRollResources(result, gameState) {
+function processRollResources(result, gameState, player) {
     switch (result.outcome) {
         case 'CRITICAL_SUCCESS':
-        case 'SUCCESS_WITH_HOPE':
-        case 'FAILURE_WITH_HOPE':
             gameState.hope = Math.min(6, gameState.hope + 1); // Max 6 hope
+            player.current_stress = Math.max(0, player.current_stress - 1); // Clear 1 Stress
+            logToScreen(`  Resource: +1 Hope (Total: ${gameState.hope}), ${player.name} clears 1 Stress.`);
+            break;
+        case 'SUCCESS_WITH_HOPE':
+            gameState.hope = Math.min(6, gameState.hope + 1);
+            logToScreen(`  Resource: +1 Hope (Total: ${gameState.hope})`);
+            break;
+        case 'FAILURE_WITH_HOPE':
+            gameState.hope = Math.min(6, gameState.hope + 1);
             logToScreen(`  Resource: +1 Hope (Total: ${gameState.hope})`);
             break;
         case 'SUCCESS_WITH_FEAR':
+            gameState.fear++;
+            logToScreen(`  Resource: +1 Fear (Total: ${gameState.fear})`);
+            break;
         case 'FAILURE_WITH_FEAR':
             gameState.fear++;
             logToScreen(`  Resource: +1 Fear (Total: ${gameState.fear})`);
@@ -332,16 +396,16 @@ function processRollResources(result, gameState) {
 function applyDamage(damageTotal, target) {
     let hpToMark = 0;
     
-    // Compare damage to thresholds [cite: 1971-1975]
+    // Compare damage to thresholds
     if (damageTotal >= target.thresholds.severe) {
-        hpToMark = 3;
+        hpToMark = 3; // Severe damage
     } else if (damageTotal >= target.thresholds.major) {
-        hpToMark = 2;
+        hpToMark = 2; // Major damage
     } else if (damageTotal > 0) { // Any non-zero damage is at least Minor
-        hpToMark = 1;
+        hpToMark = 1; // Minor damage
     }
 
-    // TODO: Implement Armor Slot mitigation logic [cite: 2453-2454]
+    // TODO: Implement Armor Slot mitigation logic
     
     target.current_hp -= hpToMark;
     
@@ -350,14 +414,25 @@ function applyDamage(damageTotal, target) {
 
     if (target.current_hp <= 0) {
         logToScreen(`  *** ${target.name} has been defeated! ***`);
-        // TODO: Implement Death Move logic for players [cite: 2117-2128]
+        // TODO: Implement Death Move logic for players
     }
 }
 
 // --- CORE DICE & PARSING UTILITIES ---
 
-function rollD20() { return Math.floor(Math.random() * 20) + 1; }
-function rollD12() { return Math.floor(Math.random() * 12) + 1; }
+/**
+ * Rolls a virtual 20-sided die.
+ */
+function rollD20() { 
+    return Math.floor(Math.random() * 20) + 1; 
+}
+
+/**
+ * Rolls a virtual 12-sided die.
+ */
+function rollD12() { 
+    return Math.floor(Math.random() * 12) + 1; 
+}
 
 /**
  * The Core Resolution Engine. Returns a string for the outcome.
@@ -371,7 +446,7 @@ function executeActionRoll(difficulty, traitModifier, otherModifiers) {
     const total = baseSum + safeTraitModifier + safeOtherModifiers;
     let outcome = '';
 
-    // The Conditional Matrix [cite: 1841-1845, 1833-1840]
+    // The Conditional Matrix
     if (hopeRoll === fearRoll) { outcome = 'CRITICAL_SUCCESS'; } 
     else if (total >= difficulty) { outcome = (hopeRoll > fearRoll) ? 'SUCCESS_WITH_HOPE' : 'SUCCESS_WITH_FEAR'; } 
     else { outcome = (hopeRoll > fearRoll) ? 'FAILURE_WITH_HOPE' : 'FAILURE_WITH_FEAR'; }
@@ -381,11 +456,14 @@ function executeActionRoll(difficulty, traitModifier, otherModifiers) {
     };
 }
 
+/**
+ * Calculates total damage based on a damage string (e.g., "1d6+2") and proficiency.
+ */
 function rollDamage(damageString, proficiency) {
     const { numDice, dieType, modifier, maxDie } = parseDiceString(damageString);
     let totalDamage = 0;
     
-    // PC damage dice are multiplied by proficiency [cite: 468-469, 2002-2004]
+    // PC damage dice are multiplied by proficiency
     // Adversary proficiency is 1 for this function
     let diceToRoll = (proficiency > 1) ? (numDice * proficiency) : numDice;
     
@@ -399,27 +477,43 @@ function rollDamage(damageString, proficiency) {
     return totalDamage;
 }
 
+/**
+ * A helper utility to parse damage strings like "1d6+2" or "d12+3"
+ */
 function parseDiceString(damageString = "1d4") {
-    damageString = damageString.split(' ')[0];
-    let numDice = 1, dieType = 4, modifier = 0;
+    // Remove "phy" or "mag" tags
+    damageString = damageString.split(' ')[0]; 
+    
+    let numDice = 1;
+    let dieType = 4;
+    let modifier = 0;
+
     const modSplit = damageString.split('+');
-    if (modSplit.length > 1) modifier = parseInt(modSplit[1]) || 0;
+    if (modSplit.length > 1) {
+        modifier = parseInt(modSplit[1]) || 0;
+    }
+    
     const dicePart = modSplit[0];
     const dieSplit = dicePart.split('d');
     
-    if (dieSplit[0] === '') { // Handle "d12+3"
+    if (dieSplit[0] === '') { // Handle "d12+3" format
         numDice = 1;
         dieType = parseInt(dieSplit[1]) || 4;
-    } else if (dieSplit.length > 1) { // Handle "1d12+3"
+    } else if (dieSplit.length > 1) { // Handle "1d12+3" format
         numDice = parseInt(dieSplit[0]) || 1;
         dieType = parseInt(dieSplit[1]) || 4;
-    } else if (!damageString.includes('d')) { // Handle "3"
-        numDice = 0; dieType = 0;
+    } else if (!damageString.includes('d')) { // Handle "3" (no dice, just modifier)
+        numDice = 0;
+        dieType = 0;
         modifier = parseInt(dieSplit[0]) || 0;
     }
+
     return { numDice, dieType, modifier, maxDie: dieType };
 }
 
+/**
+* Helper function to print messages to the on-screen log
+*/
 function logToScreen(message) {
    const logOutput = document.getElementById('log-output');
    if (logOutput) {
