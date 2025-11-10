@@ -1,0 +1,74 @@
+// This file acts as our "database" of SRD Adversaries.
+// We can add every adversary from the SRD here over time.
+
+const SRD_ADVERSARIES = [
+  {
+    "name": "Dire Wolf",
+    "tier": 1,
+    "type": "Skulk",
+    "motives": ["Defend territory", "harry", "protect pack", "surround", "trail"],
+    "difficulty": 12,
+    "thresholds": { "major": 5, "severe": 9 },
+    "hp": 4, "hp_max": 4, "stress": 3, "stress_max": 3,
+    "attack": {
+      "name": "Claws", "modifier": 2, "range": "Melee", "damage": "1d6+2 phy"
+    },
+    "experiences": { "Keen Senses": 3 },
+    "features": [
+      { "name": "Pack Tactics", "type": "Passive", "text": "If another Dire Wolf is in Melee, standard attack deals 1d6+5 phy instead and you gain 1 Fear." },
+      { "name": "Hobbling Strike", "type": "Action", "cost": "1 Stress", "text": "Make attack (Melee). On success, deal 3d4+10 direct phy and target is Vulnerable until they clear 1 HP." }
+    ]
+  },
+  {
+    "name": "Bladed Guard",
+    "tier": 1,
+    "type": "Standard",
+    "motives": ["Arrest", "close gates", "make it through the day", "pin down"],
+    "difficulty": 12,
+    "thresholds": { "major": 5, "severe": 9 },
+    "hp": 5, "hp_max": 5, "stress": 2, "stress_max": 2,
+    "attack": {
+        "name": "Longsword", "modifier": 1, "range": "Melee", "damage": "1d6+1 phy"
+    },
+    "experiences": { "Local Knowledge": 3 },
+    "features": [
+        { "name": "Shield Wall", "type": "Passive", "text": "Creatures trying to move within Very Close range must succeed on an Agility Roll." },
+        { "name": "Detain", "type": "Action", "cost": "1 Stress", "text": "Attack (Very Close). On success, Restrain target." }
+    ]
+  },
+  {
+    "name": "Skeleton Archer",
+    "tier": 1,
+    "type": "Ranged",
+    "motives": ["Perforate distracted targets", "play dead", "steal skin"],
+    "difficulty": 9,
+    "thresholds": { "major": 4, "severe": 7 },
+    "hp": 3, "hp_max": 3, "stress": 2, "stress_max": 2,
+    "attack": {
+        "name": "Shortbow", "modifier": 2, "range": "Far", "damage": "1d8+1 phy"
+    },
+    "experiences": {},
+    "features": [
+        { "name": "Opportunist", "type": "Passive", "text": "If two or more adversaries are within Very Close range of target, all damage is doubled." },
+        { "name": "Deadly Shot", "type": "Action", "cost": "1 Stress", "text": "Attack (Far) vs. Vulnerable target. On success, deal 3d4+8 phy." }
+    ]
+  },
+  {
+    "name": "Cave Ogre",
+    "tier": 1,
+    "type": "Solo",
+    "motives": ["Bite off heads", "feast", "rip limbs", "stomp", "throw enemies"],
+    "difficulty": 13,
+    "thresholds": { "major": 8, "severe": 15 },
+    "hp": 8, "hp_max": 8, "stress": 3, "stress_max": 3,
+    "attack": {
+        "name": "Club", "modifier": 1, "range": "Very Close", "damage": "1d10+2 phy"
+    },
+    "experiences": { "Throw": 2 },
+    "features": [
+        { "name": "Ramp Up", "type": "Passive", "text": "Must spend a Fear to spotlight. Can attack all targets in range." },
+        { "name":"Bone Breaker", "type": "Passive", "text": "Ogre's attacks deal direct damage." },
+        { "name": "Hail of Boulders", "type": "Action", "cost": "1 Stress", "text": "Attack all targets in front (Far). On success, 1d10+2 phy."}
+    ]
+  }
+]

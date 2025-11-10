@@ -17,7 +17,20 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('pool-column').addEventListener('click', handlePoolClick);
     document.getElementById('scene-column').addEventListener('click', handleSceneClick);
     
-    loadDefaultAdversary();
+    // SRD Modal Listeners
+    document.getElementById('open-srd-modal').addEventListener('click', openSRDModal);
+    document.getElementById('close-srd-modal').addEventListener('click', closeSRDModal);
+    document.getElementById('srd-modal-overlay').addEventListener('click', (e) => {
+        if (e.target.id === 'srd-modal-overlay') closeSRDModal();
+    });
+    document.getElementById('srd-tier-filter').addEventListener('change', renderSRDAdversaries);
+    document.getElementById('srd-type-filter').addEventListener('change', renderSRDAdversaries);
+    document.getElementById('srd-adversary-list').addEventListener('click', handleSRDListClick);
+    
+    // Initial UI Renders
+    renderPools();
+    renderActiveScene();
+    renderSRDAdversaries();
 });
 
 // --- DATA & POOL MANAGEMENT ---
@@ -27,14 +40,11 @@ function addCharacterToPool() {
     try {
         const newCharacter = JSON.parse(jsonTextBox.value);
         if (!newCharacter.name || !newCharacter.traits) throw new Error('JSON missing "name" or "traits"');
-        
-        // Add a unique ID for tracking
         newCharacter.simId = `player-${Date.now()}`;
-        
         playerPool.push(newCharacter);
         logToScreen(`Added ${newCharacter.name} to Player Pool.`);
         jsonTextBox.value = '';
-        renderPools(); // Update UI
+        renderPools();
     } catch (e) { logToScreen(`--- ERROR --- \nInvalid Character JSON. ${e.message}`); }
 }
 
@@ -43,68 +53,55 @@ function addAdversaryToPool() {
     try {
         const newAdversary = JSON.parse(jsonTextBox.value);
         if (!newAdversary.name || !newAdversary.difficulty) throw new Error('JSON missing "name" or "difficulty"');
-        
-        newAdversary.simId = `adv-${Date.now()}`;
-        
+        newAdversary.simId = `adv-master-${Date.now()}`; // "master" ID
         adversaryPool.push(newAdversary);
         logToScreen(`Added ${newAdversary.name} to Adversary Pool.`);
         jsonTextBox.value = '';
-        renderPools(); // Update UI
+        renderPools();
     } catch (e) { logToScreen(`--- ERROR --- \nInvalid Adversary JSON. ${e.message}`); }
 }
 
-async function loadDefaultAdversary() {
-    if (adversaryPool.length > 0) return;
-    try {
-        const wolfResponse = await fetch('data/dire_wolf.json');
-        const direWolf = await wolfResponse.json();
-        direWolf.simId = `adv-${Date.now()}`;
-        adversaryPool.push(direWolf);
-        logToScreen(`Loaded default ${direWolf.name} into Adversary Pool.`);
-        renderPools();
-    } catch (error) { logToScreen(`--- ERROR --- Could not load default Dire Wolf: ${error.message}`); }
-}
-
-// --- DYNAMIC CLICK HANDLERS (Event Delegation) ---
+// --- DYNAMIC CLICK HANDLERS ---
 
 function handlePoolClick(event) {
     const target = event.target;
     const agentId = target.dataset.id;
-    if (!agentId) return; // Didn't click a button
+    if (!agentId) return; 
 
     if (target.classList.contains('move-button')) {
-        // Find in Player Pool
-        let agentIndex = playerPool.findIndex(p => p.simId === agentId);
-        if (agentIndex > -1) {
-            const agent = playerPool.splice(agentIndex, 1)[0];
+        // --- Player logic (MOVE) ---
+        let playerIndex = playerPool.findIndex(p => p.simId === agentId);
+        if (playerIndex > -1) {
+            const agent = playerPool.splice(playerIndex, 1)[0];
             activeParty.push(agent);
+            logToScreen(`Moved ${agent.name} to Active Scene.`);
         } else {
-            // Find in Adversary Pool
-            agentIndex = adversaryPool.findIndex(a => a.simId === agentId);
-            if (agentIndex > -1) {
-                const agent = adversaryPool.splice(agentIndex, 1)[0];
-                activeAdversaries.push(agent);
+            // --- Adversary logic (COPY) ---
+            const agentTemplate = adversaryPool.find(a => a.simId === agentId);
+            if (agentTemplate) {
+                // Create a deep copy
+                const newAgentInstance = JSON.parse(JSON.stringify(agentTemplate));
+                // Give the new copy a unique ID for the scene
+                newAgentInstance.simId = `adv-instance-${Date.now()}`; 
+                activeAdversaries.push(newAgentInstance);
+                logToScreen(`Copied ${newAgentInstance.name} to Active Scene.`);
             }
         }
     }
     
     if (target.classList.contains('flush-button')) {
-        // Find and remove from Player Pool
-        let agentIndex = playerPool.findIndex(p => p.simId === agentId);
-        if (agentIndex > -1) {
-            const agent = playerPool.splice(agentIndex, 1)[0];
-            logToScreen(`Flushed ${agent.name} from pool.`);
+        // Flush from Player Pool
+        let playerIndex = playerPool.findIndex(p => p.simId === agentId);
+        if (playerIndex > -1) {
+            logToScreen(`Flushed ${playerPool.splice(playerIndex, 1)[0].name} from pool.`);
         } else {
-            // Find and remove from Adversary Pool
-            agentIndex = adversaryPool.findIndex(a => a.simId === agentId);
-            if (agentIndex > -1) {
-                const agent = adversaryPool.splice(agentIndex, 1)[0];
-                logToScreen(`Flushed ${agent.name} from pool.`);
+            // Flush from Adversary Pool
+            let adversaryIndex = adversaryPool.findIndex(a => a.simId === agentId);
+            if (adversaryIndex > -1) {
+                logToScreen(`Flushed ${adversaryPool.splice(adversaryIndex, 1)[0].name} from pool.`);
             }
         }
     }
-    
-    // Re-render both columns
     renderPools();
     renderActiveScene();
 }
@@ -112,27 +109,37 @@ function handlePoolClick(event) {
 function handleSceneClick(event) {
     const target = event.target;
     const agentId = target.dataset.id;
-    if (!agentId) return; // Didn't click a button
+    if (!agentId) return; 
 
     if (target.classList.contains('move-button')) {
-        // Find in Active Party
-        let agentIndex = activeParty.findIndex(p => p.simId === agentId);
-        if (agentIndex > -1) {
-            const agent = activeParty.splice(agentIndex, 1)[0];
+        // --- Player logic (MOVE BACK) ---
+        let playerIndex = activeParty.findIndex(p => p.simId === agentId);
+        if (playerIndex > -1) {
+            const agent = activeParty.splice(playerIndex, 1)[0];
             playerPool.push(agent);
+            logToScreen(`Moved ${agent.name} back to Player Pool.`);
         } else {
-            // Find in Active Adversaries
-            agentIndex = activeAdversaries.findIndex(a => a.simId === agentId);
-            if (agentIndex > -1) {
-                const agent = activeAdversaries.splice(agentIndex, 1)[0];
-                adversaryPool.push(agent);
+            // --- Adversary logic (DELETE INSTANCE) ---
+            let adversaryIndex = activeAdversaries.findIndex(a => a.simId === agentId);
+            if (adversaryIndex > -1) {
+                const agent = activeAdversaries.splice(adversaryIndex, 1)[0];
+                logToScreen(`Removed ${agent.name} instance from Active Scene.`);
             }
         }
     }
-    
-    // Re-render both columns
     renderPools();
     renderActiveScene();
+}
+
+// --- SRD Modal Click Handler ---
+function handleSRDListClick(event) {
+    const target = event.target.closest('.srd-item');
+    if (!target) return;
+    
+    if (event.target.classList.contains('move-button')) {
+        const advName = target.dataset.name;
+        addAdversaryFromSRD(advName);
+    }
 }
 
 
@@ -149,8 +156,10 @@ function renderPools() {
         playerListDiv.innerHTML += `
             <div class="pool-item">
                 <span class="agent-name">${char.name} (Lvl ${char.level})</span>
-                <button class="flush-button" data-id="${char.simId}">X</button>
-                <button class="move-button" data-id="${char.simId}">Add to Scene &gt;</button>
+                <div>
+                    <button class="flush-button" data-id="${char.simId}" title="Remove from Pool">X</button>
+                    <button class="move-button" data-id="${char.simId}" title="Add to Active Scene">&gt;</button>
+                </div>
             </div>
         `;
     });
@@ -159,8 +168,10 @@ function renderPools() {
         adversaryListDiv.innerHTML += `
             <div class="pool-item">
                 <span class="agent-name">${adv.name} (Diff ${adv.difficulty})</span>
-                <button class="flush-button" data-id="${adv.simId}">X</button>
-                <button class="move-button" data-id="${adv.simId}">Add to Scene &gt;</button>
+                <div>
+                    <button class="flush-button" data-id="${adv.simId}" title="Remove from Pool">X</button>
+                    <button class="move-button" data-id="${adv.simId}" title="Add to Active Scene">&gt;</button>
+                </div>
             </div>
         `;
     });
@@ -176,7 +187,7 @@ function renderActiveScene() {
     activeParty.forEach(char => {
         partyListDiv.innerHTML += `
             <div class="scene-item">
-                <button class="move-button" data-id="${char.simId}">&lt; Remove</button>
+                <button class="move-button" data-id="${char.simId}" title="Return to Pool">&lt;</button>
                 <span class="agent-name">${char.name} (Lvl ${char.level})</span>
             </div>
         `;
@@ -185,14 +196,68 @@ function renderActiveScene() {
     activeAdversaries.forEach(adv => {
         adversaryListDiv.innerHTML += `
             <div class="scene-item">
-                <button class="move-button" data-id="${adv.simId}">&lt; Remove</button>
+                <button class="move-button" data-id="${adv.simId}" title="Return to Pool">&lt;</button>
                 <span class="agent-name">${adv.name} (Diff ${adv.difficulty})</span>
             </div>
         `;
     });
 }
 
-// --- PARSING & INSTANTIATION FUNCTIONS (Unchanged from last time) ---
+// --- SRD Modal Functions ---
+
+function openSRDModal() {
+    document.getElementById('srd-modal-overlay').classList.remove('hidden');
+}
+
+function closeSRDModal() {
+    document.getElementById('srd-modal-overlay').classList.add('hidden');
+}
+
+function renderSRDAdversaries() {
+    const tier = document.getElementById('srd-tier-filter').value;
+    const type = document.getElementById('srd-type-filter').value;
+    const listDiv = document.getElementById('srd-adversary-list');
+    
+    listDiv.innerHTML = ''; 
+    
+    const filteredList = SRD_ADVERSARIES.filter(adv => {
+        const tierMatch = (tier === 'any' || adv.tier == tier);
+        const typeMatch = (type === 'any' || adv.type === type);
+        return tierMatch && typeMatch;
+    });
+
+    if (filteredList.length === 0) {
+        listDiv.innerHTML = '<div class="pool-item"><span>No adversaries match filters.</span></div>';
+        return;
+    }
+    
+    filteredList.forEach(adv => {
+        let features = adv.features.map(f => `• ${f.name} (${f.type})`).join('\n');
+        listDiv.innerHTML += `
+            <div class="srd-item" data-name="${adv.name}">
+                <span class="agent-name" title="${features}">${adv.name} (T${adv.tier} ${adv.type})</span>
+                <button class="move-button" title="Add to Adversary Pool">Add</button>
+            </div>
+        `;
+    });
+}
+
+function addAdversaryFromSRD(name) {
+    const advData = SRD_ADVERSARIES.find(a => a.name === name);
+    if (!advData) return;
+
+    // Create a copy and give it a new "master" ID
+    const newAdversary = JSON.parse(JSON.stringify(advData));
+    newAdversary.simId = `adv-master-${Date.now()}`;
+    
+    adversaryPool.push(newAdversary);
+    logToScreen(`Added ${newAdversary.name} from SRD to Adversary Pool.`);
+    renderPools(); // Update the pool list
+    closeSRDModal(); // Close the pop-out
+}
+
+
+// --- PARSING & INSTANTIATION FUNCTIONS ---
 
 function instantiatePlayerAgent(data) {
     let spellcastTrait = null;
@@ -210,11 +275,10 @@ function instantiatePlayerAgent(data) {
     if (data.subclass.foundation_feature.name.includes("At Ease")) {
         max_stress += 1;
     }
-    let max_hope = 6;
     let current_hope = 2; 
 
     const agent = {
-        id: data.simId, // Use the ID we gave it
+        id: data.simId,
         name: data.name,
         type: 'player',
         current_hp: max_hp,
@@ -222,7 +286,7 @@ function instantiatePlayerAgent(data) {
         current_stress: 0, 
         max_stress: max_stress,
         current_hope: current_hope,
-        max_hope: max_hope,
+        max_hope: 6,
         armor_slots: data.equipment.armor ? data.equipment.armor.score : 0, 
         current_armor_slots: data.equipment.armor ? data.equipment.armor.score : 0, 
         traits: data.traits,
@@ -244,7 +308,7 @@ function instantiatePlayerAgent(data) {
 function instantiateAdversaryAgent(data) {
     const agent = {
         ...data, 
-        id: data.simId, // Use the ID we gave it
+        id: data.simId,
         type: 'adversary',
         current_hp: data.hp_max || data.hp, 
         max_hp: data.hp_max || data.hp,
@@ -254,20 +318,19 @@ function instantiateAdversaryAgent(data) {
     return agent;
 }
 
-// --- SPOTLIGHT SIMULATION ENGINE (Unchanged from last time) ---
+
+// --- SPOTLIGHT SIMULATION ENGINE ---
 
 async function runSimulation() {
     logToScreen('======================================');
     logToScreen('INITIALIZING NEW SIMULATION...');
     logToScreen('======================================');
 
-    // --- 1. VALIDATE & INSTANTIATE (NOW USES ACTIVE LISTS) ---
     if (activeParty.length === 0) { logToScreen('--- ERROR --- \nAdd a player to the Active Scene.'); return; }
     if (activeAdversaries.length === 0) { logToScreen('--- ERROR --- \nAdd an adversary to the Active Scene.'); return; }
 
     let playerAgents, adversaryAgents;
     try {
-        // Create "live" instances *from the active lists*
         playerAgents = activeParty.map(instantiatePlayerAgent);
         adversaryAgents = activeAdversaries.map(instantiateAdversaryAgent);
     } catch (e) {
@@ -462,7 +525,6 @@ function applyDamage(damageTotal, attacker, target) {
     else if (damageTotal > 0) hpToMark = 1;
 
     if (target.type === 'player' && target.current_armor_slots > 0 && hpToMark > 0) {
-        // Simple Player AI: Use an Armor Slot if it helps reduce HP marked
         target.current_armor_slots--;
         hpToMark--;
         logToScreen(`  ${target.name} marks 1 Armor Slot to reduce damage! (Slots left: ${target.current_armor_slots})`);

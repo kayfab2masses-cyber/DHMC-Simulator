@@ -11,10 +11,6 @@
         <h1>Daggerheart Monte Carlo Simulator</h1>
     </header>
 
-    <div class="controls-main">
-        <button id="run-button">Run Simulation (using 'Active Scene')</button>
-    </div>
-
     <div class="simulator-layout">
 
         <div class="layout-column" id="input-column">
@@ -35,13 +31,14 @@
             <h3><span class="col-number">2</span> Staging Pool (Library)</h3>
             <div class="pool-container">
                 <h4>Player Pool</h4>
-                <div id="player-pool-list" class="agent-list">
-                    </div>
+                <div id="player-pool-list" class="agent-list"></div>
             </div>
             <div class="pool-container">
-                <h4>Adversary Pool</h4>
-                <div id="adversary-pool-list" class="agent-list">
-                    </div>
+                <div class="pool-header">
+                    <h4>Adversary Pool</h4>
+                    <button id="open-srd-modal" class="srd-button">SRD Adversaries</button>
+                </div>
+                <div id="adversary-pool-list" class="agent-list"></div>
             </div>
         </div>
 
@@ -49,16 +46,18 @@
             <h3><span class="col-number">3</span> Active Scene (for Sim)</h3>
             <div class="pool-container">
                 <h4>Active Party</h4>
-                <div id="active-party-list" class="agent-list">
-                    </div>
+                <div id="active-party-list" class="agent-list"></div>
             </div>
             <div class="pool-container">
                 <h4>Active Adversaries</h4>
-                <div id="active-adversary-list" class="agent-list">
-                    </div>
+                <div id="active-adversary-list" class="agent-list"></div>
             </div>
         </div>
 
+    </div>
+
+    <div class="controls-main">
+        <button id="run-button">Run Simulation (using 'Active Scene')</button>
     </div>
 
     <div class="log-container">
@@ -66,6 +65,37 @@
         <pre id="log-output"></pre>
     </div>
 
+    <div id="srd-modal-overlay" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>SRD Adversary Catalog</h3>
+                <button id="close-srd-modal" class="close-button">X</button>
+            </div>
+            <div class="modal-filters">
+                <select id="srd-tier-filter">
+                    <option value="any">Any Tier</option>
+                    <option value="1">Tier 1</option>
+                    <option value="2" disabled>Tier 2</option>
+                    <option value="3" disabled>Tier 3</option>
+                    <option value="4" disabled>Tier 4</option>
+                </select>
+                <select id="srd-type-filter">
+                    <option value="any">Any Type</option>
+                    <option value="Standard">Standard</option>
+                    <option value="Skulk">Skulk</option>
+                    <option value="Ranged">Ranged</option>
+                    <option value="Bruiser">Bruiser</option>
+                    <option value="Horde">Horde</option>
+                    <option value="Leader">Leader</option>
+                    <option value="Solo">Solo</option>
+                </select>
+            </div>
+            <div id="srd-adversary-list" class="agent-list">
+                </div>
+        </div>
+    </div>
+
+    <script src="data/srd_adversaries.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

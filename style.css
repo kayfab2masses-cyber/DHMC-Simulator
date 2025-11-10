@@ -24,6 +24,8 @@ header {
     border: 1px solid #444;
     border-radius: 5px;
     padding: 15px;
+    display: flex;
+    flex-direction: column;
 }
 .layout-column h3 {
     margin-top: 0;
@@ -78,8 +80,28 @@ textarea {
 }
 
 /* --- Columns 2 & 3: Lists --- */
-.pool-container h4 {
+.pool-container {
     margin-bottom: 10px;
+}
+.pool-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+.pool-header h4 {
+    margin: 0;
+}
+.srd-button {
+    background-color: #4a007d;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    padding: 5px 10px;
+    cursor: pointer;
+}
+.srd-button:hover {
+    background-color: #320054;
 }
 .agent-list {
     min-height: 150px;
@@ -90,7 +112,7 @@ textarea {
     padding: 10px;
     border-radius: 5px;
 }
-.pool-item, .scene-item {
+.pool-item, .scene-item, .srd-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -128,7 +150,7 @@ textarea {
 }
 .flush-button:hover { background: #7d0000; }
 
-/* --- Run Button & Log --- */
+/* --- Run Button (Moved) & Log --- */
 .controls-main {
     text-align: center;
     margin-top: 20px;
@@ -163,4 +185,69 @@ pre {
     min-height: 300px;
     max-height: 600px;
     overflow-y: auto;
+}
+
+/* --- NEW: Modal (Pop-out) Styles --- */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+.modal-overlay.hidden {
+    display: none;
+}
+.modal-content {
+    background-color: #2d2d2d;
+    padding: 20px;
+    border-radius: 8px;
+    width: 60%;
+    max-width: 800px;
+    border: 1px solid #555;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+}
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #555;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+}
+.modal-header h3 {
+    margin: 0;
+}
+.close-button {
+    background: #a40000;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 25px;
+    height: 25px;
+    cursor: pointer;
+    font-weight: bold;
+}
+.modal-filters {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+.modal-filters select {
+    padding: 5px;
+    background-color: #333;
+    color: white;
+    border: 1px solid #555;
+    border-radius: 3px;
+}
+#srd-adversary-list {
+    max-height: 400px;
+}
+.srd-item .agent-name {
+    cursor: help; /* Show '?' cursor to indicate hover */
 }
