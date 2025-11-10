@@ -1,0 +1,38 @@
+{
+  "name": "Dire Wolf",
+  "tier": 1,
+  "type": "Skulk",
+  "motives": ["Defend territory", "harry", "protect pack", "surround", "trail"],
+  "difficulty": 12,
+  "thresholds": {
+    "major": 5,
+    "severe": 9
+  },
+  "hp": 4,
+  "hp_max": 4,
+  "stress": 3,
+  "stress_max": 3,
+  "attack": {
+    "name": "Claws",
+    "modifier": 2,
+    "range": "Melee",
+    "damage": "1d6+2",
+    "type": "phy"
+  },
+  "experiences": {
+    "Keen Senses": 3
+  },
+  "features": [
+    {
+      "name": "Pack Tactics",
+      "type": "Passive",
+      "text": "If another Dire Wolf is in Melee, standard attack deals 1d6+5 phy instead and you gain 1 Fear. [cite: 45709]"
+    },
+    {
+      "name": "Hobbling Strike",
+      "type": "Action",
+      "cost": "1 Stress",
+      "text": "Make attack (Melee). On success, deal 3d4+10 direct phy and target is Vulnerable until they clear 1 HP. [cite: 45710-45711]"
+    }
+  ]
+}
