@@ -1,71 +1,412 @@
-[
-  {
-    "name": "Dire Wolf",
-    "tier": 1,
-    "type": "Skulk",
-    "motives": ["Defend territory", "harry", "protect pack", "surround", "trail"],
-    "difficulty": 12,
-    "thresholds": { "major": 5, "severe": 9 },
-    "hp": 4, "hp_max": 4, "stress": 3, "stress_max": 3,
-    "attack": {
-      "name": "Claws", "modifier": 2, "range": "Melee", "damage": "1d6+2 phy"
+{
+  "adversaries": [
+    {
+      "name": "Acid Burrower",
+      "tier": 1,
+      "type": "Solo",
+      "difficulty": 14,
+      "thresholds": {
+        "major": 8,
+        "severe": 15
+      },
+      "hp": 8,
+      "stress": 3,
+      "attack": {
+        "name": "Claws",
+        "range": "Very Close",
+        "damage": "1d12+2 phy",
+        "bonus": 3
+      },
+      "features": [
+        {
+          "name": "Relentless",
+          "type": "passive",
+          "cost": null,
+          "value": 3,
+          "effect": "The Burrower can be spotlighted up to three times per GM turn. Spend Fear as usual to spotlight them."
+        },
+        {
+          "name": "Earth Eruption",
+          "type": "action",
+          "cost": {
+            "type": "stress",
+            "value": 1
+          },
+          "value": null,
+          "effect": "Mark a Stress to have the Burrower burst out of the ground. All creatures within Very Close range must succeed on an Agility Reaction Roll or be knocked over, making them Vulnerable until they next act."
+        },
+        {
+          "name": "Spit Acid",
+          "type": "action",
+          "cost": null,
+          "value": null,
+          "effect": "Make an attack against all targets in front of the Burrower within Close range. Targets the Burrower succeeds against take 2d6 physical damage and must mark an Armor Slot without receiving its benefits (they can still use armor to reduce the damage). If they can't mark an Armor Slot, they must mark an additional HP and you gain a Fear."
+        },
+        {
+          "name": "Acid Bath",
+          "type": "reaction",
+          "cost": null,
+          "value": null,
+          "effect": "When the Burrower takes Severe damage, all creatures within Close range are bathed in their acidic blood, taking 1d10 physical damage. This splash covers the ground within Very Close range with blood, and all creatures other than the Burrower who move through it take 1d6 physical damage."
+        }
+      ]
     },
-    "experiences": { "Keen Senses": 3 },
-    "features": [
-      { "name": "Pack Tactics", "type": "Passive", "text": "If another Dire Wolf is in Melee, standard attack deals 1d6+5 phy instead and you gain 1 Fear." },
-      { "name": "Hobbling Strike", "type": "Action", "cost": "1 Stress", "text": "Make attack (Melee). On success, deal 3d4+10 direct phy and target is Vulnerable until they clear 1 HP." }
-    ]
-  },
-  {
-    "name": "Bladed Guard",
-    "tier": 1,
-    "type": "Standard",
-    "motives": ["Arrest", "close gates", "make it through the day", "pin down"],
-    "difficulty": 12,
-    "thresholds": { "major": 5, "severe": 9 },
-    "hp": 5, "hp_max": 5, "stress": 2, "stress_max": 2,
-    "attack": {
-        "name": "Longsword", "modifier": 1, "range": "Melee", "damage": "1d6+1 phy"
+    {
+      "name": "Bear",
+      "tier": 1,
+      "type": "Bruiser",
+      "difficulty": 14,
+      "thresholds": {
+        "major": 9,
+        "severe": 17
+      },
+      "hp": 7,
+      "stress": 2,
+      "attack": {
+        "name": "Claws",
+        "range": "Melee",
+        "damage": "1d8+3 phy",
+        "bonus": 1
+      },
+      "features": [
+        {
+          "name": "Overwhelming Force",
+          "type": "passive",
+          "cost": null,
+          "value": null,
+          "effect": "Targets who mark HP from the Bear's standard attack are knocked back to Very Close range."
+        },
+        {
+          "name": "Bite",
+          "type": "action",
+          "cost": {
+            "type": "stress",
+            "value": 1
+          },
+          "value": null,
+          "effect": "Mark a Stress to make an attack against a target within Melee range. On a success, deal 3d4+10 physical damage and the target is Restrained until they break free with a successful Strength Roll."
+        },
+        {
+          "name": "Momentum",
+          "type": "reaction",
+          "cost": null,
+          "value": null,
+          "effect": "When the Bear makes a successful attack against a PC, you gain a Fear."
+        }
+      ]
     },
-    "experiences": { "Local Knowledge": 3 },
-    "features": [
-        { "name": "Shield Wall", "type": "Passive", "text": "Creatures trying to move within Very Close range must succeed on an Agility Roll." },
-        { "name": "Detain", "type": "Action", "cost": "1 Stress", "text": "Attack (Very Close). On success, Restrain target." }
-    ]
-  },
-  {
-    "name": "Skeleton Archer",
-    "tier": 1,
-    "type": "Ranged",
-    "motives": ["Perforate distracted targets", "play dead", "steal skin"],
-    "difficulty": 9,
-    "thresholds": { "major": 4, "severe": 7 },
-    "hp": 3, "hp_max": 3, "stress": 2, "stress_max": 2,
-    "attack": {
-        "name": "Shortbow", "modifier": 2, "range": "Far", "damage": "1d8+1 phy"
+    {
+      "name": "Courtier",
+      "tier": 1,
+      "type": "Social",
+      "difficulty": 12,
+      "thresholds": {
+        "major": 4,
+        "severe": 8
+      },
+      "hp": 3,
+      "stress": 4,
+      "attack": {
+        "name": "Daggers",
+        "range": "Melee",
+        "damage": "1d4+2 phy",
+        "bonus": -4
+      },
+      "features": [
+        {
+          "name": "Mockery",
+          "type": "action",
+          "cost": {
+            "type": "stress",
+            "value": 1
+          },
+          "value": null,
+          "effect": "Mark a Stress to say something mocking and force a target within Close range to make a Presence Reaction Roll (14) to see if they can save face. On a failure, the target must mark 2 Stress and is Vulnerable until the scene ends."
+        },
+        {
+          "name": "Scapegoat",
+          "type": "action",
+          "cost": {
+            "type": "fear",
+            "value": 1
+          },
+          "value": null,
+          "effect": "Spend a Fear and target a PC. The Courtier convinces a crowd or prominent individual that the target is the cause of their current conflict or misfortune."
+        }
+      ]
     },
-    "experiences": {},
-    "features": [
-        { "name": "Opportunist", "type": "Passive", "text": "If two or more adversaries are within Very Close range of target, all damage is doubled." },
-        { "name": "Deadly Shot", "type": "Action", "cost": "1 Stress", "text": "Attack (Far) vs. Vulnerable target. On success, deal 3d4+8 phy." }
-    ]
-  },
-  {
-    "name": "Cave Ogre",
-    "tier": 1,
-    "type": "Solo",
-    "motives": ["Bite off heads", "feast", "rip limbs", "stomp", "throw enemies"],
-    "difficulty": 13,
-    "thresholds": { "major": 8, "severe": 15 },
-    "hp": 8, "hp_max": 8, "stress": 3, "stress_max": 3,
-    "attack": {
-        "name": "Club", "modifier": 1, "range": "Very Close", "damage": "1d10+2 phy"
+    {
+      "name": "Giant Mosquitoes",
+      "tier": 1,
+      "type": "Horde",
+      "difficulty": 10,
+      "thresholds": {
+        "major": 5,
+        "severe": 9
+      },
+      "hp": 6,
+      "stress": 3,
+      "attack": {
+        "name": "Proboscis",
+        "range": "Melee",
+        "damage": "1d8+3 phy",
+        "bonus": -2
+      },
+      "features": [
+        {
+          "name": "Horde",
+          "type": "passive",
+          "cost": null,
+          "value": "1d4+1",
+          "effect": "When the Mosquitoes have marked half or more of their HP, their standard attack deals 1d4+1 physical damage instead."
+        },
+        {
+          "name": "Flying",
+          "type": "passive",
+          "cost": null,
+          "value": null,
+          "effect": "While flying, the Mosquitoes have a +2 bonus to their Difficulty."
+        },
+        {
+          "name": "Bloodsucker",
+          "type": "reaction",
+          "cost": {
+            "type": "stress",
+            "value": 1
+          },
+          "value": null,
+          "effect": "When the Mosquitoes' attack causes a target to mark HP, you can mark a Stress to force the target to mark an additional HP."
+        }
+      ]
     },
-    "experiences": { "Throw": 2 },
-    "features": [
-        { "name": "Ramp Up", "type": "Passive", "text": "Must spend a Fear to spotlight. Can attack all targets in range." },
-        { "name":"Bone Breaker", "type": "Passive", "text": "Ogre's attacks deal direct damage." },
-        { "name": "Hail of Boulders", "type": "Action", "cost": "1 Stress", "text": "Attack all targets in front (Far). On success, 1d10+2 phy."}
-    ]
-  }
-]
+    {
+      "name": "Dire Wolf",
+      "tier": 1,
+      "type": "Skulk",
+      "difficulty": 12,
+      "thresholds": {
+        "major": 5,
+        "severe": 9
+      },
+      "hp": 4,
+      "stress": 3,
+      "attack": {
+        "name": "Claws",
+        "range": "Melee",
+        "damage": "1d6+2 phy",
+        "bonus": 2
+      },
+      "features": [
+        {
+          "name": "Pack Tactics",
+          "type": "passive",
+          "cost": null,
+          "value": null,
+          "effect": "If the Wolf makes a successful standard attack and another Dire Wolf is within Melee range of the target, deal 1d6+5 physical damage instead of their standard damage and you gain a Fear."
+        },
+        {
+          "name": "Hobbling Strike",
+          "type": "action",
+          "cost": {
+            "type": "stress",
+            "value": 1
+          },
+          "value": null,
+          "effect": "Mark a Stress to make an attack against a target within Melee range. On a success, deal 3d4+10 direct physical damage and make them Vulnerable until they clear at least 1 HP."
+        }
+      ]
+    },
+    {
+      "name": "Bladed Guard",
+      "tier": 1,
+      "type": "Standard",
+      "difficulty": 12,
+      "thresholds": {
+        "major": 5,
+        "severe": 9
+      },
+      "hp": 5,
+      "stress": 2,
+      "attack": {
+        "name": "Longsword",
+        "range": "Melee",
+        "damage": "1d6+1 phy",
+        "bonus": 1
+      },
+      "features": [
+        {
+          "name": "Shield Wall",
+          "type": "passive",
+          "cost": null,
+          "value": null,
+          "effect": "A creature who tries to move within Very Close range of the Guard must succeed on an Agility Roll. If additional Bladed Guards are standing in a line alongside the first, and each is within Melee range of another guard in the line, the Difficulty increases by the total number of guards in that line."
+        },
+        {
+          "name": "Detain",
+          "type": "action",
+          "cost": {
+            "type": "stress",
+            "value": 1
+          },
+          "value": null,
+          "effect": "Make an attack against a target within Very Close range. On a success, mark a Stress to Restrain the target until they break free with a successful attack, Finesse Roll, or Strength Roll."
+        }
+      ]
+    },
+    {
+      "name": "Head Guard",
+      "tier": 1,
+      "type": "Leader",
+      "difficulty": 15,
+      "thresholds": {
+        "major": 7,
+        "severe": 13
+      },
+      "hp": 7,
+      "stress": 3,
+      "attack": {
+        "name": "Mace",
+        "range": "Melee",
+        "damage": "1d10+4 phy",
+        "bonus": 4
+      },
+      "features": [
+        {
+          "name": "Rally Guards",
+          "type": "action",
+          "cost": {
+            "type": "fear",
+            "value": 2
+          },
+          "value": null,
+          "effect": "Spend 2 Fear to spotlight the Head Guard and up to 2d4 allies within Far range."
+        },
+        {
+          "name": "On My Signal",
+          "type": "reaction",
+          "cost": null,
+          "value": 5,
+          "effect": "Countdown (5). When the Head Guard is in the spotlight for the first time, activate the countdown. It ticks down when a PC makes an attack roll. When it triggers, all Archer Guards within Far range make a standard attack with advantage against the nearest target within their range. If any attacks succeed on the same target, combine their damage."
+        },
+        {
+          "name": "Momentum",
+          "type": "reaction",
+          "cost": null,
+          "value": null,
+          "effect": "When the Head Guard makes a successful attack against a PC, you gain a Fear."
+        }
+      ]
+    },
+    {
+      "name": "Jagged Knife Hexer",
+      "tier": 1,
+      "type": "Support",
+      "difficulty": 13,
+      "thresholds": {
+        "major": 5,
+        "severe": 9
+      },
+      "hp": 4,
+      "stress": 4,
+      "attack": {
+        "name": "Staff",
+        "range": "Far",
+        "damage": "1d6+2 mag",
+        "bonus": 2
+      },
+      "features": [
+        {
+          "name": "Curse",
+          "type": "action",
+          "cost": null,
+          "value": null,
+          "effect": "Choose a target within Far range and temporarily Curse them. While the target is Cursed, you can mark a Stress when that target rolls with Hope to make the roll be with Fear instead."
+        },
+        {
+          "name": "Chaotic Flux",
+          "type": "action",
+          "cost": {
+            "type": "stress",
+            "value": 1
+          },
+          "value": null,
+          "effect": "Make an attack against up to three targets within Very Close range. Mark a Stress to deal 2d6+3 magic damage to targets the Hexer succeeded against."
+        }
+      ]
+    },
+    {
+      "name": "Rotted Zombie",
+      "tier": 1,
+      "type": "Minion",
+      "difficulty": 8,
+      "thresholds": {
+        "major": null,
+        "severe": null
+      },
+      "hp": 1,
+      "stress": 1,
+      "attack": {
+        "name": "Bite",
+        "range": "Melee",
+        "damage": "2 phy",
+        "bonus": -3
+      },
+      "features": [
+        {
+          "name": "Minion",
+          "type": "passive",
+          "cost": null,
+          "value": 3,
+          "effect": "The Zombie is defeated when they take any damage. For every 3 damage a PC deals to the Zombie, defeat an additional Minion within range the attack would succeed against."
+        },
+        {
+          "name": "Group Attack",
+          "type": "action",
+          "cost": {
+            "type": "fear",
+            "value": 1
+          },
+          "value": null,
+          "effect": "Spend a Fear to choose a target and spotlight all Rotted Zombies within Close range of them. Those Minions move into Melee range of the target and make one shared attack roll. On a success, they deal 2 physical damage each. Combine this damage."
+        }
+      ]
+    },
+    {
+      "name": "Skeleton Archer",
+      "tier": 1,
+      "type": "Ranged",
+      "difficulty": 9,
+      "thresholds": {
+        "major": 4,
+        "severe": 7
+      },
+      "hp": 3,
+      "stress": 2,
+      "attack": {
+        "name": "Shortbow",
+        "range": "Far",
+        "damage": "1d8+1 phy",
+        "bonus": 2
+      },
+      "features": [
+        {
+          "name": "Opportunist",
+          "type": "passive",
+          "cost": null,
+          "value": null,
+          "effect": "When two or more adversaries are within Very Close range of a creature, all damage the Archer deals to that creature is doubled."
+        },
+        {
+          "name": "Deadly Shot",
+          "type": "action",
+          "cost": {
+            "type": "stress",
+            "value": 1
+          },
+          "value": null,
+          "effect": "Make an attack against a Vulnerable target within Far range. On a success, mark a Stress to deal 3d4+8 physical damage."
+        }
+      ]
+    }
+  ]
+}
