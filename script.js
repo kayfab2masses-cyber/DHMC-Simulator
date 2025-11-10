@@ -3,19 +3,15 @@ let playerPool = [];      // Column 2: Player Library
 let adversaryPool = [];   // Column 2: Adversary Library
 let activeParty = [];     // Column 3: Players in the next sim
 let activeAdversaries = []; // Column 3: Adversaries in the next sim
+let SRD_ADVERSARIES = []; // This will hold our loaded SRD database
 
 // --- EVENT LISTENERS ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Column 1 Buttons
+    document.getElementById('run-button').addEventListener('click', runSimulation);
     document.getElementById('add-character-button').addEventListener('click', addCharacterToPool);
     document.getElementById('add-adversary-button').addEventListener('click', addAdversaryToPool);
-    
-    // Main Run Button
-    document.getElementById('run-button').addEventListener('click', runSimulation);
-    
-    // Column 2 & 3: Event delegation for dynamic buttons
-    document.getElementById('pool-column').addEventListener('click', handlePoolClick);
-    document.getElementById('scene-column').addEventListener('click', handleSceneClick);
+    document.getElementById('remove-character-button').addEventListener('click', removeLastCharacter);
+    document.getElementById('remove-adversary-button').addEventListener('click', removeLastAdversary);
     
     // SRD Modal Listeners
     document.getElementById('open-srd-modal').addEventListener('click', openSRDModal);
@@ -27,19 +23,37 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('srd-type-filter').addEventListener('change', renderSRDAdversaries);
     document.getElementById('srd-adversary-list').addEventListener('click', handleSRDListClick);
     
-    // Initial UI Renders
+    loadSRDDatabase();
     renderPools();
     renderActiveScene();
-    renderSRDAdversaries();
 });
 
 // --- DATA & POOL MANAGEMENT ---
+
+async function loadSRDDatabase() {
+    try {
+        const response = await fetch('data/srd_adversaries.json');
+        SRD_ADVERSARIES = await response.json();
+        logToScreen(`Successfully loaded ${SRD_ADVERSARIES.length} adversaries from SRD catalog.`);
+        renderSRDAdversaries();
+    } catch (error) {
+        logToScreen(`--- FATAL ERROR --- Could not load SRD Adversary JSON: ${error.message}`);
+        console.error("Failed to fetch SRD data:", error);
+    }
+}
 
 function addCharacterToPool() {
     const jsonTextBox = document.getElementById('character-json');
     try {
         const newCharacter = JSON.parse(jsonTextBox.value);
         if (!newCharacter.name || !newCharacter.traits) throw new Error('JSON missing "name" or "traits"');
+        
+        const isDuplicate = playerPool.some(p => p.name === newCharacter.name);
+        if (isDuplicate) {
+            logToScreen(`--- ERROR --- \nA player named '${newCharacter.name}' is already in the pool.`);
+            return;
+        }
+
         newCharacter.simId = `player-${Date.now()}`;
         playerPool.push(newCharacter);
         logToScreen(`Added ${newCharacter.name} to Player Pool.`);
@@ -53,12 +67,33 @@ function addAdversaryToPool() {
     try {
         const newAdversary = JSON.parse(jsonTextBox.value);
         if (!newAdversary.name || !newAdversary.difficulty) throw new Error('JSON missing "name" or "difficulty"');
-        newAdversary.simId = `adv-master-${Date.now()}`; // "master" ID
+        
+        newAdversary.simId = `adv-master-${Date.now()}`;
         adversaryPool.push(newAdversary);
         logToScreen(`Added ${newAdversary.name} to Adversary Pool.`);
         jsonTextBox.value = '';
         renderPools();
     } catch (e) { logToScreen(`--- ERROR --- \nInvalid Adversary JSON. ${e.message}`); }
+}
+
+function removeLastCharacter() {
+    if (party.length > 0) {
+        const removedChar = party.pop();
+        logToScreen(`Removed ${removedChar.name} from party.`);
+        updatePartyListUI();
+    } else {
+        logToScreen("Party is already empty.");
+    }
+}
+
+function removeLastAdversary() {
+    if (adversaries.length > 0) {
+        const removedAdv = adversaries.pop();
+        logToScreen(`Removed ${removedAdv.name} from scene.`);
+        updateAdversaryListUI();
+    } else {
+        logToScreen("Adversary list is already empty.");
+    }
 }
 
 // --- DYNAMIC CLICK HANDLERS ---
@@ -69,19 +104,15 @@ function handlePoolClick(event) {
     if (!agentId) return; 
 
     if (target.classList.contains('move-button')) {
-        // --- Player logic (MOVE) ---
         let playerIndex = playerPool.findIndex(p => p.simId === agentId);
         if (playerIndex > -1) {
             const agent = playerPool.splice(playerIndex, 1)[0];
             activeParty.push(agent);
             logToScreen(`Moved ${agent.name} to Active Scene.`);
         } else {
-            // --- Adversary logic (COPY) ---
             const agentTemplate = adversaryPool.find(a => a.simId === agentId);
             if (agentTemplate) {
-                // Create a deep copy
                 const newAgentInstance = JSON.parse(JSON.stringify(agentTemplate));
-                // Give the new copy a unique ID for the scene
                 newAgentInstance.simId = `adv-instance-${Date.now()}`; 
                 activeAdversaries.push(newAgentInstance);
                 logToScreen(`Copied ${newAgentInstance.name} to Active Scene.`);
@@ -90,12 +121,10 @@ function handlePoolClick(event) {
     }
     
     if (target.classList.contains('flush-button')) {
-        // Flush from Player Pool
         let playerIndex = playerPool.findIndex(p => p.simId === agentId);
         if (playerIndex > -1) {
             logToScreen(`Flushed ${playerPool.splice(playerIndex, 1)[0].name} from pool.`);
         } else {
-            // Flush from Adversary Pool
             let adversaryIndex = adversaryPool.findIndex(a => a.simId === agentId);
             if (adversaryIndex > -1) {
                 logToScreen(`Flushed ${adversaryPool.splice(adversaryIndex, 1)[0].name} from pool.`);
@@ -112,14 +141,12 @@ function handleSceneClick(event) {
     if (!agentId) return; 
 
     if (target.classList.contains('move-button')) {
-        // --- Player logic (MOVE BACK) ---
         let playerIndex = activeParty.findIndex(p => p.simId === agentId);
         if (playerIndex > -1) {
             const agent = activeParty.splice(playerIndex, 1)[0];
             playerPool.push(agent);
             logToScreen(`Moved ${agent.name} back to Player Pool.`);
         } else {
-            // --- Adversary logic (DELETE INSTANCE) ---
             let adversaryIndex = activeAdversaries.findIndex(a => a.simId === agentId);
             if (adversaryIndex > -1) {
                 const agent = activeAdversaries.splice(adversaryIndex, 1)[0];
@@ -131,7 +158,6 @@ function handleSceneClick(event) {
     renderActiveScene();
 }
 
-// --- SRD Modal Click Handler ---
 function handleSRDListClick(event) {
     const target = event.target.closest('.srd-item');
     if (!target) return;
@@ -246,14 +272,13 @@ function addAdversaryFromSRD(name) {
     const advData = SRD_ADVERSARIES.find(a => a.name === name);
     if (!advData) return;
 
-    // Create a copy and give it a new "master" ID
     const newAdversary = JSON.parse(JSON.stringify(advData));
     newAdversary.simId = `adv-master-${Date.now()}`;
     
     adversaryPool.push(newAdversary);
     logToScreen(`Added ${newAdversary.name} from SRD to Adversary Pool.`);
-    renderPools(); // Update the pool list
-    closeSRDModal(); // Close the pop-out
+    renderPools(); 
+    closeSRDModal(); 
 }
 
 
@@ -426,6 +451,7 @@ function executePCTurn(player, gameState) {
 
     logToScreen(`> ${player.name}'s turn (attacking ${target.name})...`);
 
+    // AI v2: Use the primary weapon's trait for the attack.
     const traitName = player.primary_weapon.trait.toLowerCase();
     const traitMod = player.traits[traitName];
     
@@ -517,22 +543,37 @@ function processRollResources(result, gameState, player) {
     }
 }
 
+/**
+ * --- UPDATED ---
+ * Applies damage to a target and logs the result.
+ * Reverted to simple Armor Slot AI and clearer logging.
+ */
 function applyDamage(damageTotal, attacker, target) {
     let hpToMark = 0;
     
+    // 1. Determine base HP to mark from thresholds
     if (damageTotal >= target.thresholds.severe) hpToMark = 3;
     else if (damageTotal >= target.thresholds.major) hpToMark = 2;
     else if (damageTotal > 0) hpToMark = 1;
 
+    let originalHPMark = hpToMark;
+    logToScreen(`  Damage: ${damageTotal} (dealt by ${attacker.name}) vs Thresholds (${target.thresholds.major}/${target.thresholds.severe})`);
+    logToScreen(`  Calculated Severity: ${originalHPMark} HP`);
+
+    // 2. Simple Player AI: Use an Armor Slot if it reduces HP marked.
+    // This is the "always use" logic, not the "conservative" one.
     if (target.type === 'player' && target.current_armor_slots > 0 && hpToMark > 0) {
         target.current_armor_slots--;
         hpToMark--;
-        logToScreen(`  ${target.name} marks 1 Armor Slot to reduce damage! (Slots left: ${target.current_armor_slots})`);
+        logToScreen(`  ${target.name} marks 1 Armor Slot! (Slots left: ${target.current_armor_slots}). Severity reduced to ${hpToMark} HP.`);
     }
     
+    // 3. Apply final damage
     target.current_hp -= hpToMark;
     
-    logToScreen(`  Damage: ${damageTotal} (dealt by ${attacker.name}) vs Thresholds (${target.thresholds.major}/${target.thresholds.severe}) -> ${hpToMark} HP marked.`);
+    if (originalHPMark > hpToMark) {
+        logToScreen(`  Final HP marked: ${hpToMark}.`);
+    }
     logToScreen(`  ${target.name} HP: ${target.current_hp} / ${target.max_hp}`);
 
     if (target.current_hp <= 0) {
@@ -576,7 +617,7 @@ function rollDamage(damageString, proficiency, critBonus = 0) {
     }
     
     totalDamage += modifier;
-    totalDamage += critBonus; // Add the flat crit bonus here
+    totalDamage += critBonus; 
     
     return totalDamage;
 }

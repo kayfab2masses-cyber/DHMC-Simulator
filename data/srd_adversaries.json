@@ -1,7 +1,4 @@
-// This file acts as our "database" of SRD Adversaries.
-// We can add every adversary from the SRD here over time.
-
-const SRD_ADVERSARIES = [
+[
   {
     "name": "Dire Wolf",
     "tier": 1,
