@@ -837,6 +837,6 @@ function logToScreen(message) {
    const logOutput = document.getElementById('log-output');
    if (logOutput) {
        logOutput.textContent += message + '\n';
-       logOutput.scrollTop = logLogOutput.scrollHeight; 
+       logOutput.scrollTop = LogOutput.scrollHeight; 
    }
 }
