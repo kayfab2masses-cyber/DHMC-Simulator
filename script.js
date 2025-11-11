@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('add-character-button').addEventListener('click', addCharacterToPool);
     document.getElementById('add-adversary-button').addEventListener('click', addAdversaryToPool);
     
-    // Simulation Buttons
+    // --- UPDATED: New Simulation Buttons ---
     document.getElementById('run-button').addEventListener('click', () => runMultipleSimulations(1));
     document.getElementById('run-multiple-button').addEventListener('click', () => runMultipleSimulations(3));
     document.getElementById('export-log-button').addEventListener('click', exportLog);
@@ -341,16 +341,19 @@ function instantiatePlayerAgent(data) {
 }
 
 /**
- * --- UPDATED: GM AI v3.6 (Passive Brain) ---
- * Instantiates an adversary agent and applies passive features.
+ * --- UPDATED: GM AI v3.5 (The "NaN" Bug Fix) ---
+ * Instantiates an adversary agent from the new JSON structure.
+ * Now correctly parses `attack.bonus` (as a number) OR `attack.modifier` (as a string).
  */
 function instantiateAdversaryAgent(data) {
-    // --- NaN BUG FIX ---
+    // --- BUG FIX ---
+    // Check for `bonus` (new format) first, then fall back to `modifier` (old format)
+    // parseInt() handles strings like "+3" or "-1"
     const attackBonus = data.attack.bonus !== undefined 
         ? data.attack.bonus 
         : parseInt(data.attack.modifier) || 0;
     
-    let agent = {
+    const agent = {
         ...data, 
         id: data.simId,
         type: 'adversary',
@@ -360,47 +363,17 @@ function instantiateAdversaryAgent(data) {
         max_stress: data.stress,
         attack: {
             ...data.attack,
-            modifier: attackBonus 
+            modifier: attackBonus // This is the standardized key our brain will use
         },
-        conditions: [],
-        passives: {} // --- NEW: Object to hold passive abilities ---
+        conditions: []
     };
-
-    // --- NEW: Apply passive features ---
-    applyPassiveFeatures(agent);
-
     return agent;
 }
-
-/**
- * --- NEW: GM AI v3.6 ---
- * Reads an agent's features and permanently applies passive effects.
- */
-function applyPassiveFeatures(agent) {
-    if (!agent.features) return;
-
-    for (const feature of agent.features) {
-        if (feature.type === 'passive' && feature.parsed_effect) {
-            for (const action of feature.parsed_effect.actions) {
-                if (action.action_type === 'MODIFY_DAMAGE' && action.target === 'ALL_ATTACKS' && action.details.is_direct) {
-                    logToScreen(`  (Passive Applied: ${agent.name} has ${feature.name}. All attacks are DIRECT.)`);
-                    agent.passives.allAttacksAreDirect = true;
-                }
-                if (action.action_type === 'MODIFY_STAT' && action.details.stat === 'resistance') {
-                    logToScreen(`  (Passive Applied: ${agent.name} has ${feature.name}. Resistant to ${action.details.value}.)`);
-                    agent.passives.resistance = action.details.value;
-                }
-                // ... we can add more passive handlers here as we find them.
-            }
-        }
-    }
-}
-
 
 // --- SPOTLIGHT SIMULATION ENGINE ---
 
 /**
- * --- UPDATED: GM AI v3.5 ---
+ * --- NEW: GM AI v3.5 ---
  * Runs multiple simulations in a row.
  */
 async function runMultipleSimulations(count) {
@@ -408,8 +381,6 @@ async function runMultipleSimulations(count) {
     for (let i = 1; i <= count; i++) {
         logToScreen(`\n--- SIMULATION ${i} OF ${count} ---`);
         await runSimulation();
-        // Add a small delay so the browser can update the log
-        await new Promise(resolve => setTimeout(resolve, 100));
     }
     logToScreen(`\n===== BATCH COMPLETE =====`);
 }
@@ -440,11 +411,11 @@ async function runSimulation() {
 
     if (activeParty.length === 0) { 
         logToScreen('--- ERROR --- \nAdd a player to the Active Scene.'); 
-        return; 
+        return; // Stop this single sim
     }
     if (activeAdversaries.length === 0) { 
         logToScreen('--- ERROR --- \nAdd an adversary to the Active Scene.'); 
-        return; 
+        return; // Stop this single sim
     }
 
     let playerAgents, adversaryAgents;
@@ -454,7 +425,7 @@ async function runSimulation() {
     } catch (e) {
         logToScreen(`--- ERROR --- \nFailed to parse agent JSON. \n${e.message}`);
         console.error("Error during instantiation:", e);
-        return; 
+        return; // Stop this single sim
     }
     
     const gameState = {
@@ -473,6 +444,7 @@ async function runSimulation() {
     });
     logToScreen('Instantiated Adversary Agents:');
     adversaryAgents.forEach(agent => {
+        // --- BUG FIX: Check if attack.modifier exists before logging ---
         const mod = agent.attack?.modifier;
         logToScreen(`- ${agent.name} (HP: ${agent.max_hp}, Stress: ${agent.max_stress}, Difficulty: ${agent.difficulty}, Atk Mod: ${mod})`);
     });
@@ -497,17 +469,10 @@ async function runSimulation() {
         
         determineNextSpotlight(lastOutcome, gameState);
         
-        // --- ADDED: Check for combat over *after* turn pass ---
-        // This stops the log from printing "Spotlight passes to..." if combat is over.
-        if (isCombatOver(gameState)) {
-            break;
-        }
-
         await new Promise(resolve => setTimeout(resolve, 50)); 
         simulationSteps++;
     }
 
-    // --- MOVED: Log completion *after* the loop ---
     logToScreen('\n======================================');
     logToScreen('SIMULATION COMPLETE');
     logToScreen('======================================');
@@ -523,45 +488,17 @@ async function runSimulation() {
 }
 
 /**
- * --- NEW HELPER for v3.8 ---
- * Finds the index of the next living PC to take a turn.
- */
-function findNextLivingPC(gameState) {
-    const { players, lastPlayerSpotlight } = gameState;
-    let nextIndex = (lastPlayerSpotlight + 1) % players.length;
-
-    // Loop up to a full party cycle to find a living PC
-    for (let i = 0; i < players.length; i++) {
-        if (players[nextIndex].current_hp > 0) {
-            return nextIndex; // Found a living PC
-        }
-        // If not, check the *next* PC
-        nextIndex = (nextIndex + 1) % players.length;
-    }
-    
-    return -1; // No players are left alive
-}
-
-
-/**
- * --- UPDATED: GM AI v3.8 (Infinite Loop Fix) ---
- * This function now correctly skips downed PCs.
+ * --- UPDATED: GM AI v3.4 ---
+ * This function now correctly implements the Daggerheart Spotlight rules,
+ * including FAILURE_WITH_HOPE.
  */
 function determineNextSpotlight(lastOutcome, gameState) {
     logToScreen(`  Control Flow: Last outcome was [${lastOutcome}]`);
     
-    // Check for combat end *before* passing turns
-    if (isCombatOver(gameState)) {
-        return; // Don't pass the turn if the fight is over
-    }
-
-    let nextPCIndex;
-
     switch (lastOutcome) {
         case 'CRITICAL_SUCCESS':
         case 'PC_DOWN':
-            nextPCIndex = findNextLivingPC(gameState);
-            if (nextPCIndex === -1) return; // All players are down
+            const nextPCIndex = (gameState.lastPlayerSpotlight + 1) % gameState.players.length;
             gameState.spotlight = nextPCIndex;
             logToScreen(`  Spotlight passes to PC: ${gameState.players[nextPCIndex].name}`);
             break;
@@ -573,25 +510,23 @@ function determineNextSpotlight(lastOutcome, gameState) {
                 logToScreen(`  GM Fear: ${gameState.fear}`);
                 gameState.spotlight = 'GM';
             } else {
-                nextPCIndex = findNextLivingPC(gameState);
-                if (nextPCIndex === -1) return; // All players are down
+                const nextPCIndex = (gameState.lastPlayerSpotlight + 1) % gameState.players.length;
                 gameState.spotlight = nextPCIndex;
                 logToScreen(`  Spotlight passes to PC: ${gameState.players[nextPCIndex].name}`);
             }
             break;
             
         case 'SUCCESS_WITH_FEAR':
-        case 'FAILURE_WITH_HOPE': 
+        case 'FAILURE_WITH_HOPE': // <-- Corrected logic
         case 'FAILURE_WITH_FEAR':
             gameState.spotlight = 'GM';
             logToScreen(`  Spotlight seized by GM!`);
             break;
             
         case 'GM_TURN_COMPLETE':
-            nextPCIndex = findNextLivingPC(gameState);
-            if (nextPCIndex === -1) return; // All players are down
-            gameState.spotlight = nextPCIndex;
-            logToScreen(`  Spotlight returns to PC: ${gameState.players[nextPCIndex].name}`);
+            const returnPCIndex = (gameState.lastPlayerSpotlight + 1) % gameState.players.length;
+            gameState.spotlight = returnPCIndex;
+            logToScreen(`  Spotlight returns to PC: ${gameState.players[returnPCIndex].name}`);
             break;
         
         case 'COMBAT_OVER':
@@ -654,7 +589,7 @@ function executeGMTurn(gameState) {
     // --- GM's ADDITIONAL ACTIONS ---
     let spotlightedAdversaries = [adversaryToAct.adversary.id]; // Track who has acted this turn
 
-    while (gameState.fear > 0 && !isCombatOver(gameState)) { // Check combat over here too
+    while (gameState.fear > 0) {
         if (Math.random() < 0.5) { // 50% chance to act again
              logToScreen(`  GM decides to spend 1 Fear for an *additional* spotlight...`);
              gameState.fear--;
@@ -707,7 +642,7 @@ function getAdversaryToAct(gameState, actedThisTurn = []) {
 
 
 /**
- * --- UPDATED: GM AI v3.6 (Passive Brain) ---
+ * --- NEW HELPER for v3.3 ---
  * The logic for a single adversary taking their one action.
  */
 function performAdversaryAction(adversary, target, gameState) {
@@ -759,9 +694,7 @@ function performAdversaryAction(adversary, target, gameState) {
 
 
 /**
- * --- UPDATED: GM AI v3.8 (Passive Handshake Fix) ---
- * This is the central executor that reads a `parsed_effect` action
- * and makes it happen in the simulation.
+ * --- NEW: The "True AI" Executor ---
  */
 function executeParsedEffect(action, adversary, target, gameState) {
     let primaryTarget = target; 
@@ -783,6 +716,7 @@ function executeParsedEffect(action, adversary, target, gameState) {
                 logToScreen(`    Making an attack roll against ${t.name}...`);
                 const roll = rollD20();
                 
+                // --- BUG FIX: Ensure modifier is a number ---
                 const modifier = adversary.attack.modifier || 0;
                 const totalAttack = roll + modifier;
                 
@@ -857,9 +791,7 @@ function executeParsedEffect(action, adversary, target, gameState) {
                 damageTotal = rollDamage(action.damage_string, 1, critBonus);
             }
             
-            // --- FIX V3.8: Check passives *and* action-specific flags ---
-            const isDirect = action.is_direct || adversary.passives.allAttacksAreDirect || false;
-            
+            const isDirect = action.is_direct || false;
             if (damageTotal > 0) {
                  logToScreen(`    Dealing ${damageTotal} ${isDirect ? 'DIRECT' : ''} damage!`);
                 applyDamage(damageTotal, adversary, primaryTarget, isDirect);
@@ -930,11 +862,11 @@ function applyCondition(target, condition) {
 
 
 /**
- * --- UPDATED: GM AI v3.6 (Passive Brain) ---
- * Logic for the GM's basic attack. Now checks for passives.
+ * Logic for the GM's basic attack.
  */
 function executeGMBasicAttack(adversary, target) {
     const roll = rollD20();
+    // --- BUG FIX: Ensure modifier is a number ---
     const modifier = adversary.attack.modifier || 0;
     const totalAttack = roll + modifier; 
     
@@ -951,11 +883,7 @@ function executeGMBasicAttack(adversary, target) {
         }
 
         const damageTotal = rollDamage(damageString, 1, critBonus); 
-        
-        // --- NEW: Check for passives ---
-        const isDirect = adversary.passives.allAttacksAreDirect || false;
-        
-        applyDamage(damageTotal, adversary, target, isDirect);
+        applyDamage(damageTotal, adversary, target);
     } else {
         logToScreen('    MISS!');
     }
@@ -968,14 +896,8 @@ function isCombatOver(gameState) {
     const playersAlive = gameState.players.some(p => p.current_hp > 0);
     const adversariesAlive = gameState.adversaries.some(a => a.current_hp > 0);
     
-    if (!playersAlive) { 
-        logToScreen('--- All players are defeated! ---'); 
-        return true; 
-    }
-    if (!adversariesAlive) { 
-        logToScreen('--- All adversaries are defeated! ---'); 
-        return true; 
-    }
+    if (!playersAlive) { logToScreen('--- All players are defeated! ---'); return true; }
+    if (!adversariesAlive) { logToScreen('--- All adversaries are defeated! ---'); return true; }
     return false;
 }
 
@@ -1006,19 +928,18 @@ function processRollResources(result, gameState, player) {
 }
 
 /**
- * --- UPDATED: GM AI v3.8 (Typo Fix) ---
  * Applies damage to a target and logs the result.
  */
 function applyDamage(damageTotal, attacker, target, isDirectDamage = false) {
     let hpToMark = 0;
     
-    // 1. Determine base HP to mark from thresholds
     if (!target.thresholds) {
         logToScreen(`    (ERROR: Target ${target.name} has no thresholds defined!)`);
+        // Fallback for adversaries with null thresholds (like Minions)
         if (damageTotal > 0) hpToMark = 1; 
     } else {
-         if (target.thresholds.severe && damageTotal >= target.thresholds.severe) hpToMark = 3;
-         else if (target.thresholds.major && damageTotal >= target.thresholds.major) hpToMark = 2;
+         if (damageTotal >= target.thresholds.severe) hpToMark = 3;
+         else if (damageTotal >= target.thresholds.major) hpToMark = 2;
          else if (damageTotal > 0) hpToMark = 1;
     }
 
@@ -1036,10 +957,9 @@ function applyDamage(damageTotal, attacker, target, isDirectDamage = false) {
     
     target.current_hp -= hpToMark;
     
-    // --- TYPO FIX v3.8: originalHSMark -> originalHPMark ---
     if (originalHPMark > hpToMark) {
         logToScreen(`    Final HP marked: ${hpToMark}.`);
-    } else if (originalHPMark > 0) { 
+    } else if (originalHSMark > 0) {
         logToScreen(`    Final HP marked: ${hpToMark}.`);
     }
     
