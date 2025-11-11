@@ -208,7 +208,7 @@ function renderPools() {
     });
     adversaryPool.forEach(adv => {
         adversaryListDiv.innerHTML += `
-            <div class_name="pool-item">
+            <div class="pool-item">
                 <span class="agent-name">${adv.name} (Diff ${adv.difficulty})</span>
                 <div>
                     <button class="flush-button" data-id="${adv.simId}" title="Remove from Pool">X</button>
@@ -225,14 +225,14 @@ function renderActiveScene() {
     adversaryListDiv.innerHTML = '';
     activeParty.forEach(char => {
         partyListDiv.innerHTML += `
-            <div class_name="scene-item">
+            <div class="scene-item">
                 <button class="move-button" data-id="${char.simId}" title="Return to Pool">&lt;</button>
                 <span class="agent-name">${char.name} (Lvl ${char.level})</span>
             </div>`;
     });
     activeAdversaries.forEach(adv => {
         adversaryListDiv.innerHTML += `
-            <div class_name="scene-item">
+            <div class="scene-item">
                 <button class="move-button" data-id="${adv.simId}" title="Return to Pool">&lt;</button>
                 <span class="agent-name">${adv.name} (Diff ${adv.difficulty})</span>
             </div>`;
@@ -497,10 +497,17 @@ async function runSimulation() {
         
         determineNextSpotlight(lastOutcome, gameState);
         
+        // --- ADDED: Check for combat over *after* turn pass ---
+        // This stops the log from printing "Spotlight passes to..." if combat is over.
+        if (isCombatOver(gameState)) {
+            break;
+        }
+
         await new Promise(resolve => setTimeout(resolve, 50)); 
         simulationSteps++;
     }
 
+    // --- MOVED: Log completion *after* the loop ---
     logToScreen('\n======================================');
     logToScreen('SIMULATION COMPLETE');
     logToScreen('======================================');
@@ -516,17 +523,45 @@ async function runSimulation() {
 }
 
 /**
- * --- UPDATED: GM AI v3.4 ---
- * This function now correctly implements the Daggerheart Spotlight rules,
- * including FAILURE_WITH_HOPE.
+ * --- NEW HELPER for v3.8 ---
+ * Finds the index of the next living PC to take a turn.
+ */
+function findNextLivingPC(gameState) {
+    const { players, lastPlayerSpotlight } = gameState;
+    let nextIndex = (lastPlayerSpotlight + 1) % players.length;
+
+    // Loop up to a full party cycle to find a living PC
+    for (let i = 0; i < players.length; i++) {
+        if (players[nextIndex].current_hp > 0) {
+            return nextIndex; // Found a living PC
+        }
+        // If not, check the *next* PC
+        nextIndex = (nextIndex + 1) % players.length;
+    }
+    
+    return -1; // No players are left alive
+}
+
+
+/**
+ * --- UPDATED: GM AI v3.8 (Infinite Loop Fix) ---
+ * This function now correctly skips downed PCs.
  */
 function determineNextSpotlight(lastOutcome, gameState) {
     logToScreen(`  Control Flow: Last outcome was [${lastOutcome}]`);
     
+    // Check for combat end *before* passing turns
+    if (isCombatOver(gameState)) {
+        return; // Don't pass the turn if the fight is over
+    }
+
+    let nextPCIndex;
+
     switch (lastOutcome) {
         case 'CRITICAL_SUCCESS':
         case 'PC_DOWN':
-            const nextPCIndex = (gameState.lastPlayerSpotlight + 1) % gameState.players.length;
+            nextPCIndex = findNextLivingPC(gameState);
+            if (nextPCIndex === -1) return; // All players are down
             gameState.spotlight = nextPCIndex;
             logToScreen(`  Spotlight passes to PC: ${gameState.players[nextPCIndex].name}`);
             break;
@@ -538,23 +573,25 @@ function determineNextSpotlight(lastOutcome, gameState) {
                 logToScreen(`  GM Fear: ${gameState.fear}`);
                 gameState.spotlight = 'GM';
             } else {
-                const nextPCIndex = (gameState.lastPlayerSpotlight + 1) % gameState.players.length;
+                nextPCIndex = findNextLivingPC(gameState);
+                if (nextPCIndex === -1) return; // All players are down
                 gameState.spotlight = nextPCIndex;
                 logToScreen(`  Spotlight passes to PC: ${gameState.players[nextPCIndex].name}`);
             }
             break;
             
         case 'SUCCESS_WITH_FEAR':
-        case 'FAILURE_WITH_HOPE': // <-- Corrected logic
+        case 'FAILURE_WITH_HOPE': 
         case 'FAILURE_WITH_FEAR':
             gameState.spotlight = 'GM';
             logToScreen(`  Spotlight seized by GM!`);
             break;
             
         case 'GM_TURN_COMPLETE':
-            const returnPCIndex = (gameState.lastPlayerSpotlight + 1) % gameState.players.length;
-            gameState.spotlight = returnPCIndex;
-            logToScreen(`  Spotlight returns to PC: ${gameState.players[returnPCIndex].name}`);
+            nextPCIndex = findNextLivingPC(gameState);
+            if (nextPCIndex === -1) return; // All players are down
+            gameState.spotlight = nextPCIndex;
+            logToScreen(`  Spotlight returns to PC: ${gameState.players[nextPCIndex].name}`);
             break;
         
         case 'COMBAT_OVER':
@@ -617,7 +654,7 @@ function executeGMTurn(gameState) {
     // --- GM's ADDITIONAL ACTIONS ---
     let spotlightedAdversaries = [adversaryToAct.adversary.id]; // Track who has acted this turn
 
-    while (gameState.fear > 0) {
+    while (gameState.fear > 0 && !isCombatOver(gameState)) { // Check combat over here too
         if (Math.random() < 0.5) { // 50% chance to act again
              logToScreen(`  GM decides to spend 1 Fear for an *additional* spotlight...`);
              gameState.fear--;
@@ -722,7 +759,7 @@ function performAdversaryAction(adversary, target, gameState) {
 
 
 /**
- * --- UPDATED: GM AI v3.7 (Passive Handshake Fix) ---
+ * --- UPDATED: GM AI v3.8 (Passive Handshake Fix) ---
  * This is the central executor that reads a `parsed_effect` action
  * and makes it happen in the simulation.
  */
@@ -820,7 +857,7 @@ function executeParsedEffect(action, adversary, target, gameState) {
                 damageTotal = rollDamage(action.damage_string, 1, critBonus);
             }
             
-            // --- FIX V3.7: Check passives *and* action-specific flags ---
+            // --- FIX V3.8: Check passives *and* action-specific flags ---
             const isDirect = action.is_direct || adversary.passives.allAttacksAreDirect || false;
             
             if (damageTotal > 0) {
@@ -931,8 +968,14 @@ function isCombatOver(gameState) {
     const playersAlive = gameState.players.some(p => p.current_hp > 0);
     const adversariesAlive = gameState.adversaries.some(a => a.current_hp > 0);
     
-    if (!playersAlive) { logToScreen('--- All players are defeated! ---'); return true; }
-    if (!adversariesAlive) { logToScreen('--- All adversaries are defeated! ---'); return true; }
+    if (!playersAlive) { 
+        logToScreen('--- All players are defeated! ---'); 
+        return true; 
+    }
+    if (!adversariesAlive) { 
+        logToScreen('--- All adversaries are defeated! ---'); 
+        return true; 
+    }
     return false;
 }
 
@@ -963,7 +1006,7 @@ function processRollResources(result, gameState, player) {
 }
 
 /**
- * --- UPDATED: GM AI v3.7 (Typo Fix) ---
+ * --- UPDATED: GM AI v3.8 (Typo Fix) ---
  * Applies damage to a target and logs the result.
  */
 function applyDamage(damageTotal, attacker, target, isDirectDamage = false) {
@@ -974,8 +1017,8 @@ function applyDamage(damageTotal, attacker, target, isDirectDamage = false) {
         logToScreen(`    (ERROR: Target ${target.name} has no thresholds defined!)`);
         if (damageTotal > 0) hpToMark = 1; 
     } else {
-         if (damageTotal >= target.thresholds.severe) hpToMark = 3;
-         else if (damageTotal >= target.thresholds.major) hpToMark = 2;
+         if (target.thresholds.severe && damageTotal >= target.thresholds.severe) hpToMark = 3;
+         else if (target.thresholds.major && damageTotal >= target.thresholds.major) hpToMark = 2;
          else if (damageTotal > 0) hpToMark = 1;
     }
 
@@ -993,7 +1036,7 @@ function applyDamage(damageTotal, attacker, target, isDirectDamage = false) {
     
     target.current_hp -= hpToMark;
     
-    // --- TYPO FIX v3.7: originalHSMark -> originalHPMark ---
+    // --- TYPO FIX v3.8: originalHSMark -> originalHPMark ---
     if (originalHPMark > hpToMark) {
         logToScreen(`    Final HP marked: ${hpToMark}.`);
     } else if (originalHPMark > 0) { 
