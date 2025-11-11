@@ -675,9 +675,9 @@ function executePCTurn(player, gameState) {
     let targets = gameState.adversaries.filter(a => a.current_hp > 0);
     if (targets.length === 0) return 'COMBAT_OVER';
     
-    // THIS IS THE FLAWED LOGIC - this is where I need to check for conditions like 'Restrained'
-    // but as you correctly pointed out, 'Restrained' doesn't stop an action, just movement.
-    // We will add the *correct* condition logic here later.
+    // TODO: This is where we will check for conditions like 'Restrained'.
+    // As you correctly pointed out, 'Restrained' only stops movement, not actions.
+    // We will add logic here to handle conditions correctly.
     
     const target = targets.reduce((prev, curr) => (prev.current_hp < curr.current_hp) ? prev : curr);
     logToScreen(`> ${player.name}'s turn (attacking ${target.name})...`);
