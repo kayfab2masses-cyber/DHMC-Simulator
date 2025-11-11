@@ -7,6 +7,72 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <header>
+        <h1>Daggerheart Monte Carlo Simulator</h1>
+    </header>
+
+    <div class="simulator-layout">
+
+        <div class="layout-column" id="input-column">
+            <h3><span class="col-number">1</span> Add to Pool</h3>
+            <div class="json-input-box">
+                <label for="character-json">Paste Player JSON:</label>
+                <textarea id="character-json" rows="8" placeholder="Paste player JSON here..."></textarea>
+                <div class="button-row">
+                    <button id="add-character-button" class="add-button">Add Player to Pool</button>
+                    <button id="remove-character-button" class="remove-button">Remove Last Player</button>
+                </div>
+            </div>
+            <div class="json-input-box">
+                <label for="adversary-json">Paste Adversary JSON:</label>
+                <textarea id="adversary-json" rows="8" placeholder="Paste adversary JSON here..."></textarea>
+                <div class="button-row">
+                    <button id="add-adversary-button" class="add-button">Add Adversary to Pool</button>
+                    <button id="remove-adversary-button" class="remove-button">Remove Last Adversary</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="layout-column" id="pool-column">
+            <h3><span class="col-number">2</span> Staging Pool (Library)</h3>
+            <div class="pool-container">
+                <h4>Player Pool</h4>
+                <div id="player-pool-list" class="agent-list"></div>
+            </div>
+            <div class="pool-container">
+                <div class="pool-header">
+                    <h4>Adversary Pool</h4>
+                    <button id="open-srd-modal" class="srd-button">SRD Adversaries</button>
+                </div>
+                <div id="adversary-pool-list" class="agent-list"></div>
+            </div>
+        </div>
+
+        <div class="layout-column" id="scene-column">
+            <h3><span class="col-number">3</span> Active Scene (for Sim)</h3>
+            <div class="pool-container">
+                <h4>Active Party</h4>
+                <div id="active-party-list" class="agent-list"></div>
+            </div>
+            <div class="pool-container">
+                <h4>Active Adversaries</h4>
+                <div id="active-adversary-list" class="agent-list"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="log-container">
+        <div class="log-header">
+            <h3>Simulation Log:</h3>
+            <div class="controls-main">
+                <button id="run-button" class="action-button">Run Simulation</button>
+                <button id="run-multiple-button" class="action-button">Run 3 Sims</button>
+                <button id="export-log-button" class="action-button">Export Log</button>
+            </div>
+        </div>
+        <pre id="log-output"></pre>
+    </div>
 
     <div id="srd-modal-overlay" class="modal-overlay hidden">
         <div class="modal-content">
