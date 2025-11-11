@@ -7,23 +7,12 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    
-    <div id="player-modal-overlay" class="modal-overlay hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Premade Characters</h2>
-                <button id="close-player-modal" class="close-button">X</button>
-            </div>
-            <div class="modal-body" id="srd-player-list">
-                </div>
-        </div>
-    </div>
 
-    <div id="adversary-modal-overlay" class="modal-overlay hidden">
+    <div id="srd-modal-overlay" class="modal-overlay hidden">
         <div class="modal-content">
             <div class="modal-header">
                 <h2>Adversary SRD Library</h2>
-                <button id="close-adversary-modal" class="close-button">X</button>
+                <button id="close-srd-modal" class="close-button">X</button>
             </div>
             <div class="modal-filters">
                 <label for="srd-tier-filter">Tier:</label>
@@ -61,14 +50,13 @@
                 <h3>Add Player from JSON</h3>
                 <textarea id="character-json" class="json-input" rows="5" placeholder="Paste Player JSON here..."></textarea>
                 <button id="add-character-button" class="action-button">Add Player to Pool</button>
-                <button id="open-player-modal" class="action-button">Add Player from Library</button>
             </div>
             
             <div class="action-box">
                 <h3>Add Adversary from JSON</h3>
                 <textarea id="adversary-json" class="json-input" rows="5" placeholder="Paste Adversary JSON here..."></textarea>
                 <button id="add-adversary-button" class="action-button">Add Adversary to Pool</button>
-                <button id="open-adversary-modal" class="action-button">Add Adversary from SRD</button>
+                <button id="open-srd-modal" class="action-button">Add Adversary from SRD</button>
             </div>
 
             <div class="action-box">
@@ -78,28 +66,16 @@
             </div>
         </div>
 
-        <div class="column" id="pool-column">
+        <div class="column" id="mid-column">
             <h2>Library Pools</h2>
-            <div class="pool-box">
-                <h3>Player Pool</h3>
+            <div class="pool-box" id="pool-column"> <h3>Player Pool</h3>
                 <div id="player-pool-list" class="pool-list">
                     </div>
             </div>
-            <div class="pool-box">
-                <h3>Adversary Pool</h3>
-                <div id="adversary-pool-list" class="pool-list">
-                    </div>
-            </div>
-        </div>
-
-        <div class="column" id="scene-column">
             <h2>Active Scene</h2>
-            <div class="pool-box">
-                <h3>Active Party</h3>
+            <div class="pool-box" id="scene-column"> <h3>Active Party</h3>
                 <div id="active-party-list" class="scene-list">
                     </div>
-            </div>
-            <div class="pool-box">
                 <h3>Active Adversaries</h3>
                 <div id="active-adversary-list" class="scene-list">
                     </div>

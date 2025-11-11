@@ -8,6 +8,7 @@ body {
     font-size: 14px;
 }
 
+/* --- This is the 3-Column Layout --- */
 .container {
     display: flex;
     max-width: 1600px;
@@ -21,10 +22,11 @@ body {
     gap: 20px;
 }
 
-#left-column { flex-basis: 20%; }
-#pool-column { flex-basis: 20%; }
-#scene-column { flex-basis: 20%; }
-#right-column { flex-basis: 40%; }
+#left-column { flex-basis: 25%; }
+#mid-column { flex-basis: 25%; }
+#right-column { flex-basis: 50%; }
+/* --- End 3-Column Layout --- */
+
 
 h2, h3 {
     border-bottom: 2px solid #555;
@@ -80,7 +82,6 @@ h2, h3 {
     padding: 10px;
 }
 
-/* --- UPDATED: Pool/Scene Item Layout --- */
 .pool-item, .scene-item, .srd-item {
     background-color: #333;
     padding: 10px;
@@ -98,7 +99,7 @@ h2, h3 {
     cursor: default;
 }
 
-/* --- NEW: Pool Item Controls --- */
+/* This is the button layout you liked */
 .pool-item-controls {
     display: flex;
     gap: 5px;
@@ -117,7 +118,6 @@ h2, h3 {
     line-height: 28px;
     text-align: center;
     transition: background-color 0.2s;
-    /* Ensure buttons don't shrink */
     flex-shrink: 0;
 }
 
@@ -162,7 +162,7 @@ h2, h3 {
     color: #f0f0f0;
 }
 
-/* Modal Styling (For Both Modals) */
+/* Modal Styling */
 .hidden {
     display: none;
 }
