@@ -159,15 +159,7 @@ textarea {
     flex-grow: 1;
     white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
-    /* NEW: Add right margin to prevent text from touching buttons */
-    margin-right: 10px; 
-}
-
-/* NEW: Container for right-aligned buttons in pool items */
-.pool-item-controls {
-    display: flex;
-    flex-shrink: 0; /* Prevents buttons from wrapping */
+    text-overflow: ellipsis; 
 }
 
 .move-button {
@@ -194,42 +186,22 @@ textarea {
 
 /* --- Run Button & Log --- */
 .controls-main {
-    display: flex; /* Use flexbox for alignment */
-    justify-content: flex-end; /* Align children to the right */
-    gap: 10px; /* Add space between buttons */
-    margin-bottom: 20px; /* Space below the controls */
-}
-
-.action-button {
-    font-size: 1.1rem;
-    padding: 10px 15px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    color: white;
+    text-align: right; /* Aligns button to the right */
+    flex-grow: 1; /* Pushes button to the far right */
 }
 
 #run-button {
+    font-size: 1.2rem;
+    padding: 10px 20px;
     background-color: #007acc;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
 }
 #run-button:hover {
     background-color: #005f9e;
 }
-
-#run-multiple-button {
-    background-color: #005f9e;
-}
-#run-multiple-button:hover {
-    background-color: #004675;
-}
-
-#export-log-button {
-    background-color: #006421;
-}
-#export-log-button:hover {
-    background-color: #004d1a;
-}
-
 
 .log-container {
     background-color: #252525;
@@ -237,6 +209,20 @@ textarea {
     border-radius: 5px;
     padding: 15px;
     margin-top: 20px;
+}
+
+/* NEW: Log Header Style */
+.log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #555;
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+}
+
+.log-header h3 {
+    margin: 0;
 }
 
 pre {

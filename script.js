@@ -211,16 +211,12 @@ function renderPools() {
         `;
     });
 
-    // *** THIS IS THE ONLY CHANGED BLOCK (v3.9) ***
-    // It now matches the player pool HTML structure exactly.
     adversaryPool.forEach(adv => {
         adversaryListDiv.innerHTML += `
         <div class="pool-item" data-id="${adv.simId}">
             <span class="agent-name">${adv.name} (Diff ${adv.difficulty})</span>
-            <div class="pool-item-controls">
-                <button class="flush-button" title="Remove from Pool">X</button>
-                <button class="move-button" title="Add to Active Scene">&gt;</button>
-            </div>
+            <button class="flush-button" title="Remove from Pool">X</button>
+            <button class="move-button" title="Add to Active Scene">&gt;</button>
         </div>
         `;
     });
