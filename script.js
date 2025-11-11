@@ -46,12 +46,9 @@ async function loadSRDDatabase() {
         }
         const data = await response.json();
         
-        // *** THIS IS THE FIX ***
-        // The code now checks if the data is an array, which matches your .json file 
         if (Array.isArray(data)) {
             SRD_ADVERSARIES = data;
         } else {
-            // This was the old, incorrect check
             throw new Error("Invalid JSON structure. Expected a top-level array '[...]'");
         }
 
@@ -218,8 +215,10 @@ function renderPools() {
         adversaryListDiv.innerHTML += `
         <div class="pool-item" data-id="${adv.simId}">
             <span class="agent-name">${adv.name} (Diff ${adv.difficulty})</span>
-            <button class="flush-button" title="Remove from Pool">X</button>
-            <button class="move-button" title="Add to Active Scene">&gt;</button>
+            <div class="pool-item-controls">
+                <button class="flush-button" title="Remove from Pool">X</button>
+                <button class="move-button" title="Add to Active Scene">&gt;</button>
+            </div>
         </div>
         `;
     });
@@ -1049,6 +1048,7 @@ function logToScreen(message) {
     const logOutput = document.getElementById('log-output');
     if (logOutput) {
         logOutput.textContent += message + '\n';
-        logOutput.scrollTop = log_output.scrollHeight; 
+        // *** THIS IS THE FIX ***
+        logOutput.scrollTop = logOutput.scrollHeight; 
     }
 }
