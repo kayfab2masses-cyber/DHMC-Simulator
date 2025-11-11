@@ -44,54 +44,64 @@
     </div>
 
     <div class="container">
-        <div class="column" id="left-column">
-            <h2>Actions</h2>
-            <div class="action-box">
-                <h3>Add Player from JSON</h3>
-                <textarea id="character-json" class="json-input" rows="5" placeholder="Paste Player JSON here..."></textarea>
-                <button id="add-character-button" class="action-button">Add Player to Pool</button>
-            </div>
-            
-            <div class="action-box">
-                <h3>Add Adversary from JSON</h3>
-                <textarea id="adversary-json" class="json-input" rows="5" placeholder="Paste Adversary JSON here..."></textarea>
-                <button id="add-adversary-button" class="action-button">Add Adversary to Pool</button>
-                <button id="open-srd-modal" class="action-button">Add Adversary from SRD</button>
+        <div class="top-row">
+            <div class="column" id="left-column">
+                <h2>Actions</h2>
+                <div class="action-box">
+                    <h3>Add Player from JSON</h3>
+                    <textarea id="character-json" class="json-input" rows="5" placeholder="Paste Player JSON here..."></textarea>
+                    <button id="add-character-button" class="action-button">Add Player to Pool</button>
+                </div>
+                
+                <div class="action-box">
+                    <h3>Add Adversary from JSON</h3>
+                    <textarea id="adversary-json" class="json-input" rows="5" placeholder="Paste Adversary JSON here..."></textarea>
+                    <button id="add-adversary-button" class="action-button">Add Adversary to Pool</button>
+                    <button id="open-srd-modal" class="action-button">Add Adversary from SRD</button>
+                </div>
+
+                <div class="action-box">
+                    <h3>Clear Last Added</h3>
+                    <button id="remove-character-button" class="action-button">Remove Last Player</button>
+                    <button id="remove-adversary-button" class="action-button">Remove Last Adversary</button>
+                </div>
             </div>
 
-            <div class="action-box">
-                <h3>Clear Last Added</h3>
-                <button id="remove-character-button" class="action-button">Remove Last Player</button>
-                <button id="remove-adversary-button" class="action-button">Remove Last Adversary</button>
+            <div class="column" id="mid-column">
+                <h2>Library Pools</h2>
+                <div class="pool-box" id="pool-column">
+                    <h3>Player Pool</h3>
+                    <div id="player-pool-list" class="pool-list"></div>
+                </div>
+                <div class="pool-box">
+                    <h3>Adversary Pool</h3>
+                    <div id="adversary-pool-list" class="pool-list"></div>
+                </div>
+            </div>
+
+            <div class="column" id="right-column">
+                <h2>Active Scene</h2>
+                <div class="pool-box" id="scene-column">
+                    <h3>Active Party</h3>
+                    <div id="active-party-list" class="scene-list"></div>
+                    <h3>Active Adversaries</h3>
+                    <div id="active-adversary-list" class="scene-list"></div>
+                </div>
             </div>
         </div>
 
-        <div class="column" id="mid-column">
-            <h2>Library Pools</h2>
-            <div class="pool-box" id="pool-column"> <h3>Player Pool</h3>
-                <div id="player-pool-list" class="pool-list">
-                    </div>
-            </div>
-            <h2>Active Scene</h2>
-            <div class="pool-box" id="scene-column"> <h3>Active Party</h3>
-                <div id="active-party-list" class="scene-list">
-                    </div>
-                <h3>Active Adversaries</h3>
-                <div id="active-adversary-list" class="scene-list">
-                    </div>
-            </div>
-        </div>
-
-        <div class="column" id="right-column">
-            <h2>Simulation</h2>
-            <div class="action-box">
-                <button id="run-button" class="action-button">Run Simulation</button>
-                <button id="run-multiple-button" class="action-button">Run 3 Sims</button>
-                <button id="export-log-button" class="action-button">Export Log</button>
-            </div>
-            <div class="log-box">
-                <h3>Simulation Log</h3>
-                <pre id="log-output"></pre>
+        <div class="bottom-row">
+            <div class="column" id="log-column">
+                <h2>Simulation</h2>
+                <div class="action-box" id="sim-controls">
+                    <button id="run-button" class="action-button">Run Simulation</button>
+                    <button id="run-multiple-button" class="action-button">Run 3 Sims</button>
+                    <button id="export-log-button" class="action-button">Export Log</button>
+                </div>
+                <div class="log-box">
+                    <h3>Simulation Log</h3>
+                    <pre id="log-output"></pre>
+                </div>
             </div>
         </div>
     </div>

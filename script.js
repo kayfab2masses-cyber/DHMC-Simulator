@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('remove-character-button').addEventListener('click', removeLastCharacter);
     document.getElementById('remove-adversary-button').addEventListener('click', removeLastAdversary);
     
-    // SRD Modal Listeners (These match the 3-column HTML)
+    // SRD Modal Listeners
     document.getElementById('open-srd-modal').addEventListener('click', openSRDModal);
     document.getElementById('close-srd-modal').addEventListener('click', closeSRDModal);
     document.getElementById('srd-modal-overlay').addEventListener('click', (e) => {
@@ -118,8 +118,15 @@ function removeLastAdversary() {
 // --- DYNAMIC CLICK HANDLERS ---
 function handlePoolClick(event) {
     const target = event.target;
-    const agentId = target.dataset.id; // ID is on the button itself in this version
-    if (!agentId) return; 
+    // Find the closest parent .pool-item to get the ID
+    const agentItem = target.closest('.pool-item');
+    if (!agentItem) return;
+
+    const agentId = agentItem.dataset.id;
+    if (!agentId && target.dataset.id) { // Fallback for old structure just in case
+        agentId = target.dataset.id;
+    }
+    if (!agentId) return;
 
     if (target.classList.contains('move-button')) {
         let playerIndex = playerPool.findIndex(p => p.simId === agentId);
@@ -155,21 +162,25 @@ function handlePoolClick(event) {
 
 function handleSceneClick(event) {
     const target = event.target;
-    const agentId = target.dataset.id; // ID is on the button
+    // Find the closest parent .scene-item to get the ID
+    const agentItem = target.closest('.scene-item');
+    if (!agentItem) return;
+
+    if (!target.classList.contains('move-button')) return;
+
+    const agentId = agentItem.dataset.id;
     if (!agentId) return;
 
-    if (target.classList.contains('move-button')) {
-        let playerIndex = activeParty.findIndex(p => p.simId === agentId);
-        if (playerIndex > -1) {
-            const agent = activeParty.splice(playerIndex, 1)[0];
-            playerPool.push(agent);
-            logToScreen(`Moved ${agent.name} back to Player Pool.`);
-        } else {
-            let adversaryIndex = activeAdversaries.findIndex(a => a.simId === agentId);
-            if (adversaryIndex > -1) {
-                const agent = activeAdversaries.splice(adversaryIndex, 1)[0];
-                logToScreen(`Removed ${agent.name} instance from Active Scene.`);
-            }
+    let playerIndex = activeParty.findIndex(p => p.simId === agentId);
+    if (playerIndex > -1) {
+        const agent = activeParty.splice(playerIndex, 1)[0];
+        playerPool.push(agent);
+        logToScreen(`Moved ${agent.name} back to Player Pool.`);
+    } else {
+        let adversaryIndex = activeAdversaries.findIndex(a => a.simId === agentId);
+        if (adversaryIndex > -1) {
+            const agent = activeAdversaries.splice(adversaryIndex, 1)[0];
+            logToScreen(`Removed ${agent.name} instance from Active Scene.`);
         }
     }
     renderPools();
@@ -195,22 +206,20 @@ function renderPools() {
     
     playerPool.forEach(char => {
         playerListDiv.innerHTML += `
-        <div class="pool-item">
-            <span class="agent-name">${char.name} (Lvl ${char.level})</span>
+        <div class="pool-item" data-id="${char.simId}"> <span class="agent-name">${char.name} (Lvl ${char.level})</span>
             <div class="pool-item-controls">
-                <button class="flush-button" data-id="${char.simId}" title="Remove from Pool">X</button>
-                <button class="move-button" data-id="${char.simId}" title="Add to Active Scene">&gt;</button>
+                <button class="flush-button" title="Remove from Pool">X</button>
+                <button class="move-button" title="Add to Active Scene">&gt;</button>
             </div>
         </div>`;
     });
     
     adversaryPool.forEach(adv => {
         adversaryListDiv.innerHTML += `
-        <div class="pool-item">
-            <span class="agent-name">${adv.name} (Diff ${adv.difficulty})</span>
+        <div class="pool-item" data-id="${adv.simId}"> <span class="agent-name">${adv.name} (Diff ${adv.difficulty})</span>
             <div class="pool-item-controls">
-                <button class="flush-button" data-id="${adv.simId}" title="Remove from Pool">X</button>
-                <button class="move-button" data-id="${adv.simId}" title="Add to Active Scene">&gt;</button>
+                <button class="flush-button" title="Remove from Pool">X</button>
+                <button class="move-button" title="Add to Active Scene">&gt;</button>
             </div>
         </div>`;
     });
@@ -224,15 +233,13 @@ function renderActiveScene() {
 
     activeParty.forEach(char => {
         partyListDiv.innerHTML += `
-        <div class="scene-item">
-            <button class="move-button" data-id="${char.simId}" title="Return to Pool">&lt;</button>
+        <div class="scene-item" data-id="${char.simId}"> <button class="move-button" title="Return to Pool">&lt;</button>
             <span class="agent-name">${char.name} (Lvl ${char.level})</span>
         </div>`;
     });
     activeAdversaries.forEach(adv => {
         adversaryListDiv.innerHTML += `
-        <div class="scene-item">
-            <button class="move-button" data-id="${adv.simId}" title="Return to Pool">&lt;</button>
+        <div class="scene-item" data-id="${adv.simId}"> <button class="move-button" title="Return to Pool">&lt;</button>
             <span class="agent-name">${adv.name} (Diff ${adv.difficulty})</span>
         </div>`;
     });
