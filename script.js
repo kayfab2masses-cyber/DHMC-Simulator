@@ -401,8 +401,7 @@ async function runSimulation() {
     while (!isCombatOver(gameState) && simulationSteps < 50) {
         let lastOutcome = '';
         if (gameState.spotlight === 'GM') {
-            // GM AI v3.3: This function now returns "GM_TURN_COMPLETE" when the GM is done.
-            // It might take multiple actions *within* this single call.
+            // GM AI v3.4: This function now contains the full GM turn logic.
             lastOutcome = executeGMTurn(gameState);
         } else {
             const actingPlayer = gameState.players[gameState.spotlight];
@@ -436,8 +435,9 @@ async function runSimulation() {
 }
 
 /**
- * --- UPDATED: GM AI v3.3 ---
- * This function now correctly implements the Daggerheart Spotlight rules.
+ * --- UPDATED: GM AI v3.4 ---
+ * This function now correctly implements the Daggerheart Spotlight rules,
+ * including your correction for FAILURE_WITH_HOPE.
  */
 function determineNextSpotlight(lastOutcome, gameState) {
     logToScreen(`  Control Flow: Last outcome was [${lastOutcome}]`);
@@ -453,7 +453,6 @@ function determineNextSpotlight(lastOutcome, gameState) {
 
         case 'SUCCESS_WITH_HOPE':
             // Spotlight *stays* with players, but GM *can* seize it
-            // This is the core "GM Choice" we need to simulate
             if (gameState.fear > 0 && Math.random() < 0.5) { // 50% chance for GM to seize
                 logToScreen(`  PC succeeded with Hope, but GM spends 1 Fear to seize the spotlight!`);
                 gameState.fear--;
@@ -468,7 +467,7 @@ function determineNextSpotlight(lastOutcome, gameState) {
             break;
             
         case 'SUCCESS_WITH_FEAR':
-        case 'FAILURE_WITH_HOPE':
+        case 'FAILURE_WITH_HOPE': // <-- YOUR CORRECTED LOGIC IS HERE!
         case 'FAILURE_WITH_FEAR':
             // GM seizes the spotlight for free
             gameState.spotlight = 'GM';
@@ -524,7 +523,7 @@ function executePCTurn(player, gameState) {
 }
 
 /**
- * --- UPDATED: GM AI v3.3 (The "True AI" Brain) ---
+ * --- UPDATED: GM AI v3.4 ---
  * This function now correctly implements the GM's Fear economy.
  * The GM gets ONE free adversary spotlight, then must pay 1 Fear for each *additional* spotlight.
  */
@@ -538,22 +537,36 @@ function executeGMTurn(gameState) {
     if (adversaryToAct) {
         performAdversaryAction(adversaryToAct.adversary, adversaryToAct.target, gameState);
     } else {
+        logToScreen(`  (No living adversaries or players left.)`);
         return 'COMBAT_OVER'; // No players left
     }
 
     // --- GM's ADDITIONAL ACTIONS ---
     // Now, the GM can *choose* to spend Fear to spotlight *additional* adversaries.
-    // AI v3.3 Simple Logic: The GM will spend Fear on additional actions 50% of the time for each Fear they have.
-    while (gameState.fear > 0 && Math.random() < 0.5) {
-        logToScreen(`  GM decides to spend 1 Fear for an *additional* spotlight...`);
-        gameState.fear--;
-        logToScreen(`  GM Fear: ${gameState.fear}`);
-        
-        let additionalAdversary = getAdversaryToAct(gameState);
-        if (additionalAdversary) {
-            performAdversaryAction(additionalAdversary.adversary, additionalAdversary.target, gameState);
+    // AI v3.4 Simple Logic: The GM will spend Fear 50% of the time for each Fear > 0.
+    let spotlightedAdversaries = [adversaryToAct.adversary.id]; // Track who has acted this turn
+
+    while (gameState.fear > 0) {
+        // Decide whether to spend another Fear
+        if (Math.random() < 0.5) { // 50% chance to act again
+             logToScreen(`  GM decides to spend 1 Fear for an *additional* spotlight...`);
+             gameState.fear--;
+             logToScreen(`  GM Fear: ${gameState.fear}`);
+
+             let additionalAdversary = getAdversaryToAct(gameState, spotlightedAdversaries);
+             
+             if (additionalAdversary) {
+                // Per the rules, you *can* spotlight the same adversary more than once
+                // if you spend Fear. But our AI will try to pick a *different* one if available.
+                spotlightedAdversaries.push(additionalAdversary.adversary.id);
+                performAdversaryAction(additionalAdversary.adversary, additionalAdversary.target, gameState);
+             } else {
+                 logToScreen(`  (No living adversaries or players left.)`);
+                 return 'COMBAT_OVER';
+             }
         } else {
-            return 'COMBAT_OVER';
+            logToScreen(`  GM chooses to hold their Fear and pass the spotlight.`);
+            break; // GM decides to stop
         }
     }
     
@@ -561,22 +574,36 @@ function executeGMTurn(gameState) {
 }
 
 /**
- * --- NEW HELPER for v3.3 ---
+ * --- NEW HELPER for v3.4 ---
  * Finds an adversary and a target for that adversary to act against.
+ * Tries to pick an adversary that hasn't acted this turn, if possible.
  */
-function getAdversaryToAct(gameState) {
-    // 1. Find a random living adversary to act
-    const livingAdversaries = gameState.adversaries.filter(a => a.current_hp > 0);
-    if (livingAdversaries.length === 0) return null; // Combat is over
-    const adversary = livingAdversaries[Math.floor(Math.random() * livingAdversaries.length)];
-    
-    // 2. Find a target (lowest HP player)
+function getAdversaryToAct(gameState, actedThisTurn = []) {
+    // 1. Find a target (lowest HP player)
     const livingPlayers = gameState.players.filter(p => p.current_hp > 0);
     if (livingPlayers.length === 0) return null; // Combat is over
     const target = livingPlayers.reduce((prev, curr) => (prev.current_hp < curr.current_hp) ? prev : curr);
 
+    // 2. Find an adversary to act
+    let livingAdversaries = gameState.adversaries.filter(a => a.current_hp > 0);
+    if (livingAdversaries.length === 0) return null; // Combat is over
+
+    // Try to find one that hasn't acted yet
+    let availableAdversaries = livingAdversaries.filter(a => !actedThisTurn.includes(a.id));
+    
+    let adversary;
+    if (availableAdversaries.length > 0) {
+        // Pick a random one from the available list
+        adversary = availableAdversaries[Math.floor(Math.random() * availableAdversaries.length)];
+    } else {
+        // Everyone has acted, so pick a random *living* one to act again
+        logToScreen(`  (All adversaries have acted, picking one at random to act again...)`);
+        adversary = livingAdversaries[Math.floor(Math.random() * livingAdversaries.length)];
+    }
+
     return { adversary, target };
 }
+
 
 /**
  * --- NEW HELPER for v3.3 ---
@@ -753,9 +780,11 @@ function executeParsedEffect(action, adversary, target, gameState) {
 
         case 'DEAL_STRESS': // This handles direct stress application, like from Mockery
             const stressVal = action.value || 0;
-            logToScreen(`    Dealing ${stressVal} DIRECT Stress!`);
-            target.current_stress = Math.min(target.max_stress, target.current_stress + stressVal);
-            logToScreen(`    ${target.name} Stress: ${target.current_stress} / ${target.max_stress}`);
+            if (stressVal > 0) {
+                logToScreen(`    Dealing ${stressVal} DIRECT Stress!`);
+                target.current_stress = Math.min(target.max_stress, target.current_stress + stressVal);
+                logToScreen(`    ${target.name} Stress: ${target.current_stress} / ${target.max_stress}`);
+            }
             break;
             
         case 'APPLY_CONDITION':
