@@ -81,10 +81,12 @@ async function loadPCDatabase() {
         }
         const data = await response.json();
         
-        if (Array.isArray(data)) {
-            PREMADE_CHARACTERS = data;
+        // *** THIS IS THE FIX ***
+        // Look for the "characters" key inside the object
+        if (data && data.characters && Array.isArray(data.characters)) {
+            PREMADE_CHARACTERS = data.characters;
         } else {
-            throw new Error("Invalid JSON structure. Expected a top-level array '[...]'");
+            throw new Error("Invalid JSON structure. Expected '{ \"characters\": [...] }'");
         }
 
         logToScreen(`Successfully loaded ${PREMADE_CHARACTERS.length} PCs from catalog.`);
@@ -319,7 +321,9 @@ function renderSRDAdversaries() {
 
     const filteredList = SRD_ADVERSARIES.filter(adv => {
         const tierMatch = (tier === 'any' || adv.tier == tier);
-        const typeMatch = (type === 'any' || adv.type === type);
+        // *** THIS IS THE FIX ***
+        // Changed to startsWith to handle types like "Horde (5/HP)"
+        const typeMatch = (type === 'any' || adv.type.startsWith(type));
         return tierMatch && typeMatch;
     });
 
