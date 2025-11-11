@@ -74,22 +74,19 @@ async function loadSRDDatabase() {
 // NEW: Function to load Premade Characters
 async function loadPCDatabase() {
     try {
+        // *** FIX 1: Fetching the all-lowercase filename ***
         const response = await fetch('data/premade_characters.json'); 
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        const data = await response.json(); // 'data' is now the object { "players": [...] }
+        const data = await response.json();
         
-        // --- THIS IS THE FIX ---
-        // Instead of checking if 'data' is an array,
-        // we check if 'data.players' is an array.
-        if (data && Array.isArray(data.players)) {
-            PREMADE_CHARACTERS = data.players; // We assign the 'players' array, not the whole object
+        // *** FIX 2: Expecting a top-level array, not an object ***
+        if (Array.isArray(data)) {
+            PREMADE_CHARACTERS = data;
         } else {
-            // I've made the error message more specific in case this happens again
-            throw new Error("Invalid JSON structure. Expected an object with a top-level 'players' array.");
+            throw new Error("Invalid JSON structure. Expected a top-level array '[...]'");
         }
-        // --- END OF FIX ---
 
         logToScreen(`Successfully loaded ${PREMADE_CHARACTERS.length} PCs from catalog.`);
         renderPCModalList(); // Render them into the new modal
