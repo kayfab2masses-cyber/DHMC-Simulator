@@ -319,7 +319,7 @@ function instantiatePlayerAgent(data) {
         features: data.features,
         domainCards: data.domainCards,
         experiences: data.experiences,
-        conditions: [] // For "Vulnerable", etc.
+        conditions: [] // For "Vulnerable", "Restrained", etc.
     };
     return agent;
 }
@@ -488,7 +488,7 @@ function executePCTurn(player, gameState) {
 /**
  * --- UPDATED: GM AI v3.0 (The "True AI" Brain) ---
  * This function now reads the `parsed_effect` object
- * and executes its logic instead of using a giant switch statement.
+ * and executes its logic instead of using "band-aids".
  */
 function executeGMTurn(gameState) {
     // 1. Find a random living adversary to act
@@ -503,9 +503,18 @@ function executeGMTurn(gameState) {
 
     logToScreen(`> GM SPOTLIGHT: ${adversary.name} acts (targeting ${target.name})...`);
 
-    // 3. Find an affordable action
+    // 3. Find an affordable action from the `parsed_effect`
     const affordableActions = adversary.features.filter(f => {
         if (f.type !== 'action' || !f.parsed_effect) return false;
+        
+        // Check target conditions (e.g., "Deadly Shot" needs a "Vulnerable" target)
+        const details = f.parsed_effect.actions[0].details; // Assuming first action has details
+        if (details && details.target_condition) {
+            if (!target.conditions.includes(details.target_condition)) {
+                return false; // Can't use this action, target isn't Vulnerable
+            }
+        }
+
         if (!f.cost) return true; // Free action
         if (f.cost.type === 'stress' && (adversary.current_stress + f.cost.value <= adversary.max_stress)) return true;
         if (f.cost.type === 'fear' && (gameState.fear >= f.cost.value)) return true;
@@ -515,14 +524,13 @@ function executeGMTurn(gameState) {
     let chosenAction = null;
     if (affordableActions.length > 0) {
         // AI v3.0: Just pick the first affordable action.
-        // (We can make this smarter later, e.g., check 'target_condition')
         chosenAction = affordableActions[0];
     }
 
     // 4. Execute the action (or default to basic attack)
     if (chosenAction) {
         logToScreen(`  Using Feature: ${chosenAction.name}!`);
-        // Pay the cost
+        // Pay the *primary* cost
         if (chosenAction.cost) {
             if (chosenAction.cost.type === 'stress') {
                 adversary.current_stress += chosenAction.cost.value;
@@ -592,6 +600,7 @@ function executeParsedEffect(action, adversary, target, gameState) {
             // Loop through all targets (for AOE like "Earth Eruption")
             for (const t of targets) {
                 const details = action.details;
+                // Find the difficulty. Your JSON has "Succeed on" for Eruption and "14" for Mockery.
                 const difficulty = details.difficulty || 12; // Default diff if not specified
                 logToScreen(`  ${t.name} must make a ${details.roll_type.toUpperCase()} Reaction Roll (Diff ${difficulty})!`);
                 
@@ -604,9 +613,12 @@ function executeParsedEffect(action, adversary, target, gameState) {
                     logToScreen(`  ${t.name} fails the Reaction Roll!`);
                     // Execute all on_fail actions
                     if (details.on_fail) {
-                        // This is a bit of a hack for now, we should formalize this
-                        if (details.on_fail.apply_condition) {
-                            applyCondition(t, details.on_fail.apply_condition);
+                        // This can be an array now
+                        const onFailActions = Array.isArray(details.on_fail) ? details.on_fail : [details.on_fail];
+                        
+                        for (const failAction of onFailActions) {
+                             // Recursively call this function to handle complex fail effects
+                            executeParsedEffect(failAction, adversary, t, gameState);
                         }
                     }
                 }
@@ -615,10 +627,27 @@ function executeParsedEffect(action, adversary, target, gameState) {
             
         case 'DEAL_DAMAGE':
             let critBonus = 0; // TODO: Check for crits
-            const damageTotal = rollDamage(action.damage_string, 1, critBonus);
+            // Check for "2 stress" or "1 hp"
+            let damageTotal;
+            if (action.damage_string.includes("stress")) {
+                const stressVal = parseInt(action.damage_string.split(' ')[0]);
+                logToScreen(`  Dealing ${stressVal} DIRECT Stress!`);
+                target.current_stress = Math.min(target.max_stress, target.current_stress + stressVal);
+                logToScreen(`  ${target.name} Stress: ${target.current_stress} / ${target.max_stress}`);
+                return; // Stop here, no HP damage
+            } else if (action.damage_string.includes("hp")) {
+                damageTotal = parseInt(action.damage_string.split(' ')[0]);
+            } else {
+                damageTotal = rollDamage(action.damage_string, 1, critBonus);
+            }
+            
             const isDirect = action.is_direct || false;
-            logToScreen(`  Dealing ${damageTotal} ${isDirect ? 'DIRECT' : ''} damage!`);
-            applyDamage(damageTotal, adversary, primaryTarget, isDirect);
+            if (damageTotal > 0) {
+                 logToScreen(`  Dealing ${damageTotal} ${isDirect ? 'DIRECT' : ''} damage!`);
+                applyDamage(damageTotal, adversary, primaryTarget, isDirect);
+            } else {
+                logToScreen(`  Damage roll was 0, no damage dealt.`);
+            }
             break;
             
         case 'APPLY_CONDITION':
@@ -637,7 +666,14 @@ function executeParsedEffect(action, adversary, target, gameState) {
             }
             break;
 
-        // ... other action_types like GAIN_RESOURCE, SPECIAL_RULE, etc.
+        case 'GAIN_RESOURCE':
+             if (action.target === 'GM' && action.details.resource === 'Fear') {
+                gameState.fear += action.details.value;
+                logToScreen(`  GM gains ${action.details.value} Fear (Total: ${gameState.fear})`);
+             }
+            break;
+
+        // ... other action_types like SPECIAL_RULE, etc.
         
         default:
             logToScreen(`  (Logic for action_type '${action.action_type}' not yet implemented.)`);
@@ -653,6 +689,7 @@ function applyCondition(target, condition) {
         target.conditions.push(condition);
         logToScreen(`  ${target.name} is now ${condition}!`);
         // TODO: We need to add logic for what these conditions *do*
+        // e.g., if (condition === 'Vulnerable'), target.evasion -= 2;
     }
 }
 
@@ -802,6 +839,7 @@ function rollDamage(damageString, proficiency, critBonus = 0) {
     const { numDice, dieType, modifier, maxDie } = parseDiceString(damageString);
     let totalDamage = 0;
     
+    // PC damage dice are multiplied by proficiency
     let diceToRoll = (proficiency > 1) ? (numDice * proficiency) : numDice;
     
     if (dieType > 0) {

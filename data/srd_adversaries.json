@@ -1,888 +1,3525 @@
-{
-  "adversaries": [
-    {
-      "name": "Acid Burrower",
-      "tier": 1,
-      "type": "Solo",
-      "difficulty": 14,
-      "thresholds": {
-        "major": 8,
-        "severe": 15
+[
+  {
+    "name": "Acid Burrower",
+    "tier": 1,
+    "type": "Solo",
+    "difficulty": 14,
+    "thresholds": {},
+    "major": 8,
+    "severe": 15,
+    "hp": 8,
+    "stress": 3,
+    "attack": {
+      "name": "Claws",
+      "range": "Very Close",
+      "damage": "1d12+2 phy",
+      "modifier": "+3"
+    },
+    "features": [
+      {
+        "name": "Relentless (3)",
+        "type": "passive",
+        "cost": null,
+        "value": 3,
+        "effect": "The Burrower can be spotlighted up to three times per GM turn",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MODIFY_STAT",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "stat": "max_spotlights_per_turn",
+                "value": 3
+              }
+            }
+          ]
+        }
       },
-      "hp": 8,
-      "stress": 3,
-      "attack": {
-        "name": "Claws",
-        "range": "Very Close",
-        "damage": "1d12+2 phy",
-        "bonus": 3
-      },
-      "features": [
-        {
-          "name": "Relentless",
-          "type": "passive",
-          "cost": null,
-          "value": 3,
-          "effect": "The Burrower can be spotlighted up to three times per GM turn. Spend Fear as usual to spotlight them.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "SPECIAL_RULE",
-                "target": "SELF",
-                "details": {
-                  "rule": "Can be spotlighted up to 3 times per GM turn."
+      {
+        "name": "Earth Eruption",
+        "type": "action",
+        "cost": {
+          "type": "stress",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Mark a Stress to have the Burrower burst out of the ground",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "FORCE_REACTION_ROLL",
+              "target": "ALL_IN_RANGE",
+              "range": "Very Close",
+              "details": {
+                "roll_type": "agility",
+                "difficulty_text": "succeed on",
+                "on_fail": {
+                  "apply_condition": "Vulnerable",
+                  "duration_text": "until they next act"
                 }
               }
-            ]
-          }
-        },
-        {
-          "name": "Earth Eruption",
-          "type": "action",
-          "cost": {
-            "type": "stress",
-            "value": 1
-          },
-          "value": null,
-          "effect": "Mark a Stress to have the Burrower burst out of the ground. All creatures within Very Close range must succeed on an Agility Reaction Roll or be knocked over, making them Vulnerable until they next act.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "FORCE_REACTION_ROLL",
-                "target": "ALL_IN_RANGE",
-                "range": "Very Close",
-                "details": {
-                  "roll_type": "agility",
-                  "difficulty_text": "Succeed on",
-                  "on_fail": {
-                    "apply_condition": "Vulnerable",
-                    "duration_text": "until they next act"
-                  }
-                }
-              }
-            ]
-          }
-        },
-        {
-          "name": "Spit Acid",
-          "type": "action",
-          "cost": null,
-          "value": null,
-          "effect": "Make an attack against all targets in front of the Burrower within Close range. Targets the Burrower succeeds against take 2d6 physical damage and must mark an Armor Slot without receiving its benefits (they can still use armor to reduce the damage). If they can't mark an Armor Slot, they must mark an additional HP and you gain a Fear.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "ATTACK_ROLL",
-                "target": "ALL_IN_RANGE",
-                "range": "Close",
-                "details": {
-                  "target_description": "all targets in front of the Burrower",
-                  "on_success": [
-                    {
-                      "action_type": "DEAL_DAMAGE",
-                      "damage_string": "2d6 phy",
-                      "is_direct": false
-                    },
-                    {
-                      "action_type": "APPLY_CONDITION",
-                      "condition": "Marked Armor Slot (no benefit)",
-                      "duration_text": "N/A"
-                    },
-                    {
-                      "action_type": "CONDITIONAL_EFFECT",
-                      "condition_text": "If they can't mark an Armor Slot",
-                      "on_trigger": [
+            }
+          ]
+        }
+      },
+      {
+        "name": "Spit Acid",
+        "type": "action",
+        "cost": null,
+        "value": null,
+        "effect": "Make an attack against all targets in front of the Burrower within Close range",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "ATTACK_ROLL",
+              "target": "ALL_IN_RANGE_FRONT",
+              "range": "Close",
+              "details": {
+                "on_success": [
+                  {
+                    "action_type": "DEAL_DAMAGE",
+                    "damage_string": "2d6 phy"
+                  },
+                  {
+                    "action_type": "FORCE_MARK_ARMOR_SLOT",
+                    "details": "without receiving its benefits",
+                    "on_fail": {
+                      "actions": [
                         {
                           "action_type": "DEAL_DAMAGE",
-                          "damage_string": "1 hp",
+                          "damage_string": "1 HP",
                           "is_direct": true
-                        },
-                        {
-                          "action_type": "GAIN_RESOURCE",
-                          "target": "GM",
-                          "details": {
-                            "resource": "Fear",
-                            "value": 1
-                          }
                         }
                       ]
                     }
-                  ]
-                }
-              }
-            ]
-          }
-        },
-        {
-          "name": "Acid Bath",
-          "type": "reaction",
-          "cost": null,
-          "value": null,
-          "effect": "When the Burrower takes Severe damage, all creatures within Close range are bathed in their acidic blood, taking 1d10 physical damage. This splash covers the ground within Very Close range with blood, and all creatures other than the Burrower who move through it take 1d6 physical damage.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "DEAL_DAMAGE",
-                "target": "ALL_IN_RANGE",
-                "range": "Close",
-                "details": {
-                  "damage_string": "1d10 phy",
-                  "is_direct": true
-                }
-              },
-              {
-                "action_type": "CREATE_HAZARD",
-                "target": "AREA",
-                "range": "Very Close",
-                "details": {
-                  "hazard_name": "Acidic Blood",
-                  "effect_string": "all creatures (other than Burrower) who move through it take 1d6 physical damage"
-                }
-              }
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "Bear",
-      "tier": 1,
-      "type": "Bruiser",
-      "difficulty": 14,
-      "thresholds": {
-        "major": 9,
-        "severe": 17
-      },
-      "hp": 7,
-      "stress": 2,
-      "attack": {
-        "name": "Claws",
-        "range": "Melee",
-        "damage": "1d8+3 phy",
-        "bonus": 1
-      },
-      "features": [
-        {
-          "name": "Overwhelming Force",
-          "type": "passive",
-          "cost": null,
-          "value": null,
-          "effect": "Targets who mark HP from the Bear's standard attack are knocked back to Very Close range.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "CONDITIONAL_EFFECT",
-                "condition_text": "On standard attack success that causes target to mark HP",
-                "on_trigger": [
-                  {
-                    "action_type": "APPLY_CONDITION",
-                    "target": "PRIMARY_TARGET",
-                    "condition": "Knocked Back",
-                    "details": {
-                      "range": "Very Close"
-                    }
                   }
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "Bite",
-          "type": "action",
-          "cost": {
-            "type": "stress",
-            "value": 1
-          },
-          "value": null,
-          "effect": "Mark a Stress to make an attack against a target within Melee range. On a success, deal 3d4+10 physical damage and the target is Restrained until they break free with a successful Strength Roll.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "ATTACK_ROLL",
-                "target": "PRIMARY_TARGET",
-                "range": "Melee",
-                "details": {
-                  "on_success": [
-                    {
-                      "action_type": "DEAL_DAMAGE",
-                      "damage_string": "3d4+10 phy",
-                      "is_direct": false
-                    },
-                    {
-                      "action_type": "APPLY_CONDITION",
-                      "condition": "Restrained",
-                      "duration_text": "until they break free with a successful Strength Roll"
-                    }
-                  ]
-                }
-              }
-            ]
-          }
-        },
-        {
-          "name": "Momentum",
-          "type": "reaction",
-          "cost": null,
-          "value": null,
-          "effect": "When the Bear makes a successful attack against a PC, you gain a Fear.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "GAIN_RESOURCE",
-                "target": "GM",
-                "details": {
-                  "resource": "Fear",
+                ],
+                "on_success_multi_target": {
+                  "action_type": "GAIN_FEAR",
                   "value": 1
                 }
               }
-            ]
-          }
+            }
+          ]
         }
-      ]
-    },
-    {
-      "name": "Courtier",
-      "tier": 1,
-      "type": "Social",
-      "difficulty": 12,
-      "thresholds": {
-        "major": 4,
-        "severe": 8
       },
-      "hp": 3,
-      "stress": 4,
-      "attack": {
-        "name": "Daggers",
-        "range": "Melee",
-        "damage": "1d4+2 phy",
-        "bonus": -4
-      },
-      "features": [
-        {
-          "name": "Mockery",
-          "type": "action",
-          "cost": {
-            "type": "stress",
-            "value": 1
-          },
-          "value": null,
-          "effect": "Mark a Stress to say something mocking and force a target within Close range to make a Presence Reaction Roll (14) to see if they can save face. On a failure, the target must mark 2 Stress and is Vulnerable until the scene ends.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "FORCE_REACTION_ROLL",
-                "target": "PRIMARY_TARGET",
-                "range": "Close",
-                "details": {
-                  "roll_type": "presence",
-                  "difficulty": 14,
-                  "difficulty_text": "Reaction Roll (14)",
-                  "on_fail": [
-                    {
-                      "action_type": "DEAL_DAMAGE",
-                      "damage_string": "2 stress",
-                      "is_direct": true
-                    },
-                    {
-                      "action_type": "APPLY_CONDITION",
-                      "condition": "Vulnerable",
-                      "duration_text": "until the scene ends"
-                    }
-                  ]
-                }
+      {
+        "name": "Acid Bath",
+        "type": "reaction",
+        "cost": null,
+        "value": null,
+        "effect": "When the Burrower takes Severe damage, all creatures within Close range take 1d10 direct physical damage. The area within Very Close range of the Burrower becomes a hazardous acid bath: all creatures other than the Burrower who move through it take 1d6 direct physical damage.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "DEAL_DAMAGE",
+              "trigger": "ON_TAKE_SEVERE_DAMAGE",
+              "target": "ALL_IN_RANGE",
+              "range": "Close",
+              "details": {
+                "damage_string": "1d10 phy",
+                "is_direct": true
               }
-            ]
-          }
+            },
+            {
+              "action_type": "CREATE_HAZARD",
+              "trigger": "ON_TAKE_SEVERE_DAMAGE",
+              "target": "AREA",
+              "range": "Very Close",
+              "details": {
+                "hazard_effect": "all creatures other than the Burrower who move through it take 1d6 direct physical damage"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Bear",
+    "tier": 1,
+    "type": "Bruiser",
+    "difficulty": 14,
+    "thresholds": {
+      "major": 9,
+      "severe": 17
+    },
+    "hp": 7,
+    "stress": 2,
+    "attack": {
+      "name": "Claws",
+      "range": "Melee",
+      "damage": "1d8+3 phy",
+      "modifier": "+1"
+    },
+    "features": [
+      {
+        "name": "Overwhelming Force",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "Targets who mark HP from the Bear's standard attack are knocked back to Very Close range",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "KNOCKBACK",
+              "trigger": "ON_DEAL_HP_STANDARD_ATTACK",
+              "target": "PRIMARY_TARGET",
+              "range": "Very Close",
+              "details": {}
+            }
+          ]
+        }
+      },
+      {
+        "name": "Bite",
+        "type": "action",
+        "cost": {
+          "type": "stress",
+          "value": 1
         },
-        {
-          "name": "Scapegoat",
-          "type": "action",
-          "cost": {
-            "type": "fear",
-            "value": 1
-          },
-          "value": null,
-          "effect": "Spend a Fear and target a PC. The Courtier convinces a crowd or prominent individual that the target is the cause of their current conflict or misfortune.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "NARRATIVE_EFFECT",
-                "target": "PRIMARY_TARGET",
-                "range": "N/A",
-                "details": {
-                  "effect_description": "Convinces a crowd or prominent individual that the target is the cause of their current conflict or misfortune."
-                }
-              }
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "Giant Mosquitoes",
-      "tier": 1,
-      "type": "Horde",
-      "difficulty": 10,
-      "thresholds": {
-        "major": 5,
-        "severe": 9
-      },
-      "hp": 6,
-      "stress": 3,
-      "attack": {
-        "name": "Proboscis",
-        "range": "Melee",
-        "damage": "1d8+3 phy",
-        "bonus": -2
-      },
-      "features": [
-        {
-          "name": "Horde",
-          "type": "passive",
-          "cost": null,
-          "value": "1d4+1",
-          "effect": "When the Mosquitoes have marked half or more of their HP, their standard attack deals 1d4+1 physical damage instead.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "CONDITIONAL_EFFECT",
-                "condition_text": "When HP is <= half",
-                "on_trigger": [
+        "value": null,
+        "effect": "Mark a Stress to make an attack against a target within Melee range. On a success, the target takes 3d4+10 physical damage and is Restrained until they break free with a successful Strength Roll.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "ATTACK_ROLL",
+              "target": "PRIMARY_TARGET",
+              "range": "Melee",
+              "details": {
+                "on_success": [
                   {
-                    "action_type": "MODIFY_STAT",
-                    "target": "SELF",
-                    "details": {
-                      "stat": "standard_attack_damage",
-                      "new_value": "1d4+1 phy"
-                    }
-                  }
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "Flying",
-          "type": "passive",
-          "cost": null,
-          "value": null,
-          "effect": "While flying, the Mosquitoes have a +2 bonus to their Difficulty.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "MODIFY_STAT",
-                "target": "SELF",
-                "details": {
-                  "stat": "Difficulty",
-                  "modifier": "+2",
-                  "condition_text": "While flying"
-                }
-              }
-            ]
-          }
-        },
-        {
-          "name": "Bloodsucker",
-          "type": "reaction",
-          "cost": {
-            "type": "stress",
-            "value": 1
-          },
-          "value": null,
-          "effect": "When the Mosquitoes' attack causes a target to mark HP, you can mark a Stress to force the target to mark an additional HP.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "DEAL_DAMAGE",
-                "target": "PRIMARY_TARGET",
-                "details": {
-                  "damage_string": "1 hp",
-                  "is_direct": true
-                }
-              }
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "Dire Wolf",
-      "tier": 1,
-      "type": "Skulk",
-      "difficulty": 12,
-      "thresholds": {
-        "major": 5,
-        "severe": 9
-      },
-      "hp": 4,
-      "stress": 3,
-      "attack": {
-        "name": "Claws",
-        "range": "Melee",
-        "damage": "1d6+2 phy",
-        "bonus": 2
-      },
-      "features": [
-        {
-          "name": "Pack Tactics",
-          "type": "passive",
-          "cost": null,
-          "value": null,
-          "effect": "If the Wolf makes a successful standard attack and another Dire Wolf is within Melee range of the target, deal 1d6+5 physical damage instead of their standard damage and you gain a Fear.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "CONDITIONAL_EFFECT",
-                "condition_text": "On standard attack success AND another Dire Wolf is within Melee of target",
-                "on_trigger": [
-                  {
-                    "action_type": "MODIFY_STAT",
-                    "target": "SELF",
-                    "details": {
-                      "stat": "standard_attack_damage",
-                      "new_value": "1d6+5 phy"
-                    }
+                    "action_type": "DEAL_DAMAGE",
+                    "damage_string": "3d4+10 phy",
+                    "is_direct": false
                   },
                   {
-                    "action_type": "GAIN_RESOURCE",
-                    "target": "GM",
-                    "details": {
-                      "resource": "Fear",
-                      "value": 1
-                    }
+                    "action_type": "APPLY_CONDITION",
+                    "condition": "Restrained",
+                    "duration_text": "until they break free with a successful Strength Roll"
                   }
                 ]
               }
-            ]
-          }
-        },
-        {
-          "name": "Hobbling Strike",
-          "type": "action",
-          "cost": {
-            "type": "stress",
-            "value": 1
-          },
-          "value": null,
-          "effect": "Mark a Stress to make an attack against a target within Melee range. On a success, deal 3d4+10 direct physical damage and make them Vulnerable until they clear at least 1 HP.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "ATTACK_ROLL",
-                "target": "PRIMARY_TARGET",
-                "range": "Melee",
-                "details": {
-                  "on_success": [
-                    {
-                      "action_type": "DEAL_DAMAGE",
-                      "damage_string": "3d4+10 phy",
-                      "is_direct": true
-                    },
-                    {
-                      "action_type": "APPLY_CONDITION",
-                      "condition": "Vulnerable",
-                      "duration_text": "until they clear at least 1 HP"
-                    }
-                  ]
-                }
-              }
-            ]
-          }
+            }
+          ]
         }
-      ]
-    },
-    {
-      "name": "Bladed Guard",
-      "tier": 1,
-      "type": "Standard",
-      "difficulty": 12,
-      "thresholds": {
-        "major": 5,
-        "severe": 9
       },
-      "hp": 5,
-      "stress": 2,
-      "attack": {
-        "name": "Longsword",
-        "range": "Melee",
-        "damage": "1d6+1 phy",
-        "bonus": 1
-      },
-      "features": [
-        {
-          "name": "Shield Wall",
-          "type": "passive",
-          "cost": null,
-          "value": null,
-          "effect": "A creature who tries to move within Very Close range of the Guard must succeed on an Agility Roll. If additional Bladed Guards are standing in a line alongside the first, and each is within Melee range of another guard in the line, the Difficulty increases by the total number of guards in that line.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "FORCE_ROLL",
-                "trigger": "Move within Very Close range",
-                "target": "MOVING_CREATURE",
-                "details": {
-                  "roll_type": "agility",
-                  "difficulty_text": "Succeed on",
-                  "difficulty_modifier": {
-                    "bonus": "+N (total guards in line)"
-                  }
-                }
+      {
+        "name": "Momentum",
+        "type": "reaction",
+        "cost": null,
+        "value": null,
+        "effect": "When the Bear makes a successful attack against a PC, you gain a Fear",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "GAIN_FEAR",
+              "trigger": "ON_SUCCESSFUL_ATTACK",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "value": 1
               }
-            ]
-          }
-        },
-        {
-          "name": "Detain",
-          "type": "action",
-          "cost": null,
-          "value": null,
-          "effect": "Make an attack against a target within Very Close range. On a success, mark a Stress to Restrain the target until they break free with a successful attack, Finesse Roll, or Strength Roll.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "ATTACK_ROLL",
-                "target": "PRIMARY_TARGET",
-                "range": "Very Close",
-                "details": {
-                  "on_success": [
-                    {
-                      "action_type": "APPLY_CONDITION",
-                      "cost": {
-                        "type": "stress",
-                        "value": 1
-                      },
-                      "condition": "Restrained",
-                      "duration_text": "until they break free with a successful attack, Finesse Roll, or Strength Roll"
-                    }
-                  ]
-                }
-              }
-            ]
-          }
+            }
+          ]
         }
-      ]
+      }
+    ]
+  },
+  {
+    "name": "Cave Ogre",
+    "tier": 1,
+    "type": "Solo",
+    "difficulty": 13,
+    "thresholds": {
+      "major": 8,
+      "severe": 15
     },
-    {
-      "name": "Head Guard",
-      "tier": 1,
-      "type": "Leader",
-      "difficulty": 15,
-      "thresholds": {
-        "major": 7,
-        "severe": 13
-      },
-      "hp": 7,
-      "stress": 3,
-      "attack": {
-        "name": "Mace",
-        "range": "Melee",
-        "damage": "1d10+4 phy",
-        "bonus": 4
-      },
-      "features": [
-        {
-          "name": "Rally Guards",
-          "type": "action",
-          "cost": {
-            "type": "fear",
-            "value": 2
-          },
-          "value": null,
-          "effect": "Spend 2 Fear to spotlight the Head Guard and up to 2d4 allies within Far range.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "SPOTLIGHT",
-                "target": "SELF",
-                "details": {}
-              },
-              {
-                "action_type": "SPOTLIGHT",
-                "target": "ALLIES_IN_RANGE",
-                "range": "Far",
-                "details": {
-                  "count": "2d4"
-                }
-              }
-            ]
-          }
-        },
-        {
-          "name": "On My Signal",
-          "type": "reaction",
-          "cost": null,
-          "value": 5,
-          "effect": "Countdown (5). When the Head Guard is in the spotlight for the first time, activate the countdown. It ticks down when a PC makes an attack roll. When it triggers, all Archer Guards within Far range make a standard attack with advantage against the nearest target within their range. If any attacks succeed on the same target, combine their damage.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "SPECIAL_RULE",
-                "target": "ALL_ALLIES",
-                "details": {
-                  "rule": "Countdown (5)",
-                  "trigger_activate": "Head Guard spotlighted for first time",
-                  "trigger_tick": "PC makes an attack roll",
-                  "on_trigger": "All Archer Guards within Far range make a standard attack with advantage against the nearest target. Combine damage if multiple hits on same target."
-                }
-              }
-            ]
-          }
-        },
-        {
-          "name": "Momentum",
-          "type": "reaction",
-          "cost": null,
-          "value": null,
-          "effect": "When the Head Guard makes a successful attack against a PC, you gain a Fear.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "GAIN_RESOURCE",
-                "target": "GM",
-                "details": {
-                  "resource": "Fear",
+    "hp": 8,
+    "stress": 3,
+    "attack": {
+      "name": "Club",
+      "range": "Very Close",
+      "damage": "1d10+2 phy",
+      "modifier": "+1"
+    },
+    "features": [
+      {
+        "name": "Ramp Up",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "You must spend a Fear to spotlight the Ogre. While spotlighted, they can make their standard attack against all targets within Very Close range.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MODIFY_ACTION",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "action": "SPOTLIGHT",
+                "cost": {
+                  "type": "fear",
                   "value": 1
                 }
               }
-            ]
-          }
+            },
+            {
+              "action_type": "MODIFY_ATTACK",
+              "target": "STANDARD_ATTACK",
+              "range": null,
+              "details": {
+                "new_target": "ALL_IN_RANGE",
+                "condition": "While spotlighted"
+              }
+            }
+          ]
         }
-      ]
+      },
+      {
+        "name": "Bone Breaker",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "The Ogre's attacks deal direct damage.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MODIFY_DAMAGE",
+              "target": "ALL_ATTACKS",
+              "range": null,
+              "details": {
+                "is_direct": true
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Hail of Boulders",
+        "type": "action",
+        "cost": {
+          "type": "stress",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Mark a Stress to pick up heavy objects and throw them at all targets in front of the Ogre within Far range. Make an attack roll. On a success, targets take 1d10+2 physical damage. If you hit two or more targets, gain a Fear.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "ATTACK_ROLL",
+              "target": "ALL_IN_RANGE_FRONT",
+              "range": "Far",
+              "details": {
+                "on_success": [
+                  {
+                    "action_type": "DEAL_DAMAGE",
+                    "damage_string": "1d10+2 phy",
+                    "is_direct": false
+                  }
+                ],
+                "on_success_multi_target": {
+                  "action_type": "GAIN_FEAR",
+                  "value": 1
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Rampaging Fury",
+        "type": "reaction",
+        "cost": null,
+        "value": null,
+        "effect": "When the Ogre marks 2 or more HP, they can rampage. They move up to Close range, and all targets in their path take 2d6+3 direct physical damage.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MOVE",
+              "trigger": "ON_TAKE_DAMAGE_2_HP_OR_MORE",
+              "target": "SELF",
+              "range": "Close",
+              "details": {}
+            },
+            {
+              "action_type": "DEAL_DAMAGE",
+              "trigger": "ON_TAKE_DAMAGE_2_HP_OR_MORE",
+              "target": "ALL_IN_PATH",
+              "range": null,
+              "details": {
+                "damage_string": "2d6+3 phy",
+                "is_direct": true
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Construct",
+    "tier": 1,
+    "type": "Solo",
+    "difficulty": 13,
+    "thresholds": {
+      "major": 7,
+      "severe": 15
     },
-    {
-      "name": "Jagged Knife Hexer",
-      "tier": 1,
-      "type": "Support",
-      "difficulty": 13,
-      "thresholds": {
-        "major": 5,
-        "severe": 9
+    "hp": 9,
+    "stress": 4,
+    "attack": {
+      "name": "Fist Slam",
+      "range": "Melee",
+      "damage": "1d20 phy",
+      "modifier": "+4"
+    },
+    "features": [
+      {
+        "name": "Relentless (2)",
+        "type": "passive",
+        "cost": null,
+        "value": 2,
+        "effect": "The Construct can be spotlighted up to two times per GM turn",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MODIFY_STAT",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "stat": "max_spotlights_per_turn",
+                "value": 2
+              }
+            }
+          ]
+        }
       },
-      "hp": 4,
-      "stress": 4,
-      "attack": {
-        "name": "Staff",
-        "range": "Far",
-        "damage": "1d6+2 mag",
-        "bonus": 2
+      {
+        "name": "Weak Structure",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "When the Construct marks HP from physical damage, they must mark an additional HP.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MODIFY_DAMAGE_TAKEN",
+              "trigger": "ON_TAKE_HP_PHY",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "increase_hp_marked": 1
+              }
+            }
+          ]
+        }
       },
-      "features": [
-        {
-          "name": "Curse",
-          "type": "action",
-          "cost": null,
-          "value": null,
-          "effect": "Choose a target within Far range and temporarily Curse them. While the target is Cursed, you can mark a Stress when that target rolls with Hope to make the roll be with Fear instead.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "APPLY_CONDITION",
-                "target": "PRIMARY_TARGET",
-                "range": "Far",
-                "details": {
-                  "condition": "Cursed",
-                  "duration_text": "temporary",
-                  "sub_effect": {
-                    "trigger": "Target rolls with Hope",
+      {
+        "name": "Trample",
+        "type": "action",
+        "cost": {
+          "type": "stress",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Mark a Stress to make an attack against all targets in the Construct's path as they move up to Close range. On a success, they take 1d8 physical damage.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "ATTACK_ROLL",
+              "target": "ALL_IN_PATH",
+              "range": "MOVE",
+              "details": {
+                "on_success": [
+                  {
+                    "action_type": "DEAL_DAMAGE",
+                    "damage_string": "1d8 phy",
+                    "is_direct": false
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Overload",
+        "type": "reaction",
+        "cost": {
+          "type": "stress",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Before rolling damage for the Construct's attack, you can mark a Stress to add 10 damage to the roll and take the spotlight.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MODIFY_DAMAGE",
+              "trigger": "BEFORE_DEALING_DAMAGE",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "bonus": 10
+              }
+            },
+            {
+              "action_type": "TAKE_SPOTLIGHT",
+              "trigger": "BEFORE_DEALING_DAMAGE",
+              "target": "SELF",
+              "range": null,
+              "details": {}
+            }
+          ]
+        }
+      },
+      {
+        "name": "Death Quake",
+        "type": "reaction",
+        "cost": null,
+        "value": null,
+        "effect": "When the Construct marks their last HP, the magic powering them ruptures in an explosion. Make an attack roll with advantage against all targets within Very Close range. On a success, targets take 1d12+2 magic damage.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "ATTACK_ROLL",
+              "trigger": "ON_DEFEAT",
+              "target": "ALL_IN_RANGE",
+              "range": "Very Close",
+              "details": {
+                "has_advantage": true,
+                "on_success": [
+                  {
+                    "action_type": "DEAL_DAMAGE",
+                    "damage_string": "1d12+2 mag",
+                    "is_direct": false
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Courtier",
+    "tier": 1,
+    "type": "Social",
+    "difficulty": 12,
+    "thresholds": {
+      "major": 4,
+      "severe": 8
+    },
+    "hp": 3,
+    "stress": 4,
+    "attack": {
+      "name": "Daggers",
+      "range": "Melee",
+      "damage": "1d4+2 phy",
+      "modifier": "-4"
+    },
+    "features": [
+      {
+        "name": "Mockery",
+        "type": "action",
+        "cost": {
+          "type": "stress",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Mark a Stress to say something mocking and force a target within Close range to make a Presence Reaction Roll (14). On a failure, they mark 2 Stress and are Vulnerable until the scene ends.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "FORCE_REACTION_ROLL",
+              "target": "PRIMARY_TARGET",
+              "range": "Close",
+              "details": {
+                "roll_type": "presence",
+                "difficulty": 14,
+                "on_fail": [
+                  {
+                    "action_type": "DEAL_STRESS",
+                    "value": 2
+                  },
+                  {
+                    "action_type": "APPLY_CONDITION",
+                    "condition": "Vulnerable",
+                    "duration_text": "until the scene ends"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Scapegoat",
+        "type": "action",
+        "cost": {
+          "type": "fear",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Spend a Fear and target a PC. The Courtier convinces a crowd or prominent individual that the target is the catalyst for some problem in their lives.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "NARRATIVE_EFFECT",
+              "target": "PRIMARY_TARGET",
+              "range": null,
+              "details": {
+                "description": "Convinces a crowd or prominent individual that the target is the catalyst for some problem in their lives."
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Giant Mosquitoes",
+    "tier": 1,
+    "type": "Horde (5/HP)",
+    "difficulty": 10,
+    "thresholds": {
+      "major": 5,
+      "severe": 9
+    },
+    "hp": 6,
+    "stress": 3,
+    "attack": {
+      "name": "Proboscis",
+      "range": "Melee",
+      "damage": "1d8+3 phy",
+      "modifier": "-2"
+    },
+    "features": [
+      {
+        "name": "Horde (1d4+1)",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "When the Mosquitoes have marked half or more of their HP, their standard attack deals 1d4+1 physical damage.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MODIFY_DAMAGE",
+              "trigger": "ON_HALF_HP",
+              "target": "STANDARD_ATTACK",
+              "range": null,
+              "details": {
+                "new_damage_string": "1d4+1 phy"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Flying",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "While flying, the Mosquitoes have a +2 bonus to their Difficulty.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MODIFY_STAT",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "stat": "Difficulty",
+                "bonus": 2,
+                "condition": "While flying"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Bloodsucker",
+        "type": "reaction",
+        "cost": {
+          "type": "stress",
+          "value": 1
+        },
+        "value": null,
+        "effect": "When the Mosquitoes' attack causes a target to mark HP, you can mark a Stress to deal an additional 1 direct HP damage.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "DEAL_DAMAGE",
+              "trigger": "ON_DEAL_HP_ATTACK",
+              "target": "PRIMARY_TARGET",
+              "range": null,
+              "details": {
+                "damage_string": "1 HP",
+                "is_direct": true
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Deeproot Defender",
+    "tier": 1,
+    "type": "Bruiser",
+    "difficulty": 10,
+    "thresholds": {
+      "major": 8,
+      "severe": 14
+    },
+    "hp": 7,
+    "stress": 3,
+    "attack": {
+      "name": "Vines",
+      "range": "Close",
+      "damage": "1d8+3 phy",
+      "modifier": "+2"
+    },
+    "features": [
+      {
+        "name": "Ground Slam",
+        "type": "action",
+        "cost": null,
+        "value": null,
+        "effect": "Slam the ground, knocking all targets within Very Close range back to Far range and causing them to mark a Stress.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "KNOCKBACK",
+              "target": "ALL_IN_RANGE",
+              "range": "Far",
+              "details": {
+                "from_range": "Very Close"
+              }
+            },
+            {
+              "action_type": "DEAL_STRESS",
+              "target": "ALL_AFFECTED",
+              "range": null,
+              "details": {
+                "value": 1
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Grab and Drag",
+        "type": "action",
+        "cost": null,
+        "value": null,
+        "effect": "Make an attack against a target within Close range. On a success, spend a Fear to pull them into Melee range, deal 1d6+2 physical damage, and make them Restrained until the Defender takes Severe damage.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "ATTACK_ROLL",
+              "target": "PRIMARY_TARGET",
+              "range": "Close",
+              "details": {
+                "on_success": [
+                  {
+                    "action_type": "PULL",
+                    "cost": {
+                      "type": "fear",
+                      "value": 1
+                    },
+                    "range": "Melee"
+                  },
+                  {
+                    "action_type": "DEAL_DAMAGE",
+                    "cost": {
+                      "type": "fear",
+                      "value": 1
+                    },
+                    "damage_string": "1d6+2 phy",
+                    "is_direct": false
+                  },
+                  {
+                    "action_type": "APPLY_CONDITION",
+                    "cost": {
+                      "type": "fear",
+                      "value": 1
+                    },
+                    "condition": "Restrained",
+                    "duration_text": "until the Defender takes Severe damage"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Dire Wolf",
+    "tier": 1,
+    "type": "Skulk",
+    "difficulty": 12,
+    "thresholds": {
+      "major": 5,
+      "severe": 9
+    },
+    "hp": 4,
+    "stress": 3,
+    "attack": {
+      "name": "Claws",
+      "range": "Melee",
+      "damage": "1d6+2 phy",
+      "modifier": "+2"
+    },
+    "features": [
+      {
+        "name": "Pack Tactics",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "If the Wolf makes a successful standard attack and another Dire Wolf is within Melee range of the target, the attack deals 1d6+5 physical damage instead and you gain a Fear.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MODIFY_DAMAGE",
+              "trigger": "ON_SUCCESSFUL_ATTACK",
+              "target": "STANDARD_ATTACK",
+              "range": null,
+              "details": {
+                "condition": "Another Dire Wolf is within Melee range of the target",
+                "new_damage_string": "1d6+5 phy"
+              }
+            },
+            {
+              "action_type": "GAIN_FEAR",
+              "trigger": "ON_SUCCESSFUL_ATTACK",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "condition": "Another Dire Wolf is within Melee range of the target",
+                "value": 1
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Hobbling Strike",
+        "type": "action",
+        "cost": {
+          "type": "stress",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Mark a Stress to make an attack against a target within Melee range. On a success, the target takes 3d4+10 direct physical damage and is Vulnerable until they clear at least 1 HP.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "ATTACK_ROLL",
+              "target": "PRIMARY_TARGET",
+              "range": "Melee",
+              "details": {
+                "on_success": [
+                  {
+                    "action_type": "DEAL_DAMAGE",
+                    "damage_string": "3d4+10 phy",
+                    "is_direct": true
+                  },
+                  {
+                    "action_type": "APPLY_CONDITION",
+                    "condition": "Vulnerable",
+                    "duration_text": "until they clear at least 1 HP"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Giant Rat",
+    "tier": 1,
+    "type": "Minion",
+    "difficulty": 10,
+    "thresholds": {
+      "major": null,
+      "severe": null
+    },
+    "hp": 1,
+    "stress": 1,
+    "attack": {
+      "name": "Claws",
+      "range": "Melee",
+      "damage": "1 phy",
+      "modifier": "-4"
+    },
+    "features": [
+      {
+        "name": "Minion (3)",
+        "type": "passive",
+        "cost": null,
+        "value": 3,
+        "effect": "The Rat is defeated when they take any damage. For every 3 damage a PC deals to a group of Rats, they defeat an additional Rat.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MINION_RULE",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "defeat_on_any_damage": true,
+                "cleave_damage_threshold": 3
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Group Attack",
+        "type": "action",
+        "cost": {
+          "type": "fear",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Spend a Fear to choose a target and spotlight all Giant Rats within Close range of that target. Make a single attack roll for all spotlighted Rats. On a success, the target takes 1 direct physical damage per spotlighted Rat.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "SPECIAL_ATTACK",
+              "target": "PRIMARY_TARGET",
+              "range": "Close",
+              "details": {
+                "special_rule": "SHARED_ATTACK_ROLL_ALL_MINIONS",
+                "on_success": [
+                  {
+                    "action_type": "DEAL_DAMAGE",
+                    "damage_string": "1 phy",
+                    "is_direct": true,
+                    "special_rule": "PER_MINION"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Giant Scorpion",
+    "tier": 1,
+    "type": "Bruiser",
+    "difficulty": 13,
+    "thresholds": {
+      "major": 7,
+      "severe": 13
+    },
+    "hp": 6,
+    "stress": 3,
+    "attack": {
+      "name": "Pincers",
+      "range": "Melee",
+      "damage": "1d12+2 phy",
+      "modifier": "+1"
+    },
+    "features": [
+      {
+        "name": "Double Strike",
+        "type": "action",
+        "cost": {
+          "type": "stress",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Mark a Stress to make a standard attack against two targets within Melee range.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "ATTACK_ROLL",
+              "target": "MULTI_TARGET",
+              "range": "Melee",
+              "details": {
+                "num_targets": 2,
+                "attack_type": "standard"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Venomous Stinger",
+        "type": "action",
+        "cost": null,
+        "value": null,
+        "effect": "Make an attack against a target within Very Close range. On a success, spend a Fear to deal 1d4+4 physical damage and make them Poisoned until their next rest or they succeed on a Knowledge Roll (16). While Poisoned, the target must roll a d6 before they make an action roll. On a 1, they fail the roll.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "ATTACK_ROLL",
+              "target": "PRIMARY_TARGET",
+              "range": "Very Close",
+              "details": {
+                "on_success": [
+                  {
+                    "action_type": "DEAL_DAMAGE",
+                    "cost": {
+                      "type": "fear",
+                      "value": 1
+                    },
+                    "damage_string": "1d4+4 phy",
+                    "is_direct": false
+                  },
+                  {
+                    "action_type": "APPLY_CONDITION",
+                    "cost": {
+                      "type": "fear",
+                      "value": 1
+                    },
+                    "condition": "Poisoned",
+                    "duration_text": "until their next rest or they succeed on a Knowledge Roll (16)",
+                    "details": "While Poisoned, the target must roll a d6 before they make an action roll. On a 1, they fail the roll."
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Momentum",
+        "type": "reaction",
+        "cost": null,
+        "value": null,
+        "effect": "When the Scorpion makes a successful attack against a PC, you gain a Fear.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "GAIN_FEAR",
+              "trigger": "ON_SUCCESSFUL_ATTACK",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "value": 1
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Glass Snake",
+    "tier": 1,
+    "type": "Standard",
+    "difficulty": 14,
+    "thresholds": {
+      "major": 6,
+      "severe": 10
+    },
+    "hp": 5,
+    "stress": 3,
+    "attack": {
+      "name": "Glass Fangs",
+      "range": "Very Close",
+      "damage": "1d8+2 phy",
+      "modifier": "+2"
+    },
+    "features": [
+      {
+        "name": "Armor-Shredding Shards",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "On a successful attack within Melee range against the Snake, the attacker must mark an Armor Slot without receiving its benefits. If they can't, they take 1 direct HP damage.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "FORCE_MARK_ARMOR_SLOT",
+              "trigger": "ON_SUCCESSFUL_ATTACK_AGAINST",
+              "target": "ATTACKER",
+              "range": "Melee",
+              "details": {
+                "description": "without receiving its benefits",
+                "on_fail": {
+                  "actions": [
+                    {
+                      "action_type": "DEAL_DAMAGE",
+                      "damage_string": "1 HP",
+                      "is_direct": true
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Spinning Serpent",
+        "type": "action",
+        "cost": {
+          "type": "stress",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Mark a Stress to make an attack against all targets within Very Close range. Targets take 1d6+1 physical damage on a success.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "ATTACK_ROLL",
+              "target": "ALL_IN_RANGE",
+              "range": "Very Close",
+              "details": {
+                "on_success": [
+                  {
+                    "action_type": "DEAL_DAMAGE",
+                    "damage_string": "1d6+1 phy",
+                    "is_direct": false
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Spitter",
+        "type": "action",
+        "cost": {
+          "type": "fear",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Spend a Fear to introduce a d6 Spitter Die. When the Snake is in the spotlight, roll the die. On a 5 or higher, all targets in front of the Snake within Far range must succeed on an Agility Roll or take 1d4 physical damage, and the Snake loses the spotlight.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MULTI_EFFECT",
+              "target": "SELF",
+              "range": null,
+              "details": [
+                {
+                  "action_type": "INTRODUCE_DIE",
+                  "die": "d6 Spitter Die"
+                },
+                {
+                  "action_type": "FORCE_REACTION_ROLL",
+                  "trigger": "ON_SPOTLIGHT_ROLL_5_OR_HIGHER",
+                  "target": "ALL_IN_RANGE_FRONT",
+                  "range": "Far",
+                  "roll_type": "agility",
+                  "on_fail": {
+                    "action_type": "DEAL_DAMAGE",
+                    "damage_string": "1d4 phy"
+                  }
+                },
+                {
+                  "action_type": "TAKE_SPOTLIGHT",
+                  "trigger": "ON_SPOTLIGHT_ROLL_5_OR_HIGHER",
+                  "target": "SELF"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Harrier",
+    "tier": 1,
+    "type": "Standard",
+    "difficulty": 12,
+    "thresholds": {
+      "major": 5,
+      "severe": 9
+    },
+    "hp": 3,
+    "stress": 3,
+    "attack": {
+      "name": "Javelin",
+      "range": "Close",
+      "damage": "1d6+2 phy",
+      "modifier": "+1"
+    },
+    "features": [
+      {
+        "name": "Maintain Distance",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "After making a standard attack, the Harrier can move anywhere within Far range.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MOVE",
+              "trigger": "AFTER_STANDARD_ATTACK",
+              "target": "SELF",
+              "range": "Far",
+              "details": {}
+            }
+          ]
+        }
+      },
+      {
+        "name": "Fall Back",
+        "type": "reaction",
+        "cost": {
+          "type": "stress",
+          "value": 1
+        },
+        "value": null,
+        "effect": "When a creature moves into Melee range to make an attack, you can mark a Stress to move the Harrier to Close range and make an attack against that creature. On a success, they take 1d10+2 physical damage.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MULTI_EFFECT",
+              "trigger": "ON_TARGET_MOVE_INTO_MELEE",
+              "target": "ATTACKER",
+              "range": null,
+              "details": [
+                {
+                  "action_type": "MOVE",
+                  "target": "SELF",
+                  "range": "Close"
+                },
+                {
+                  "action_type": "ATTACK_ROLL",
+                  "target": "ATTACKER",
+                  "range": null,
+                  "details": {
+                    "on_success": [
+                      {
+                        "action_type": "DEAL_DAMAGE",
+                        "damage_string": "1d10+2 phy",
+                        "is_direct": false
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Bladed Guard",
+    "tier": 1,
+    "type": "Standard",
+    "difficulty": 12,
+    "thresholds": {
+      "major": 5,
+      "severe": 9
+    },
+    "hp": 5,
+    "stress": 2,
+    "attack": {
+      "name": "Longsword",
+      "range": "Melee",
+      "damage": "1d6+1 phy",
+      "modifier": "+1"
+    },
+    "features": [
+      {
+        "name": "Shield Wall",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "A creature who tries to move within Very Close range of the Guard must succeed on an Agility Roll (Difficulty 12 + the number of other Guards in a line with the Guard) or stop at Melee range.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "FORCE_REACTION_ROLL",
+              "trigger": "ON_TARGET_MOVE_INTO_VERY_CLOSE",
+              "target": "ATTACKER",
+              "range": null,
+              "details": {
+                "roll_type": "agility",
+                "difficulty_text": "special (increases with # of guards in line)"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Detain",
+        "type": "action",
+        "cost": null,
+        "value": null,
+        "effect": "Make an attack against a target within Very Close range. On a success, mark a Stress to make them Restrained until they break free with a successful attack, Finesse Roll, or Strength Roll.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "ATTACK_ROLL",
+              "target": "PRIMARY_TARGET",
+              "range": "Very Close",
+              "details": {
+                "on_success": [
+                  {
+                    "action_type": "APPLY_CONDITION",
                     "cost": {
                       "type": "stress",
                       "value": 1
                     },
-                    "effect": "Make the roll be with Fear instead."
-                  }
-                }
-              }
-            ]
-          }
-        },
-        {
-          "name": "Chaotic Flux",
-          "type": "action",
-          "cost": null,
-          "value": null,
-          "effect": "Make an attack against up to three targets within Very Close range. Mark a Stress to deal 2d6+3 magic damage to targets the Hexer succeeded against.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "ATTACK_ROLL",
-                "target": "MULTI_TARGET",
-                "range": "Very Close",
-                "details": {
-                  "target_count": 3,
-                  "on_success": [
-                    {
-                      "action_type": "DEAL_DAMAGE",
-                      "cost": {
-                        "type": "stress",
-                        "value": 1
-                      },
-                      "damage_string": "2d6+3 mag",
-                      "is_direct": false
-                    }
-                  ]
-                }
-              }
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "Rotted Zombie",
-      "tier": 1,
-      "type": "Minion",
-      "difficulty": 8,
-      "thresholds": {
-        "major": null,
-        "severe": null
-      },
-      "hp": 1,
-      "stress": 1,
-      "attack": {
-        "name": "Bite",
-        "range": "Melee",
-        "damage": "2 phy",
-        "bonus": -3
-      },
-      "features": [
-        {
-          "name": "Minion",
-          "type": "passive",
-          "cost": null,
-          "value": 3,
-          "effect": "The Zombie is defeated when they take any damage. For every 3 damage a PC deals to the Zombie, defeat an additional Minion within range the attack would succeed against.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "SPECIAL_RULE",
-                "target": "SELF",
-                "details": {
-                  "rule": "Defeated on any damage."
-                }
-              },
-              {
-                "action_type": "SPECIAL_RULE",
-                "target": "ALLIES_IN_RANGE",
-                "details": {
-                  "rule": "For every 3 damage taken, defeat an additional Minion within range.",
-                  "parent_value": 3
-                }
-              }
-            ]
-          }
-        },
-        {
-          "name": "Group Attack",
-          "type": "action",
-          "cost": {
-            "type": "fear",
-            "value": 1
-          },
-          "value": null,
-          "effect": "Spend a Fear to choose a target and spotlight all Rotted Zombies within Close range of them. Those Minions move into Melee range of the target and make one shared attack roll. On a success, they deal 2 physical damage each. Combine this damage.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "SPECIAL_ATTACK",
-                "target": "PRIMARY_TARGET",
-                "range": "Close",
-                "details": {
-                  "special_rule": "SHARED_ATTACK_ROLL_ALL_ZOMBIES",
-                  "sub_actions": [
-                    "Spotlight all Rotted Zombies within Close",
-                    "Move into Melee"
-                  ],
-                  "on_success": [
-                    {
-                      "action_type": "DEAL_DAMAGE",
-                      "damage_string": "2 phy",
-                      "is_direct": true,
-                      "special_rule": "PER_ZOMBIE",
-                      "combine_damage": true
-                    }
-                  ]
-                }
-              }
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "Skeleton Archer",
-      "tier": 1,
-      "type": "Ranged",
-      "difficulty": 9,
-      "thresholds": {
-        "major": 4,
-        "severe": 7
-      },
-      "hp": 3,
-      "stress": 2,
-      "attack": {
-        "name": "Shortbow",
-        "range": "Far",
-        "damage": "1d8+1 phy",
-        "bonus": 2
-      },
-      "features": [
-        {
-          "name": "Opportunist",
-          "type": "passive",
-          "cost": null,
-          "value": null,
-          "effect": "When two or more adversaries are within Very Close range of a creature, all damage the Archer deals to that creature is doubled.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "CONDITIONAL_EFFECT",
-                "condition_text": "Target has 2+ adversaries within Very Close range",
-                "on_trigger": [
-                  {
-                    "action_type": "MODIFY_DAMAGE",
-                    "target": "PRIMARY_TARGET",
-                    "details": {
-                      "multiplier": 2
-                    }
+                    "condition": "Restrained",
+                    "duration_text": "until they break free with a successful attack, Finesse Roll, or Strength Roll"
                   }
                 ]
               }
-            ]
-          }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Head Guard",
+    "tier": 1,
+    "type": "Leader",
+    "difficulty": 15,
+    "thresholds": {
+      "major": 7,
+      "severe": 13
+    },
+    "hp": 7,
+    "stress": 3,
+    "attack": {
+      "name": "Mace",
+      "range": "Melee",
+      "damage": "1d10+4 phy",
+      "modifier": "+4"
+    },
+    "features": [
+      {
+        "name": "Rally Guards",
+        "type": "action",
+        "cost": {
+          "type": "fear",
+          "value": 2
         },
-        {
-          "name": "Deadly Shot",
-          "type": "action",
-          "cost": null,
-          "value": null,
-          "effect": "Make an attack against a Vulnerable target within Far range. On a success, mark a Stress to deal 3d4+8 physical damage.",
-          "parsed_effect": {
-            "actions": [
-              {
-                "action_type": "ATTACK_ROLL",
-                "target": "PRIMARY_TARGET",
-                "range": "Far",
-                "details": {
-                  "target_condition": "Vulnerable",
-                  "on_success": [
+        "value": null,
+        "effect": "Spend 2 Fear to spotlight the Head Guard and up to 2d4 allies within Far range.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "SPOTLIGHT_ALLY",
+              "target": "ALLIES",
+              "range": "Far",
+              "details": {
+                "num_targets_string": "2d4",
+                "also_spotlight_self": true
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "On My Signal",
+        "type": "reaction",
+        "cost": null,
+        "value": null,
+        "effect": "Countdown (5). When the Head Guard is in the spotlight for the first time, activate. Ticks down when a PC makes an attack roll. When the countdown ends, all Archer Guards within Far range make an attack against the nearest target with advantage. Combine damage on the same target.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "COUNTDOWN_TRIGGER",
+              "trigger": "FIRST_SPOTLIGHT",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "countdown_value": 5,
+                "tick_down_on": "PC_ATTACK_ROLL",
+                "on_trigger": {
+                  "action_type": "SPECIAL_ATTACK",
+                  "target": "NEAREST_TARGET",
+                  "range": "Far",
+                  "by_ally_type": "Archer Guards",
+                  "has_advantage": true,
+                  "special_rule": "Combine damage on same target"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Momentum",
+        "type": "reaction",
+        "cost": null,
+        "value": null,
+        "effect": "When the Head Guard makes a successful attack against a PC, you gain a Fear.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "GAIN_FEAR",
+              "trigger": "ON_SUCCESSFUL_ATTACK",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "value": 1
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Archer Guard",
+    "tier": 1,
+    "type": "Ranged",
+    "difficulty": 10,
+    "thresholds": {
+      "major": 4,
+      "severe": 8
+    },
+    "hp": 3,
+    "stress": 2,
+    "attack": {
+      "name": "Longbow",
+      "range": "Far",
+      "damage": "1d8+3 phy",
+      "modifier": "+1"
+    },
+    "features": [
+      {
+        "name": "Hobbling Shot",
+        "type": "action",
+        "cost": null,
+        "value": null,
+        "effect": "Make an attack against a target within Far range. On a success, mark a Stress to deal 1d12+3 physical damage. If the target marks HP, they have disadvantage on Agility Rolls until they clear at least 1 HP.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "ATTACK_ROLL",
+              "target": "PRIMARY_TARGET",
+              "range": "Far",
+              "details": {
+                "on_success": [
+                  {
+                    "action_type": "DEAL_DAMAGE",
+                    "cost": {
+                      "type": "stress",
+                      "value": 1
+                    },
+                    "damage_string": "1d12+3 phy",
+                    "is_direct": false
+                  },
+                  {
+                    "action_type": "APPLY_DISADVANTAGE",
+                    "cost": {
+                      "type": "stress",
+                      "value": 1
+                    },
+                    "trigger": "ON_DEAL_HP",
+                    "target": "PRIMARY_TARGET",
+                    "on_roll_type": "Agility Rolls",
+                    "duration_text": "until they clear at least 1 HP"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Jagged Knife Bandit",
+    "tier": 1,
+    "type": "Standard",
+    "difficulty": 12,
+    "thresholds": {
+      "major": 8,
+      "severe": 14
+    },
+    "hp": 5,
+    "stress": 3,
+    "attack": {
+      "name": "Daggers",
+      "range": "Melee",
+      "damage": "1d8+1 phy",
+      "modifier": "+1"
+    },
+    "features": [
+      {
+        "name": "Climber",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "The Bandit climbs just as easily as they run.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MODIFY_MOVEMENT",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "description": "Climbs as easily as running."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "From Above",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "When the Bandit succeeds on a standard attack from above a target, they deal 1d10+1 physical damage instead.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MODIFY_DAMAGE",
+              "trigger": "ON_SUCCESSFUL_ATTACK",
+              "target": "STANDARD_ATTACK",
+              "range": null,
+              "details": {
+                "condition": "from above a target",
+                "new_damage_string": "1d10+1 phy"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Jagged Knife Hexer",
+    "tier": 1,
+    "type": "Support",
+    "difficulty": 13,
+    "thresholds": {
+      "major": 5,
+      "severe": 9
+    },
+    "hp": 4,
+    "stress": 4,
+    "attack": {
+      "name": "Staff",
+      "range": "Far",
+      "damage": "1d6+2 mag",
+      "modifier": "+2"
+    },
+    "features": [
+      {
+        "name": "Curse",
+        "type": "action",
+        "cost": null,
+        "value": null,
+        "effect": "Choose a target within Far range and temporarily Curse them. While the target is Cursed, you can mark a Stress when that target rolls with advantage to force them to reroll their dice.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "APPLY_CONDITION",
+              "target": "PRIMARY_TARGET",
+              "range": "Far",
+              "details": {
+                "condition": "Cursed",
+                "duration_text": "temporarily",
+                "special_effect": "While Cursed, you can mark a Stress when that target rolls with advantage to force them to reroll their dice."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Chaotic Flux",
+        "type": "action",
+        "cost": null,
+        "value": null,
+        "effect": "Make an attack against up to three targets within Very Close range. Mark a Stress to deal 2d6+3 magic damage on a success.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "ATTACK_ROLL",
+              "target": "MULTI_TARGET",
+              "range": "Very Close",
+              "details": {
+                "num_targets": 3,
+                "on_success": [
+                  {
+                    "action_type": "DEAL_DAMAGE",
+                    "cost": {
+                      "type": "stress",
+                      "value": 1
+                    },
+                    "damage_string": "2d6+3 mag",
+                    "is_direct": false
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Jagged Knife Kneebreaker",
+    "tier": 1,
+    "type": "Bruiser",
+    "difficulty": 12,
+    "thresholds": {
+      "major": 7,
+      "severe": 14
+    },
+    "hp": 7,
+    "stress": 4,
+    "attack": {
+      "name": "Club",
+      "range": "Melee",
+      "damage": "1d4+6 phy",
+      "modifier": "-3"
+    },
+    "features": [
+      {
+        "name": "I've Got 'Em",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "Creatures Restrained by the Kneebreaker take double damage from attacks by other adversaries.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "APPLY_VULNERABILITY",
+              "target": "TARGETS_RESTRAINED_BY_SELF",
+              "range": null,
+              "details": {
+                "description": "take double damage from attacks by other adversaries"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Hold Them Down",
+        "type": "action",
+        "cost": null,
+        "value": null,
+        "effect": "Make an attack against a target within Melee range. On a success, the target takes no damage but is Restrained and Vulnerable until they break free with a successful Strength Roll or is freed by an ally.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "ATTACK_ROLL",
+              "target": "PRIMARY_TARGET",
+              "range": "Melee",
+              "details": {
+                "on_success": [
+                  {
+                    "action_type": "APPLY_CONDITION",
+                    "condition": "Restrained",
+                    "duration_text": "until they break free with a successful Strength Roll or is freed by an ally"
+                  },
+                  {
+                    "action_type": "APPLY_CONDITION",
+                    "condition": "Vulnerable",
+                    "duration_text": "until they break free with a successful Strength Roll or is freed by an ally"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Jagged Knife Lieutenant",
+    "tier": 1,
+    "type": "Leader",
+    "difficulty": 13,
+    "thresholds": {
+      "major": 7,
+      "severe": 14
+    },
+    "hp": 6,
+    "stress": 3,
+    "attack": {
+      "name": "Javelin",
+      "range": "Close",
+      "damage": "1d8+3 phy",
+      "modifier": "+2"
+    },
+    "features": [
+      {
+        "name": "Tactician",
+        "type": "action",
+        "cost": {
+          "type": "stress",
+          "value": 1
+        },
+        "value": null,
+        "effect": "When you spotlight the Lieutenant, mark a Stress to also spotlight two allies within Close range.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "SPOTLIGHT_ALLY",
+              "trigger": "ON_SPOTLIGHT",
+              "target": "ALLIES",
+              "range": "Close",
+              "details": {
+                "num_targets": 2
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "More Where That Came From",
+        "type": "action",
+        "cost": null,
+        "value": null,
+        "effect": "Summon three Jagged Knife Lackeys, who appear at Far range.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "SUMMON_ADVERSARY",
+              "target": "Jagged Knife Lackeys",
+              "range": "Far",
+              "details": {
+                "num_to_summon": 3
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Coup de Grace",
+        "type": "action",
+        "cost": {
+          "type": "fear",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Spend a Fear to make an attack against a Vulnerable target within Close range. On a success, the target takes 2d6+12 physical damage and marks a Stress.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "ATTACK_ROLL",
+              "target": "VULNERABLE_TARGET",
+              "range": "Close",
+              "details": {
+                "on_success": [
+                  {
+                    "action_type": "DEAL_DAMAGE",
+                    "damage_string": "2d6+12 phy",
+                    "is_direct": false
+                  },
+                  {
+                    "action_type": "DEAL_STRESS",
+                    "target": "PRIMARY_TARGET",
+                    "value": 1
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Momentum",
+        "type": "reaction",
+        "cost": null,
+        "value": null,
+        "effect": "When the Lieutenant makes a successful attack against a PC, you gain a Fear.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "GAIN_FEAR",
+              "trigger": "ON_SUCCESSFUL_ATTACK",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "value": 1
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Jagged Knife Shadow",
+    "tier": 1,
+    "type": "Skulk",
+    "difficulty": 12,
+    "thresholds": {
+      "major": 4,
+      "severe": 8
+    },
+    "hp": 3,
+    "stress": 3,
+    "attack": {
+      "name": "Daggers",
+      "range": "Melee",
+      "damage": "1d4+4 phy",
+      "modifier": "+1"
+    },
+    "features": [
+      {
+        "name": "Backstab",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "When the Shadow succeeds on a standard attack that has advantage, they deal 1d6+6 physical damage instead.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MODIFY_DAMAGE",
+              "trigger": "ON_SUCCESSFUL_ATTACK_WITH_ADVANTAGE",
+              "target": "STANDARD_ATTACK",
+              "range": null,
+              "details": {
+                "new_damage_string": "1d6+6 phy"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Cloaked",
+        "type": "action",
+        "cost": null,
+        "value": null,
+        "effect": "Become Hidden until after the Shadow's next attack. Attacks made while Hidden from this feature have advantage.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "APPLY_CONDITION",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "condition": "Hidden",
+                "duration_text": "until after the Shadow's next attack",
+                "special_effect": "Attacks made while Hidden from this feature have advantage."
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+{
+    "name": "Jagged Knife Lackey",
+    "tier": 1,
+    "type": "Minion",
+    "difficulty": 9,
+    "thresholds": {
+      "major": null,
+      "severe": null
+    },
+    "hp": 1,
+    "stress": 1,
+    "attack": {
+      "name": "Daggers",
+      "range": "Melee",
+      "damage": "2 phy",
+      "modifier": "-2"
+    },
+    "features": [
+      {
+        "name": "Minion (3)",
+        "type": "passive",
+        "cost": null,
+        "value": 3,
+        "effect": "The Lackey is defeated when they take any damage. For every 3 damage a PC deals to a group of Lackeys, they defeat an additional Lackey.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MINION_RULE",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "defeat_on_any_damage": true,
+                "cleave_damage_threshold": 3
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Group Attack",
+        "type": "action",
+        "cost": {
+          "type": "fear",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Spend a Fear to choose a target and spotlight all Jagged Knife Lackeys within Close range of that target. Make a single attack roll for all spotlighted Lackeys. On a success, the target takes 2 direct physical damage per spotlighted Lackey.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "SPECIAL_ATTACK",
+              "target": "PRIMARY_TARGET",
+              "range": "Close",
+              "details": {
+                "special_rule": "SHARED_ATTACK_ROLL_ALL_MINIONS",
+                "on_success": [
+                  {
+                    "action_type": "DEAL_DAMAGE",
+                    "damage_string": "2 phy",
+                    "is_direct": true,
+                    "special_rule": "PER_MINION"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Jagged Knife Sniper",
+    "tier": 1,
+    "type": "Ranged",
+    "difficulty": 13,
+    "thresholds": {
+      "major": 4,
+      "severe": 7
+    },
+    "hp": 3,
+    "stress": 2,
+    "attack": {
+      "name": "Shortbow",
+      "range": "Far",
+      "damage": "1d10+2 phy",
+      "modifier": "-1"
+    },
+    "features": [
+      {
+        "name": "Unseen Strike",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "If the Sniper is Hidden when they make a successful standard attack against a target, they deal 1d10+4 physical damage instead.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MODIFY_DAMAGE",
+              "trigger": "ON_SUCCESSFUL_ATTACK",
+              "target": "STANDARD_ATTACK",
+              "range": null,
+              "details": {
+                "condition": "If the Sniper is Hidden",
+                "new_damage_string": "1d10+4 phy"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Merchant",
+    "tier": 1,
+    "type": "Social",
+    "difficulty": 12,
+    "thresholds": {
+      "major": 4,
+      "severe": 8
+    },
+    "hp": 3,
+    "stress": 3,
+    "attack": {
+      "name": "Club",
+      "range": "Melee",
+      "damage": "1d4+1 phy",
+      "modifier": "-4"
+    },
+    "features": [
+      {
+        "name": "Preferential Treatment",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "A PC who succeeds on a Presence Roll against the Merchant gains a discount on purchases. A PC who fails must pay more and has disadvantage on future Presence Rolls against the Merchant.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "NARRATIVE_EFFECT",
+              "trigger": "ON_PC_PRESENCE_ROLL",
+              "target": "ATTACKER",
+              "range": null,
+              "details": {
+                "on_success": "gains a discount on purchases",
+                "on_fail": "must pay more and has disadvantage on future Presence Rolls against the Merchant"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "The Runaround",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "When a PC rolls a 14 or lower on a Presence Roll made against the Merchant, they must mark a Stress.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "DEAL_STRESS",
+              "trigger": "ON_PC_PRESENCE_ROLL_14_OR_LESS",
+              "target": "ATTACKER",
+              "range": null,
+              "details": {
+                "value": 1
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Minor Chaos Elemental",
+    "tier": 1,
+    "type": "Solo",
+    "difficulty": 14,
+    "thresholds": {
+      "major": 7,
+      "severe": 14
+    },
+    "hp": 7,
+    "stress": 3,
+    "attack": {
+      "name": "Warp Blast",
+      "range": "Close",
+      "damage": "1d12+6 mag",
+      "modifier": "+3"
+    },
+    "features": [
+      {
+        "name": "Arcane Form",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "The Elemental is resistant to magic damage.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MODIFY_STAT",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "stat": "resistance",
+                "value": "magic"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Sickening Flux",
+        "type": "action",
+        "cost": {
+          "type": "hp",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Mark a HP to force all targets within Close range to mark a Stress and become Vulnerable until their next rest or they clear a HP.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "DEAL_STRESS",
+              "target": "ALL_IN_RANGE",
+              "range": "Close",
+              "details": {
+                "value": 1
+              }
+            },
+            {
+              "action_type": "APPLY_CONDITION",
+              "target": "ALL_IN_RANGE",
+              "range": "Close",
+              "details": {
+                "condition": "Vulnerable",
+                "duration_text": "until their next rest or they clear a HP"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Remake Reality",
+        "type": "action",
+        "cost": {
+          "type": "fear",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Spend a Fear to transform the area within Very Close range into a different biome. All targets in that area take 2d6+3 direct magic damage.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "NARRATIVE_EFFECT",
+              "target": "AREA",
+              "range": "Very Close",
+              "details": {
+                "description": "transform the area into a different biome"
+              }
+            },
+            {
+              "action_type": "DEAL_DAMAGE",
+              "target": "ALL_IN_RANGE",
+              "range": "Very Close",
+              "details": {
+                "damage_string": "2d6+3 mag",
+                "is_direct": true
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Magical Reflection",
+        "type": "reaction",
+        "cost": null,
+        "value": null,
+        "effect": "When the Elemental takes damage from an attack within Close range, deal half the damage dealt back to the attacker.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "DEAL_DAMAGE",
+              "trigger": "ON_TAKE_DAMAGE_ATTACK",
+              "target": "ATTACKER",
+              "range": "Close",
+              "details": {
+                "damage_string": "half damage dealt",
+                "is_direct": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Momentum",
+        "type": "reaction",
+        "cost": null,
+        "value": null,
+        "effect": "When the Elemental makes a successful attack against a PC, you gain a Fear.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "GAIN_FEAR",
+              "trigger": "ON_SUCCESSFUL_ATTACK",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "value": 1
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Minor Fire Elemental",
+    "tier": 1,
+    "type": "Solo",
+    "difficulty": 13,
+    "thresholds": {
+      "major": 7,
+      "severe": 15
+    },
+    "hp": 9,
+    "stress": 3,
+    "attack": {
+      "name": "Elemental Blast",
+      "range": "Far",
+      "damage": "1d10+4 mag",
+      "modifier": "+3"
+    },
+    "features": [
+      {
+        "name": "Relentless (2)",
+        "type": "passive",
+        "cost": null,
+        "value": 2,
+        "effect": "The Elemental can be spotlighted up to two times per GM turn.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MODIFY_STAT",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "stat": "max_spotlights_per_turn",
+                "value": 2
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Scorched Earth",
+        "type": "action",
+        "cost": {
+          "type": "stress",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Mark a Stress to choose a point within Far range. All targets within Very Close range of that point must succeed on an Agility Roll or take 2d8 magic damage, or half on a success.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "FORCE_REACTION_ROLL",
+              "target": "ALL_IN_RANGE",
+              "range": "Very Close",
+              "details": {
+                "roll_type": "agility",
+                "on_fail": {
+                  "action_type": "DEAL_DAMAGE",
+                  "damage_string": "2d8 mag"
+                },
+                "on_success": {
+                  "action_type": "DEAL_DAMAGE",
+                  "damage_string": "half"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Explosion",
+        "type": "action",
+        "cost": {
+          "type": "fear",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Spend a Fear to erupt in a fiery explosion. Make an attack against all targets within Close range. On a success, targets take 1d8 magic damage and are knocked back to Far range.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "ATTACK_ROLL",
+              "target": "ALL_IN_RANGE",
+              "range": "Close",
+              "details": {
+                "on_success": [
+                  {
+                    "action_type": "DEAL_DAMAGE",
+                    "damage_string": "1d8 mag",
+                    "is_direct": false
+                  },
+                  {
+                    "action_type": "KNOCKBACK",
+                    "target": "PRIMARY_TARGET",
+                    "range": "Far"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Consume Kindling",
+        "type": "reaction",
+        "cost": null,
+        "value": null,
+        "effect": "Three times per scene, when the Elemental moves onto objects that are flammable, clear a HP or a Stress.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "HEAL_SELF",
+              "trigger": "ON_MOVE_TO_FLAMMABLE",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "heal_string": "clear a HP or a Stress",
+                "limit": "Three times per scene"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Momentum",
+        "type": "reaction",
+        "cost": null,
+        "value": null,
+        "effect": "When the Elemental makes a successful attack against a PC, you gain a Fear.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "GAIN_FEAR",
+              "trigger": "ON_SUCCESSFUL_ATTACK",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "value": 1
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Minor Demon",
+    "tier": 1,
+    "type": "Solo",
+    "difficulty": 14,
+    "thresholds": {
+      "major": 8,
+      "severe": 15
+    },
+    "hp": 8,
+    "stress": 4,
+    "attack": {
+      "name": "Claws",
+      "range": "Melee",
+      "damage": "1d8+6 phy",
+      "modifier": "+3"
+    },
+    "features": [
+      {
+        "name": "Relentless (2)",
+        "type": "passive",
+        "cost": null,
+        "value": 2,
+        "effect": "The Demon can be spotlighted up to two times per GM turn.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MODIFY_STAT",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "stat": "max_spotlights_per_turn",
+                "value": 2
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "All Must Fall",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "When a PC rolls a failure with Fear while within Close range of the Demon, they lose a Hope.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "LOSE_HOPE",
+              "trigger": "ON_PC_FAIL_WITH_FEAR",
+              "target": "ATTACKER",
+              "range": "Close",
+              "details": {
+                "value": 1
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Hellfire",
+        "type": "action",
+        "cost": {
+          "type": "fear",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Spend a Fear to rain down hellfire within Far range. All targets in that area must succeed on an Agility Roll or take 1d20+3 magic damage, or half on a success.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "FORCE_REACTION_ROLL",
+              "target": "ALL_IN_RANGE",
+              "range": "Far",
+              "details": {
+                "roll_type": "agility",
+                "on_fail": {
+                  "action_type": "DEAL_DAMAGE",
+                  "damage_string": "1d20+3 mag"
+                },
+                "on_success": {
+                  "action_type": "DEAL_DAMAGE",
+                  "damage_string": "half"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Reaper",
+        "type": "reaction",
+        "cost": {
+          "type": "stress",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Before rolling damage for the Demon's attack, you can mark a Stress to add damage equal to the Demon's current number of marked HP.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MODIFY_DAMAGE",
+              "trigger": "BEFORE_DEALING_DAMAGE",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "bonus_string": "equal to the Demon's current number of marked HP"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Momentum",
+        "type": "reaction",
+        "cost": null,
+        "value": null,
+        "effect": "When the Demon makes a successful attack against a PC, you gain a Fear.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "GAIN_FEAR",
+              "trigger": "ON_SUCCESSFUL_ATTACK",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "value": 1
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Minor Treant",
+    "tier": 1,
+    "type": "Minion",
+    "difficulty": 10,
+    "thresholds": {
+      "major": null,
+      "severe": null
+    },
+    "hp": 1,
+    "stress": 1,
+    "attack": {
+      "name": "Clawed Branch",
+      "range": "Melee",
+      "damage": "4 phy",
+      "modifier": "-2"
+    },
+    "features": [
+      {
+        "name": "Minion (5)",
+        "type": "passive",
+        "cost": null,
+        "value": 5,
+        "effect": "The Treant is defeated when they take any damage. For every 5 damage a PC deals to a group of Treants, they defeat an additional Treant.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MINION_RULE",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "defeat_on_any_damage": true,
+                "cleave_damage_threshold": 5
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Group Attack",
+        "type": "action",
+        "cost": {
+          "type": "fear",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Spend a Fear to choose a target and spotlight all Minor Treants within Close range of that target. Make a single attack roll for all spotlighted Treants. On a success, the target takes 4 direct physical damage per spotlighted Treant.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "SPECIAL_ATTACK",
+              "target": "PRIMARY_TARGET",
+              "range": "Close",
+              "details": {
+                "special_rule": "SHARED_ATTACK_ROLL_ALL_MINIONS",
+                "on_success": [
+                  {
+                    "action_type": "DEAL_DAMAGE",
+                    "damage_string": "4 phy",
+                    "is_direct": true,
+                    "special_rule": "PER_MINION"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Green Ooze",
+    "tier": 1,
+    "type": "Skulk",
+    "difficulty": 8,
+    "thresholds": {
+      "major": 5,
+      "severe": 10
+    },
+    "hp": 5,
+    "stress": 2,
+    "attack": {
+      "name": "Ooze Appendage",
+      "range": "Melee",
+      "damage": "1d6+1 mag",
+      "modifier": "+1"
+    },
+    "features": [
+      {
+        "name": "Slow",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "When you spotlight the Ooze and they don't have a token on their stat block, they can't make a standard attack. Add a token to their stat block. When you spotlight them and they have a token, they can make a standard attack. Remove the token.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MODIFY_ACTION",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "action": "SPOTLIGHT",
+                "special_rule": "SLOW_TOKEN_MECHANIC"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Acidic Form",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "When the Ooze makes a successful attack, the target must mark an Armor Slot without receiving its benefits. If they can't, they take 1 direct HP damage.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "FORCE_MARK_ARMOR_SLOT",
+              "trigger": "ON_SUCCESSFUL_ATTACK",
+              "target": "PRIMARY_TARGET",
+              "range": null,
+              "details": {
+                "description": "without receiving its benefits",
+                "on_fail": {
+                  "actions": [
                     {
                       "action_type": "DEAL_DAMAGE",
-                      "cost": {
-                        "type": "stress",
-                        "value": 1
-                      },
-                      "damage_string": "3d4+8 phy",
-                      "is_direct": false
+                      "damage_string": "1 HP",
+                      "is_direct": true
                     }
                   ]
                 }
               }
-            ]
-          }
+            }
+          ]
         }
-      ]
-    }
-  ]
-}
+      },
+      {
+        "name": "Envelop",
+        "type": "action",
+        "cost": null,
+        "value": null,
+        "effect": "Make a standard attack against a target within Melee range. On a success, the Ooze Envelops them. If the Ooze takes Severe damage, the target is freed. When a target becomes Enveloped, they must mark 2 Stress. The target must mark an additional Stress each time they're spotlighted while Enveloped.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "ATTACK_ROLL",
+              "target": "PRIMARY_TARGET",
+              "range": "Melee",
+              "details": {
+                "attack_type": "standard",
+                "on_success": [
+                  {
+                    "action_type": "APPLY_CONDITION",
+                    "condition": "Enveloped",
+                    "duration_text": "If the Ooze takes Severe damage, the target is freed",
+                    "special_effect": "target must mark 2 Stress. The target must mark an additional Stress each time they're spotlighted while Enveloped."
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Split",
+        "type": "reaction",
+        "cost": {
+          "type": "fear",
+          "value": 1
+        },
+        "value": null,
+        "effect": "When the Ooze has 3 or more HP marked, you can spend a Fear to split them into two Tiny Green Oozes with no marked HP or Stress and spotlight them.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "SUMMON_ADVERSARY",
+              "trigger": "ON_HP_MARKED_3_OR_MORE",
+              "target": "Tiny Green Oozes",
+              "range": null,
+              "details": {
+                "num_to_summon": 2,
+                "summon_details": "with no marked HP or Stress",
+                "spotlight_summons": true
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Tiny Green Ooze",
+    "tier": 1,
+    "type": "Skulk",
+    "difficulty": 14,
+    "thresholds": {
+      "major": 4,
+      "severe": null
+    },
+    "hp": 2,
+    "stress": 1,
+    "attack": {
+      "name": "Ooze Appendage",
+      "range": "Melee",
+      "damage": "1d4+1 mag",
+      "modifier": "-1"
+    },
+    "features": [
+      {
+        "name": "Acidic Form",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "When the Ooze makes a successful attack, the target must mark an Armor Slot without receiving its benefits. If they can't, they take 1 direct HP damage.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "FORCE_MARK_ARMOR_SLOT",
+              "trigger": "ON_SUCCESSFUL_ATTACK",
+              "target": "PRIMARY_TARGET",
+              "range": null,
+              "details": {
+                "description": "without receiving its benefits",
+                "on_fail": {
+                  "actions": [
+                    {
+                      "action_type": "DEAL_DAMAGE",
+                      "damage_string": "1 HP",
+                      "is_direct": true
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Red Ooze",
+    "tier": 1,
+    "type": "Skulk",
+    "difficulty": 10,
+    "thresholds": {
+      "major": 6,
+      "severe": 11
+    },
+    "hp": 5,
+    "stress": 3,
+    "attack": {
+      "name": "Ooze Appendage",
+      "range": "Melee",
+      "damage": "1d8+3 mag",
+      "modifier": "+1"
+    },
+    "features": [
+      {
+        "name": "Creeping Fire",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "The Ooze can only move within Very Close range as their normal movement. They light any flammable object they touch on fire.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MODIFY_MOVEMENT",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "description": "Can only move within Very Close range"
+              }
+            },
+            {
+              "action_type": "NARRATIVE_EFFECT",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "description": "They light any flammable object they touch on fire."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Ignite",
+        "type": "action",
+        "cost": null,
+        "value": null,
+        "effect": "Make an attack against a target within Very Close range. On a success, the target takes 1d8 magic damage and is Ignited until they're extinguished with a successful Finesse Roll (14). While Ignited, the target takes 1d4 magic damage when they make an action roll.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "ATTACK_ROLL",
+              "target": "PRIMARY_TARGET",
+              "range": "Very Close",
+              "details": {
+                "on_success": [
+                  {
+                    "action_type": "DEAL_DAMAGE",
+                    "damage_string": "1d8 mag",
+                    "is_direct": false
+                  },
+                  {
+                    "action_type": "APPLY_CONDITION",
+                    "condition": "Ignited",
+                    "duration_text": "until they're extinguished with a successful Finesse Roll (14)",
+                    "details": "While Ignited, the target takes 1d4 magic damage when they make an action roll."
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Split",
+        "type": "reaction",
+        "cost": {
+          "type": "fear",
+          "value": 1
+        },
+        "value": null,
+        "effect": "When the Ooze has 3 or more HP marked, you can spend a Fear to split them into two Tiny Red Oozes with no marked HP or Stress and spotlight them.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "SUMMON_ADVERSARY",
+              "trigger": "ON_HP_MARKED_3_OR_MORE",
+              "target": "Tiny Red Oozes",
+              "range": null,
+              "details": {
+                "num_to_summon": 2,
+                "summon_details": "with no marked HP or Stress",
+                "spotlight_summons": true
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Tiny Red Ooze",
+    "tier": 1,
+    "type": "Skulk",
+    "difficulty": 11,
+    "thresholds": {
+      "major": 5,
+      "severe": null
+    },
+    "hp": 2,
+    "stress": 1,
+    "attack": {
+      "name": "Ooze Appendage",
+      "range": "Melee",
+      "damage": "1d4+2 mag",
+      "modifier": "-1"
+    },
+    "features": [
+      {
+        "name": "Burning",
+        "type": "reaction",
+        "cost": null,
+        "value": null,
+        "effect": "When a creature within Melee range deals damage to the Ooze, they take 1d6 direct magic damage.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "DEAL_DAMAGE",
+              "trigger": "ON_TAKE_DAMAGE",
+              "target": "ATTACKER",
+              "range": "Melee",
+              "details": {
+                "damage_string": "1d6 mag",
+                "is_direct": true
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Petty Noble",
+    "tier": 1,
+    "type": "Social",
+    "difficulty": 14,
+    "thresholds": {
+      "major": 6,
+      "severe": 10
+    },
+    "hp": 3,
+    "stress": 5,
+    "attack": {
+      "name": "Rapier",
+      "range": "Melee",
+      "damage": "1d6+1 phy",
+      "modifier": "-3"
+    },
+    "features": [
+      {
+        "name": "My Land, My Rules",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "All social actions made against the Noble on their land have disadvantage.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "APPLY_DISADVANTAGE",
+              "trigger": "ON_PC_SOCIAL_ACTION_AGAINST",
+              "target": "ATTACKER",
+              "range": null,
+              "details": {
+                "condition": "on their land"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Guards, Seize Them!",
+        "type": "action",
+        "cost": {
+          "type": "stress",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Once per scene, mark a Stress to summon 1d4 Bladed Guards, who appear at Far range.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "SUMMON_ADVERSARY",
+              "target": "Bladed Guards",
+              "range": "Far",
+              "details": {
+                "num_to_summon_string": "1d4",
+                "limit": "Once per scene"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Exile",
+        "type": "action",
+        "cost": {
+          "type": "fear",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Spend a Fear and target a PC. The Noble proclaims that the target and their allies are exiled. While exiled, the target and their allies have disadvantage during social situations within the Noble's domain.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "APPLY_DISADVANTAGE",
+              "target": "PRIMARY_TARGET_AND_ALLIES",
+              "range": null,
+              "details": {
+                "condition": "While exiled... during social situations within the Noble's domain",
+                "duration_text": "While exiled"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Pirate Captain",
+    "tier": 1,
+    "type": "Leader",
+    "difficulty": 14,
+    "thresholds": {
+      "major": 7,
+      "severe": 14
+    },
+    "hp": 7,
+    "stress": 5,
+    "attack": {
+      "name": "Cutlass",
+      "range": "Melee",
+      "damage": "1d12+2 phy",
+      "modifier": "+4"
+    },
+    "features": [
+      {
+        "name": "Swashbuckler",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "When the Captain marks 2 or fewer HP from an attack within Melee range, the attacker marks a Stress.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "DEAL_STRESS",
+              "trigger": "ON_TAKE_DAMAGE_2_HP_OR_LESS",
+              "target": "ATTACKER",
+              "range": "Melee",
+              "details": {
+                "value": 1
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Reinforcements",
+        "type": "action",
+        "cost": {
+          "type": "stress",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Once per scene, mark a Stress to summon a Pirate Raiders Horde, which appears at Far range.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "SUMMON_ADVERSARY",
+              "target": "Pirate Raiders Horde",
+              "range": "Far",
+              "details": {
+                "num_to_summon": 1,
+                "limit": "Once per scene"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "No Quarter",
+        "type": "action",
+        "cost": {
+          "type": "fear",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Spend a Fear to choose a target who has three or more Pirates within Melee range. The target must make a Presence Reaction Roll. On a failure, they mark 1d4+1 Stress. On a success, they mark 1 Stress.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "FORCE_REACTION_ROLL",
+              "target": "PRIMARY_TARGET",
+              "range": null,
+              "details": {
+                "condition": "target has three or more Pirates within Melee range",
+                "roll_type": "presence",
+                "on_fail": {
+                  "action_type": "DEAL_STRESS",
+                  "value_string": "1d4+1"
+                },
+                "on_success": {
+                  "action_type": "DEAL_STRESS",
+                  "value": 1
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Momentum",
+        "type": "reaction",
+        "cost": null,
+        "value": null,
+        "effect": "When the Captain makes a successful attack against a PC, you gain a Fear.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "GAIN_FEAR",
+              "trigger": "ON_SUCCESSFUL_ATTACK",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "value": 1
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Pirate Raiders",
+    "tier": 1,
+    "type": "Horde (3/HP)",
+    "difficulty": 12,
+    "thresholds": {
+      "major": 5,
+      "severe": 11
+    },
+    "hp": 4,
+    "stress": 3,
+    "attack": {
+      "name": "Cutlass",
+      "range": "Melee",
+      "damage": "1d8+2 phy",
+      "modifier": "+1"
+    },
+    "features": [
+      {
+        "name": "Horde (1d4+1)",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "When the Raiders have marked half or more of their HP, their standard attack deals 1d4+1 physical damage.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MODIFY_DAMAGE",
+              "trigger": "ON_HALF_HP",
+              "target": "STANDARD_ATTACK",
+              "range": null,
+              "details": {
+                "new_damage_string": "1d4+1 phy"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Swashbuckler",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "When the Raiders mark 2 or fewer HP from an attack within Melee range, the attacker marks a Stress.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "DEAL_STRESS",
+              "trigger": "ON_TAKE_DAMAGE_2_HP_OR_LESS",
+              "target": "ATTACKER",
+              "range": "Melee",
+              "details": {
+                "value": 1
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Pirate Tough",
+    "tier": 1,
+    "type": "Bruiser",
+    "difficulty": 13,
+    "thresholds": {
+      "major": 8,
+      "severe": 15
+    },
+    "hp": 5,
+    "stress": 3,
+    "attack": {
+      "name": "Massive Fists",
+      "range": "Melee",
+      "damage": "2d6 phy",
+      "modifier": "+1"
+    },
+    "features": [
+      {
+        "name": "Swashbuckler",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "When the Tough marks 2 or fewer HP from an attack within Melee range, the attacker marks a Stress.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "DEAL_STRESS",
+              "trigger": "ON_TAKE_DAMAGE_2_HP_OR_LESS",
+              "target": "ATTACKER",
+              "range": "Melee",
+              "details": {
+                "value": 1
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Clear the Decks",
+        "type": "action",
+        "cost": {
+          "type": "stress",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Make an attack against a target within Very Close range. On a success, mark a Stress to move into Melee range, deal 3d4 physical damage, and knock them back to Close range.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "ATTACK_ROLL",
+              "target": "PRIMARY_TARGET",
+              "range": "Very Close",
+              "details": {
+                "on_success": [
+                  {
+                    "action_type": "MOVE",
+                    "cost": {
+                      "type": "stress",
+                      "value": 1
+                    },
+                    "target": "SELF",
+                    "range": "Melee"
+                  },
+                  {
+                    "action_type": "DEAL_DAMAGE",
+                    "cost": {
+                      "type": "stress",
+                      "value": 1
+                    },
+                    "damage_string": "3d4 phy",
+                    "is_direct": false
+                  },
+                  {
+                    "action_type": "KNOCKBACK",
+                    "cost": {
+                      "type": "stress",
+                      "value": 1
+                    },
+                    "target": "PRIMARY_TARGET",
+                    "range": "Close"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Sellsword",
+    "tier": 1,
+    "type": "Minion",
+    "difficulty": 10,
+    "thresholds": {
+      "major": null,
+      "severe": null
+    },
+    "hp": 1,
+    "stress": 1,
+    "attack": {
+      "name": "Longsword",
+      "range": "Melee",
+      "damage": "3 phy",
+      "modifier": "+3"
+    },
+    "features": [
+      {
+        "name": "Minion (4)",
+        "type": "passive",
+        "cost": null,
+        "value": 4,
+        "effect": "The Sellsword is defeated when they take any damage. For every 4 damage a PC deals to a group of Sellswords, they defeat an additional Sellsword.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MINION_RULE",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "defeat_on_any_damage": true,
+                "cleave_damage_threshold": 4
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Group Attack",
+        "type": "action",
+        "cost": {
+          "type": "fear",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Spend a Fear to choose a target and spotlight all Sellswords within Close range of that target. Make a single attack roll for all spotlighted Sellswords. On a success, the target takes 3 direct physical damage per spotlighted Sellsword.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "SPECIAL_ATTACK",
+              "target": "PRIMARY_TARGET",
+              "range": "Close",
+              "details": {
+                "special_rule": "SHARED_ATTACK_ROLL_ALL_MINIONS",
+                "on_success": [
+                  {
+                    "action_type": "DEAL_DAMAGE",
+                    "damage_string": "3 phy",
+                    "is_direct": true,
+                    "special_rule": "PER_MINION"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Skeleton Archer",
+    "tier": 1,
+    "type": "Ranged",
+    "difficulty": 9,
+    "thresholds": {
+      "major": 4,
+      "severe": 7
+    },
+    "hp": 3,
+    "stress": 2,
+    "attack": {
+      "name": "Shortbow",
+      "range": "Far",
+      "damage": "1d8+1 phy",
+      "modifier": "+2"
+    },
+    "features": [
+      {
+        "name": "Opportunist",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "When two or more adversaries are within Very Close range of a creature, all damage that creature takes is doubled.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MODIFY_DAMAGE",
+              "target": "ALL_ATTACKS",
+              "range": null,
+              "details": {
+                "condition": "two or more adversaries are within Very Close range of a creature",
+                "multiplier": 2
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Deadly Shot",
+        "type": "action",
+        "cost": {
+          "type": "stress",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Make an attack against a Vulnerable target within Far range. On a success, mark a Stress to deal 3d4+8 physical damage.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "ATTACK_ROLL",
+              "target": "VULNERABLE_TARGET",
+              "range": "Far",
+              "details": {
+                "on_success": [
+                  {
+                    "action_type": "DEAL_DAMAGE",
+                    "cost": {
+                      "type": "stress",
+                      "value": 1
+                    },
+                    "damage_string": "3d4+8 phy",
+                    "is_direct": false
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Skeleton Dredge",
+    "tier": 1,
+    "type": "Minion",
+    "difficulty": 8,
+    "thresholds": {
+      "major": null,
+      "severe": null
+    },
+    "hp": 1,
+    "stress": 1,
+    "attack": {
+      "name": "Bone Claws",
+      "range": "Melee",
+      "damage": "1 phy",
+      "modifier": "-1"
+    },
+    "features": [
+      {
+        "name": "Minion (4)",
+        "type": "passive",
+        "cost": null,
+        "value": 4,
+        "effect": "The Dredge is defeated when they take any damage. For every 4 damage a PC deals to a group of Dredges, they defeat an additional Dredge.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MINION_RULE",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "defeat_on_any_damage": true,
+                "cleave_damage_threshold": 4
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Group Attack",
+        "type": "action",
+        "cost": {
+          "type": "fear",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Spend a Fear to choose a target and spotlight all Dredges within Close range of that target. Make a single attack roll for all spotlighted Dredges. On a success, the target takes 1 direct physical damage per spotlighted Dredge.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "SPECIAL_ATTACK",
+              "target": "PRIMARY_TARGET",
+              "range": "Close",
+              "details": {
+                "special_rule": "SHARED_ATTACK_ROLL_ALL_MINIONS",
+                "on_success": [
+                  {
+                    "action_type": "DEAL_DAMAGE",
+                    "damage_string": "1 phy",
+                    "is_direct": true,
+                    "special_rule": "PER_MINION"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Skeleton Knight",
+    "tier": 1,
+    "type": "Bruiser",
+    "difficulty": 13,
+    "thresholds": {
+      "major": 7,
+      "severe": 13
+    },
+    "hp": 5,
+    "stress": 2,
+    "attack": {
+      "name": "Rusty Greatsword",
+      "range": "Melee",
+      "damage": "1d10+2 phy",
+      "modifier": "+2"
+    },
+    "features": [
+      {
+        "name": "Terrifying",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "When the Knight makes a successful attack, all PCs within Close range lose a Hope and you gain a Fear.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "LOSE_HOPE",
+              "trigger": "ON_SUCCESSFUL_ATTACK",
+              "target": "ALL_PCS_IN_RANGE",
+              "range": "Close",
+              "details": {
+                "value": 1
+              }
+            },
+            {
+              "action_type": "GAIN_FEAR",
+              "trigger": "ON_SUCCESSFUL_ATTACK",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "value": 1
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Cut to the Bone",
+        "type": "action",
+        "cost": {
+          "type": "stress",
+          "value": 1
+        },
+        "value": null,
+        "effect": "Mark a Stress to make an attack against all targets within Very Close range. Targets take 1d8+2 physical damage on a success and mark a Stress.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "ATTACK_ROLL",
+              "target": "ALL_IN_RANGE",
+              "range": "Very Close",
+              "details": {
+                "on_success": [
+                  {
+                    "action_type": "DEAL_DAMAGE",
+                    "damage_string": "1d8+2 phy",
+                    "is_direct": false
+                  },
+                  {
+                    "action_type": "DEAL_STRESS",
+                    "target": "PRIMARY_TARGET",
+                    "value": 1
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Dig Two Graves",
+        "type": "reaction",
+        "cost": null,
+        "value": null,
+        "effect": "When the Knight is defeated, they make an attack against a target within Very Close range, prioritizing the creature who killed them. On a success, the target takes 1d4+8 physical damage and loses 1d4 Hope.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "ATTACK_ROLL",
+              "trigger": "ON_DEFEAT",
+              "target": "PRIMARY_TARGET",
+              "range": "Very Close",
+              "details": {
+                "target_priority": "the creature who killed them",
+                "on_success": [
+                  {
+                    "action_type": "DEAL_DAMAGE",
+                    "damage_string": "1d4+8 phy",
+                    "is_direct": false
+                  },
+                  {
+                    "action_type": "LOSE_HOPE",
+                    "target": "PRIMARY_TARGET",
+                    "value_string": "1d4"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Skeleton Warrior",
+    "tier": 1,
+    "type": "Standard",
+    "difficulty": 10,
+    "thresholds": {
+      "major": 4,
+      "severe": 8
+    },
+    "hp": 3,
+    "stress": 2,
+    "attack": {
+      "name": "Sword",
+      "range": "Melee",
+      "damage": "1d6+2 phy",
+      "modifier": "+0"
+    },
+    "features": [
+      {
+        "name": "Only Bones",
+        "type": "passive",
+        "cost": null,
+        "value": null,
+        "effect": "The Warrior is resistant to physical damage.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "MODIFY_STAT",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "stat": "resistance",
+                "value": "physical"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Won't Stay Dead",
+        "type": "reaction",
+        "cost": null,
+        "value": null,
+        "effect": "When the Warrior is defeated, you can spotlight them and roll a d6. On a result of 6, if there are other Skeletons on the battlefield, the Warrior returns with 1 HP.",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "SPECIAL_ACTION",
+              "trigger": "ON_DEFEAT",
+              "target": "SELF",
+              "range": null,
+              "details": {
+                "description": "spotlight them and roll a d6. On a result of 6, if there are other Skeletons on the battlefield, the Warrior returns with 1 HP."
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+]
+
+
