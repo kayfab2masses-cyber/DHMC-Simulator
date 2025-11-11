@@ -10,6 +10,7 @@
     <header>
         <h1>Daggerheart Monte Carlo Simulator</h1>
     </header>
+    
     <div class="simulator-layout">
         <div class="layout-column" id="input-column">
             <h3><span class="col-number">1</span> Add to Pool</h3>
@@ -17,8 +18,8 @@
                 <label for="character-json">Paste Player JSON:</label>
                 <textarea id="character-json" rows="8" placeholder="Paste player JSON here..."></textarea>
                 <div class="button-row">
+                    <button id="open-pc-modal" class="srd-button">PC Catalog</button>
                     <button id="add-character-button" class="add-button">Add Player to Pool</button>
-                    <button id="remove-character-button" class="remove-button">Remove Last Player</button>
                 </div>
             </div>
             <div class="json-input-box">
@@ -97,6 +98,17 @@
                 </select>
             </div>
             <div id="srd-adversary-list" class="agent-list">
+                </div>
+        </div>
+    </div>
+
+    <div id="pc-modal-overlay" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Premade PC Catalog</h3>
+                <button id="close-pc-modal" class="close-button">X</button>
+            </div>
+            <div id="pc-catalog-list" class="agent-list">
                 </div>
         </div>
     </div>

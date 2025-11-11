@@ -4,6 +4,7 @@ let adversaryPool = []; // Column 2: Adversary Library
 let activeParty = []; // Column 3: Players in the next sim
 let activeAdversaries = []; // Column 3: Adversaries in the next sim
 let SRD_ADVERSARIES = []; // This will hold our loaded SRD database
+let PREMADE_CHARACTERS = []; // NEW: This will hold our loaded PC database
 
 // --- EVENT LISTENERS ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -32,7 +33,17 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('srd-type-filter').addEventListener('change', renderSRDAdversaries);
     document.getElementById('srd-adversary-list').addEventListener('click', handleSRDListClick);
 
+    // NEW: PC Modal Listeners
+    document.getElementById('open-pc-modal').addEventListener('click', openPCModal);
+    document.getElementById('close-pc-modal').addEventListener('click', closePCModal);
+    document.getElementById('pc-modal-overlay').addEventListener('click', (e) => {
+        if (e.target.id === 'pc-modal-overlay') closePCModal();
+    });
+    document.getElementById('pc-catalog-list').addEventListener('click', handlePCListClick);
+
+
     loadSRDDatabase();
+    loadPCDatabase(); // NEW: Load the PC database
     renderPools();
     renderActiveScene();
 });
@@ -59,6 +70,31 @@ async function loadSRDDatabase() {
         console.error("Failed to fetch SRD data:", error);
     }
 }
+
+// NEW: Function to load Premade Characters
+async function loadPCDatabase() {
+    try {
+        // Using lowercase filename as requested
+        const response = await fetch('data/premade_characters.json'); 
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        
+        if (Array.isArray(data)) {
+            PREMADE_CHARACTERS = data;
+        } else {
+            throw new Error("Invalid JSON structure. Expected a top-level array '[...]'");
+        }
+
+        logToScreen(`Successfully loaded ${PREMADE_CHARACTERS.length} PCs from catalog.`);
+        renderPCModalList(); // Render them into the new modal
+    } catch (error) {
+        logToScreen(`--- FATAL ERROR --- Could not load Premade PC JSON: ${error.message}`);
+        console.error("Failed to fetch PC data:", error);
+    }
+}
+
 
 function addCharacterToPool() {
     const jsonTextBox = document.getElementById('character-json');
@@ -192,6 +228,18 @@ function handleSRDListClick(event) {
     }
 }
 
+// NEW: Click handler for the PC Catalog list
+function handlePCListClick(event) {
+    const target = event.target.closest('.pc-item');
+    if (!target) return;
+    
+    if (event.target.classList.contains('move-button')) {
+        const pcName = target.dataset.name;
+        addPlayerFromCatalog(pcName);
+    }
+}
+
+
 // --- DYNAMIC UI RENDERING ---
 function renderPools() {
     const playerListDiv = document.getElementById('player-pool-list');
@@ -309,6 +357,54 @@ function addAdversaryFromSRD(name) {
     renderPools(); 
     closeSRDModal(); 
 }
+
+// --- NEW: PC Modal Functions ---
+function openPCModal() {
+    document.getElementById('pc-modal-overlay').classList.remove('hidden');
+}
+
+function closePCModal() {
+    document.getElementById('pc-modal-overlay').classList.add('hidden');
+}
+
+function renderPCModalList() {
+    const listDiv = document.getElementById('pc-catalog-list');
+    listDiv.innerHTML = ''; 
+
+    if (PREMADE_CHARACTERS.length === 0) {
+        listDiv.innerHTML = '<div class="pc-item"><span>Loading database...</span></div>';
+        return;
+    }
+
+    PREMADE_CHARACTERS.forEach(pc => {
+        listDiv.innerHTML += `
+        <div class="pc-item" data-name="${pc.name}">
+            <span class="agent-name">${pc.name} (Lvl ${pc.level} ${pc.class.name})</span>
+            <button class="move-button" title="Add to Player Pool">Add</button>
+        </div>
+        `;
+    });
+}
+
+function addPlayerFromCatalog(name) {
+    const pcData = PREMADE_CHARACTERS.find(p => p.name === name);
+    if (!pcData) return;
+    
+    const isDuplicate = playerPool.some(p => p.name === pcData.name);
+    if (isDuplicate) {
+        logToScreen(`--- ERROR --- \n'${pcData.name}' is already in the Player Pool.`);
+        return;
+    }
+
+    const newPlayer = JSON.parse(JSON.stringify(pcData));
+    newPlayer.simId = `player-${Date.now()}`;
+    
+    playerPool.push(newPlayer);
+    logToScreen(`Added ${newPlayer.name} from Catalog to Player Pool.`);
+    renderPools(); 
+    closePCModal(); 
+}
+
 
 // --- PARSING & INSTANTIATION FUNCTIONS ---
 function instantiatePlayerAgent(data) {
@@ -578,6 +674,10 @@ function determineNextSpotlight(lastOutcome, gameState) {
 function executePCTurn(player, gameState) {
     let targets = gameState.adversaries.filter(a => a.current_hp > 0);
     if (targets.length === 0) return 'COMBAT_OVER';
+    
+    // THIS IS THE FLAWED LOGIC - this is where I need to check for conditions like 'Restrained'
+    // but as you correctly pointed out, 'Restrained' doesn't stop an action, just movement.
+    // We will add the *correct* condition logic here later.
     
     const target = targets.reduce((prev, curr) => (prev.current_hp < curr.current_hp) ? prev : curr);
     logToScreen(`> ${player.name}'s turn (attacking ${target.name})...`);
@@ -1048,7 +1148,6 @@ function logToScreen(message) {
     const logOutput = document.getElementById('log-output');
     if (logOutput) {
         logOutput.textContent += message + '\n';
-        // *** THIS IS THE FIX ***
         logOutput.scrollTop = logOutput.scrollHeight; 
     }
 }
