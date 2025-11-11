@@ -74,8 +74,9 @@ async function loadSRDDatabase() {
 // NEW: Function to load Premade Characters
 async function loadPCDatabase() {
     try {
-        // Using lowercase filename as requested
-        const response = await fetch('data/premade_characters.json'); 
+        // *** THIS IS THE FIX ***
+        // Changed to match the case-sensitive filename in your repo.
+        const response = await fetch('data/Premade_Characters.json'); 
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -439,7 +440,7 @@ function instantiatePlayerAgent(data) {
         traits: data.traits,
         spellcastTrait: spellcastTrait,
         proficiency: data.proficiency,
-        evasion: data.evasion,
+        evasion: data.evasion,.
         thresholds: {
             major: data.majorThreshold,
             severe: data.severeThreshold
