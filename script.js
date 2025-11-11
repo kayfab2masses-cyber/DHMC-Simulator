@@ -208,7 +208,7 @@ function renderPools() {
     });
     adversaryPool.forEach(adv => {
         adversaryListDiv.innerHTML += `
-            <div class="pool-item">
+            <div class_name="pool-item">
                 <span class="agent-name">${adv.name} (Diff ${adv.difficulty})</span>
                 <div>
                     <button class="flush-button" data-id="${adv.simId}" title="Remove from Pool">X</button>
@@ -225,14 +225,14 @@ function renderActiveScene() {
     adversaryListDiv.innerHTML = '';
     activeParty.forEach(char => {
         partyListDiv.innerHTML += `
-            <div class="scene-item">
+            <div class_name="scene-item">
                 <button class="move-button" data-id="${char.simId}" title="Return to Pool">&lt;</button>
                 <span class="agent-name">${char.name} (Lvl ${char.level})</span>
             </div>`;
     });
     activeAdversaries.forEach(adv => {
         adversaryListDiv.innerHTML += `
-            <div class="scene-item">
+            <div class_name="scene-item">
                 <button class="move-button" data-id="${adv.simId}" title="Return to Pool">&lt;</button>
                 <span class="agent-name">${adv.name} (Diff ${adv.difficulty})</span>
             </div>`;
@@ -722,7 +722,9 @@ function performAdversaryAction(adversary, target, gameState) {
 
 
 /**
- * --- NEW: The "True AI" Executor ---
+ * --- UPDATED: GM AI v3.7 (Passive Handshake Fix) ---
+ * This is the central executor that reads a `parsed_effect` action
+ * and makes it happen in the simulation.
  */
 function executeParsedEffect(action, adversary, target, gameState) {
     let primaryTarget = target; 
@@ -818,7 +820,7 @@ function executeParsedEffect(action, adversary, target, gameState) {
                 damageTotal = rollDamage(action.damage_string, 1, critBonus);
             }
             
-            // --- UPDATED: Check for passives ---
+            // --- FIX V3.7: Check passives *and* action-specific flags ---
             const isDirect = action.is_direct || adversary.passives.allAttacksAreDirect || false;
             
             if (damageTotal > 0) {
@@ -961,7 +963,7 @@ function processRollResources(result, gameState, player) {
 }
 
 /**
- * --- UPDATED: GM AI v3.6 (Typo Fix) ---
+ * --- UPDATED: GM AI v3.7 (Typo Fix) ---
  * Applies damage to a target and logs the result.
  */
 function applyDamage(damageTotal, attacker, target, isDirectDamage = false) {
@@ -991,7 +993,7 @@ function applyDamage(damageTotal, attacker, target, isDirectDamage = false) {
     
     target.current_hp -= hpToMark;
     
-    // --- TYPO FIX: originalHSMark -> originalHPMark ---
+    // --- TYPO FIX v3.7: originalHSMark -> originalHPMark ---
     if (originalHPMark > hpToMark) {
         logToScreen(`    Final HP marked: ${hpToMark}.`);
     } else if (originalHPMark > 0) { 
