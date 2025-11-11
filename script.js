@@ -10,12 +10,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // Column 1 Buttons
     document.getElementById('add-character-button').addEventListener('click', addCharacterToPool);
     document.getElementById('add-adversary-button').addEventListener('click', addAdversaryToPool);
-    document.getElementById('run-button').addEventListener('click', runSimulation);
+    
+    // --- UPDATED: New Simulation Buttons ---
+    document.getElementById('run-button').addEventListener('click', () => runMultipleSimulations(1));
+    document.getElementById('run-multiple-button').addEventListener('click', () => runMultipleSimulations(3));
+    document.getElementById('export-log-button').addEventListener('click', exportLog);
+    
     // Column 2 & 3 Buttons
     document.getElementById('pool-column').addEventListener('click', handlePoolClick);
     document.getElementById('scene-column').addEventListener('click', handleSceneClick);
     document.getElementById('remove-character-button').addEventListener('click', removeLastCharacter);
     document.getElementById('remove-adversary-button').addEventListener('click', removeLastAdversary);
+    
     // SRD Modal Listeners
     document.getElementById('open-srd-modal').addEventListener('click', openSRDModal);
     document.getElementById('close-srd-modal').addEventListener('click', closeSRDModal);
@@ -44,7 +50,7 @@ async function loadSRDDatabase() {
         if (data && data.adversaries && Array.isArray(data.adversaries)) {
             SRD_ADVERSARIES = data.adversaries;
         } else if (Array.isArray(data)) {
-            // Fallback for old format, just in case
+            // Fallback for old format
             SRD_ADVERSARIES = data;
         } else {
             throw new Error("Invalid JSON structure. Expected '{ \"adversaries\": [...] }'");
@@ -335,9 +341,18 @@ function instantiatePlayerAgent(data) {
 }
 
 /**
+ * --- UPDATED: GM AI v3.5 (The "NaN" Bug Fix) ---
  * Instantiates an adversary agent from the new JSON structure.
+ * Now correctly parses `attack.bonus` (as a number) OR `attack.modifier` (as a string).
  */
 function instantiateAdversaryAgent(data) {
+    // --- BUG FIX ---
+    // Check for `bonus` (new format) first, then fall back to `modifier` (old format)
+    // parseInt() handles strings like "+3" or "-1"
+    const attackBonus = data.attack.bonus !== undefined 
+        ? data.attack.bonus 
+        : parseInt(data.attack.modifier) || 0;
+    
     const agent = {
         ...data, 
         id: data.simId,
@@ -348,7 +363,7 @@ function instantiateAdversaryAgent(data) {
         max_stress: data.stress,
         attack: {
             ...data.attack,
-            modifier: data.attack.bonus 
+            modifier: attackBonus // This is the standardized key our brain will use
         },
         conditions: []
     };
@@ -357,13 +372,51 @@ function instantiateAdversaryAgent(data) {
 
 // --- SPOTLIGHT SIMULATION ENGINE ---
 
+/**
+ * --- NEW: GM AI v3.5 ---
+ * Runs multiple simulations in a row.
+ */
+async function runMultipleSimulations(count) {
+    logToScreen(`\n===== STARTING BATCH OF ${count} SIMULATION(S) =====`);
+    for (let i = 1; i <= count; i++) {
+        logToScreen(`\n--- SIMULATION ${i} OF ${count} ---`);
+        await runSimulation();
+    }
+    logToScreen(`\n===== BATCH COMPLETE =====`);
+}
+
+/**
+ * --- NEW: GM AI v3.5 ---
+ * Exports the content of the log to a text file.
+ */
+function exportLog() {
+    const logOutput = document.getElementById('log-output');
+    const logContent = logOutput.textContent;
+    
+    const blob = new Blob([logContent], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `dhmc_simulation_log_${Date.now()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    logToScreen(`\n--- Log exported! ---`);
+}
+
+
 async function runSimulation() {
     logToScreen('======================================');
     logToScreen('INITIALIZING NEW SIMULATION...');
     logToScreen('======================================');
 
-    if (activeParty.length === 0) { logToScreen('--- ERROR --- \nAdd a player to the Active Scene.'); return; }
-    if (activeAdversaries.length === 0) { logToScreen('--- ERROR --- \nAdd an adversary to the Active Scene.'); return; }
+    if (activeParty.length === 0) { 
+        logToScreen('--- ERROR --- \nAdd a player to the Active Scene.'); 
+        return; // Stop this single sim
+    }
+    if (activeAdversaries.length === 0) { 
+        logToScreen('--- ERROR --- \nAdd an adversary to the Active Scene.'); 
+        return; // Stop this single sim
+    }
 
     let playerAgents, adversaryAgents;
     try {
@@ -372,7 +425,7 @@ async function runSimulation() {
     } catch (e) {
         logToScreen(`--- ERROR --- \nFailed to parse agent JSON. \n${e.message}`);
         console.error("Error during instantiation:", e);
-        return;
+        return; // Stop this single sim
     }
     
     const gameState = {
@@ -391,7 +444,9 @@ async function runSimulation() {
     });
     logToScreen('Instantiated Adversary Agents:');
     adversaryAgents.forEach(agent => {
-        logToScreen(`- ${agent.name} (HP: ${agent.max_hp}, Stress: ${agent.max_stress}, Difficulty: ${agent.difficulty})`);
+        // --- BUG FIX: Check if attack.modifier exists before logging ---
+        const mod = agent.attack?.modifier;
+        logToScreen(`- ${agent.name} (HP: ${agent.max_hp}, Stress: ${agent.max_stress}, Difficulty: ${agent.difficulty}, Atk Mod: ${mod})`);
     });
 
     logToScreen('--- COMBAT BEGINS ---');
@@ -401,7 +456,6 @@ async function runSimulation() {
     while (!isCombatOver(gameState) && simulationSteps < 50) {
         let lastOutcome = '';
         if (gameState.spotlight === 'GM') {
-            // GM AI v3.4: This function now contains the full GM turn logic.
             lastOutcome = executeGMTurn(gameState);
         } else {
             const actingPlayer = gameState.players[gameState.spotlight];
@@ -413,7 +467,6 @@ async function runSimulation() {
             }
         }
         
-        // Pass the turn *based on* the outcome
         determineNextSpotlight(lastOutcome, gameState);
         
         await new Promise(resolve => setTimeout(resolve, 50)); 
@@ -437,7 +490,7 @@ async function runSimulation() {
 /**
  * --- UPDATED: GM AI v3.4 ---
  * This function now correctly implements the Daggerheart Spotlight rules,
- * including your correction for FAILURE_WITH_HOPE.
+ * including FAILURE_WITH_HOPE.
  */
 function determineNextSpotlight(lastOutcome, gameState) {
     logToScreen(`  Control Flow: Last outcome was [${lastOutcome}]`);
@@ -445,21 +498,18 @@ function determineNextSpotlight(lastOutcome, gameState) {
     switch (lastOutcome) {
         case 'CRITICAL_SUCCESS':
         case 'PC_DOWN':
-            // Spotlight stays with the players, moves to the next PC
             const nextPCIndex = (gameState.lastPlayerSpotlight + 1) % gameState.players.length;
             gameState.spotlight = nextPCIndex;
             logToScreen(`  Spotlight passes to PC: ${gameState.players[nextPCIndex].name}`);
             break;
 
         case 'SUCCESS_WITH_HOPE':
-            // Spotlight *stays* with players, but GM *can* seize it
             if (gameState.fear > 0 && Math.random() < 0.5) { // 50% chance for GM to seize
                 logToScreen(`  PC succeeded with Hope, but GM spends 1 Fear to seize the spotlight!`);
                 gameState.fear--;
                 logToScreen(`  GM Fear: ${gameState.fear}`);
                 gameState.spotlight = 'GM';
             } else {
-                // GM chooses not to (or cannot) seize, spotlight moves to next PC
                 const nextPCIndex = (gameState.lastPlayerSpotlight + 1) % gameState.players.length;
                 gameState.spotlight = nextPCIndex;
                 logToScreen(`  Spotlight passes to PC: ${gameState.players[nextPCIndex].name}`);
@@ -467,15 +517,13 @@ function determineNextSpotlight(lastOutcome, gameState) {
             break;
             
         case 'SUCCESS_WITH_FEAR':
-        case 'FAILURE_WITH_HOPE': // <-- YOUR CORRECTED LOGIC IS HERE!
+        case 'FAILURE_WITH_HOPE': // <-- Corrected logic
         case 'FAILURE_WITH_FEAR':
-            // GM seizes the spotlight for free
             gameState.spotlight = 'GM';
             logToScreen(`  Spotlight seized by GM!`);
             break;
             
         case 'GM_TURN_COMPLETE':
-            // GM's turn is over, spotlight *always* returns to the next PC
             const returnPCIndex = (gameState.lastPlayerSpotlight + 1) % gameState.players.length;
             gameState.spotlight = returnPCIndex;
             logToScreen(`  Spotlight returns to PC: ${gameState.players[returnPCIndex].name}`);
@@ -496,7 +544,6 @@ function executePCTurn(player, gameState) {
 
     logToScreen(`> ${player.name}'s turn (attacking ${target.name})...`);
 
-    // AI v2: Use the primary weapon's trait for the attack.
     const traitName = player.primary_weapon.trait.toLowerCase();
     const traitMod = player.traits[traitName];
     
@@ -524,14 +571,12 @@ function executePCTurn(player, gameState) {
 
 /**
  * --- UPDATED: GM AI v3.4 ---
- * This function now correctly implements the GM's Fear economy.
- * The GM gets ONE free adversary spotlight, then must pay 1 Fear for each *additional* spotlight.
+ * GM gets ONE free adversary spotlight, then must pay 1 Fear for each *additional* spotlight.
  */
 function executeGMTurn(gameState) {
     logToScreen(`> GM SPOTLIGHT:`);
     
     // --- GM's FIRST ACTION ---
-    // The GM gets ONE free "Spotlight an Adversary" move.
     logToScreen(`  GM uses their free "Spotlight an Adversary" move.`);
     let adversaryToAct = getAdversaryToAct(gameState);
     if (adversaryToAct) {
@@ -542,12 +587,9 @@ function executeGMTurn(gameState) {
     }
 
     // --- GM's ADDITIONAL ACTIONS ---
-    // Now, the GM can *choose* to spend Fear to spotlight *additional* adversaries.
-    // AI v3.4 Simple Logic: The GM will spend Fear 50% of the time for each Fear > 0.
     let spotlightedAdversaries = [adversaryToAct.adversary.id]; // Track who has acted this turn
 
     while (gameState.fear > 0) {
-        // Decide whether to spend another Fear
         if (Math.random() < 0.5) { // 50% chance to act again
              logToScreen(`  GM decides to spend 1 Fear for an *additional* spotlight...`);
              gameState.fear--;
@@ -556,8 +598,6 @@ function executeGMTurn(gameState) {
              let additionalAdversary = getAdversaryToAct(gameState, spotlightedAdversaries);
              
              if (additionalAdversary) {
-                // Per the rules, you *can* spotlight the same adversary more than once
-                // if you spend Fear. But our AI will try to pick a *different* one if available.
                 spotlightedAdversaries.push(additionalAdversary.adversary.id);
                 performAdversaryAction(additionalAdversary.adversary, additionalAdversary.target, gameState);
              } else {
@@ -576,7 +616,6 @@ function executeGMTurn(gameState) {
 /**
  * --- NEW HELPER for v3.4 ---
  * Finds an adversary and a target for that adversary to act against.
- * Tries to pick an adversary that hasn't acted this turn, if possible.
  */
 function getAdversaryToAct(gameState, actedThisTurn = []) {
     // 1. Find a target (lowest HP player)
@@ -588,15 +627,12 @@ function getAdversaryToAct(gameState, actedThisTurn = []) {
     let livingAdversaries = gameState.adversaries.filter(a => a.current_hp > 0);
     if (livingAdversaries.length === 0) return null; // Combat is over
 
-    // Try to find one that hasn't acted yet
     let availableAdversaries = livingAdversaries.filter(a => !actedThisTurn.includes(a.id));
     
     let adversary;
     if (availableAdversaries.length > 0) {
-        // Pick a random one from the available list
         adversary = availableAdversaries[Math.floor(Math.random() * availableAdversaries.length)];
     } else {
-        // Everyone has acted, so pick a random *living* one to act again
         logToScreen(`  (All adversaries have acted, picking one at random to act again...)`);
         adversary = livingAdversaries[Math.floor(Math.random() * livingAdversaries.length)];
     }
@@ -612,35 +648,30 @@ function getAdversaryToAct(gameState, actedThisTurn = []) {
 function performAdversaryAction(adversary, target, gameState) {
     logToScreen(`  Spotlight is on: ${adversary.name} (targeting ${target.name})...`);
 
-    // Find an affordable action from the `parsed_effect`
     const affordableActions = adversary.features.filter(f => {
         if (f.type !== 'action' || !f.parsed_effect) return false;
         
-        // Check target conditions (e.g., "Deadly Shot" needs a "Vulnerable" target)
         if (f.parsed_effect.actions && f.parsed_effect.actions[0] && f.parsed_effect.actions[0].details) {
             const details = f.parsed_effect.actions[0].details;
             if (details.target_condition && !target.conditions.includes(details.target_condition)) {
                  logToScreen(`    (Skipping ${f.name}: Target is not ${details.target_condition})`);
-                return false; // Can't use this action, target doesn't meet condition
+                return false; 
             }
         }
 
-        if (!f.cost) return true; // Free action
+        if (!f.cost) return true; 
         if (f.cost.type === 'stress' && (adversary.current_stress + f.cost.value <= adversary.max_stress)) return true;
-        if (f.cost.type === 'fear' && (gameState.fear >= f.cost.value)) return true; // Checks *remaining* Fear
+        if (f.cost.type === 'fear' && (gameState.fear >= f.cost.value)) return true; 
         return false;
     });
 
     let chosenAction = null;
     if (affordableActions.length > 0) {
-        // AI v3.3: Pick a random affordable action
         chosenAction = affordableActions[Math.floor(Math.random() * affordableActions.length)];
     }
 
-    // Execute the action (or default to basic attack)
     if (chosenAction) {
         logToScreen(`    Using Feature: ${chosenAction.name}!`);
-        // Pay the *feature* cost
         if (chosenAction.cost) {
             if (chosenAction.cost.type === 'stress') {
                 adversary.current_stress += chosenAction.cost.value;
@@ -651,8 +682,6 @@ function performAdversaryAction(adversary, target, gameState) {
             }
         }
         
-        // --- THIS IS THE "TRUE AI" BRAIN ---
-        // Execute every action defined in the `parsed_effect`
         for (const action of chosenAction.parsed_effect.actions) {
             executeParsedEffect(action, adversary, target, gameState);
         }
@@ -666,12 +695,10 @@ function performAdversaryAction(adversary, target, gameState) {
 
 /**
  * --- NEW: The "True AI" Executor ---
- * This is the central executor that reads a `parsed_effect` action
- * and makes it happen in the simulation.
  */
 function executeParsedEffect(action, adversary, target, gameState) {
-    let primaryTarget = target; // The default target
-    let targets = [target];     // The list of all targets
+    let primaryTarget = target; 
+    let targets = [target];     
     
     // 1. Determine Target(s)
     if (action.target === "ALL_IN_RANGE") {
@@ -681,21 +708,22 @@ function executeParsedEffect(action, adversary, target, gameState) {
          targets = gameState.players.filter(p => p.current_hp > 0); // TODO: Add range/front check
         logToScreen(`    Action targets ALL living players in FRONT!`);
     }
-    // ... other target types like SELF, ATTACKER, etc. can be added here
     
     // 2. Execute Action Type
     switch (action.action_type) {
         case 'ATTACK_ROLL':
-            // Loop through all targets (for AOE attacks like "Spit Acid")
             for (const t of targets) {
                 logToScreen(`    Making an attack roll against ${t.name}...`);
                 const roll = rollD20();
-                const totalAttack = roll + adversary.attack.modifier;
-                logToScreen(`    Roll: 1d20(${roll}) + ${adversary.attack.modifier} = ${totalAttack} vs Evasion ${t.evasion}`);
+                
+                // --- BUG FIX: Ensure modifier is a number ---
+                const modifier = adversary.attack.modifier || 0;
+                const totalAttack = roll + modifier;
+                
+                logToScreen(`    Roll: 1d20(${roll}) + ${modifier} = ${totalAttack} vs Evasion ${t.evasion}`);
                 
                 if (totalAttack >= t.evasion) {
                     logToScreen('    HIT!');
-                    // Execute all on_success actions
                     if (action.details.on_success) {
                         for (const successAction of action.details.on_success) {
                             executeParsedEffect(successAction, adversary, t, gameState);
@@ -714,10 +742,9 @@ function executeParsedEffect(action, adversary, target, gameState) {
             break;
 
         case 'FORCE_REACTION_ROLL':
-            // Loop through all targets (for AOE like "Earth Eruption")
             for (const t of targets) {
                 const details = action.details;
-                const difficulty = details.difficulty || 12; // Default diff if not specified
+                const difficulty = details.difficulty || 12; 
                 logToScreen(`    ${t.name} must make a ${details.roll_type.toUpperCase()} Reaction Roll (Diff ${difficulty})!`);
                 
                 const reactionSuccess = executeReactionRoll(t, details.roll_type, difficulty);
@@ -732,7 +759,6 @@ function executeParsedEffect(action, adversary, target, gameState) {
                     }
                 } else {
                     logToScreen(`    ${t.name} fails the Reaction Roll!`);
-                    // Execute all on_fail actions
                     if (details.on_fail) {
                         const onFailActions = Array.isArray(details.on_fail) ? details.on_fail : [details.on_fail];
                         for (const failAction of onFailActions) {
@@ -744,25 +770,21 @@ function executeParsedEffect(action, adversary, target, gameState) {
             break;
             
         case 'DEAL_DAMAGE':
-            let critBonus = 0; // TODO: Check for crits
+            let critBonus = 0; 
             let damageTotal;
 
             if (action.damage_string === 'half') {
-                // This is a special case for "half damage on success"
-                // This logic is flawed, as we don't know the original damage.
-                // For now, let's just log it. This is our next logic bug.
                 logToScreen(`    (Logic Error: 'half' damage is not yet implemented. Dealing 1 damage.)`);
                 damageTotal = 1; 
             } else if (action.damage_string.includes("stress") || action.damage_string.includes("HP")) {
-                // Handles "1 HP" or "2 stress"
                 const parts = action.damage_string.split(' ');
                 const value = parseInt(parts[0]) || 1;
                 if (parts[1].toLowerCase() === 'stress') {
                     logToScreen(`    Dealing ${value} DIRECT Stress!`);
                     target.current_stress = Math.min(target.max_stress, target.current_stress + value);
                     logToScreen(`    ${target.name} Stress: ${target.current_stress} / ${target.max_stress}`);
-                    return; // Stop here, no HP damage
-                } else { // Assumes "hp"
+                    return; 
+                } else { 
                     damageTotal = value;
                 }
             } else {
@@ -778,7 +800,7 @@ function executeParsedEffect(action, adversary, target, gameState) {
             }
             break;
 
-        case 'DEAL_STRESS': // This handles direct stress application, like from Mockery
+        case 'DEAL_STRESS': 
             const stressVal = action.value || 0;
             if (stressVal > 0) {
                 logToScreen(`    Dealing ${stressVal} DIRECT Stress!`);
@@ -788,7 +810,6 @@ function executeParsedEffect(action, adversary, target, gameState) {
             break;
             
         case 'APPLY_CONDITION':
-            // This is for *conditional* costs, like "Detain"
             if (action.cost) {
                 if (action.cost.type === 'stress' && adversary.current_stress + action.cost.value <= adversary.max_stress) {
                     adversary.current_stress += action.cost.value;
@@ -798,7 +819,6 @@ function executeParsedEffect(action, adversary, target, gameState) {
                     logToScreen(`    ${adversary.name} could not afford Stress cost to apply ${action.condition}.`);
                 }
             } else {
-                // This is for *unconditional* conditions, like from "Bite"
                 applyCondition(primaryTarget, action.condition);
             }
             break;
@@ -821,8 +841,6 @@ function executeParsedEffect(action, adversary, target, gameState) {
              gameState.fear += action.value || 1;
              logToScreen(`    GM gains ${action.value || 1} Fear (Total: ${gameState.fear})`);
             break;
-
-        // ... other action_types like GAIN_RESOURCE, SPECIAL_RULE, etc.
         
         default:
             logToScreen(`    (Logic for action_type '${action.action_type}' not yet implemented.)`);
@@ -848,9 +866,11 @@ function applyCondition(target, condition) {
  */
 function executeGMBasicAttack(adversary, target) {
     const roll = rollD20();
-    const totalAttack = roll + adversary.attack.modifier; 
+    // --- BUG FIX: Ensure modifier is a number ---
+    const modifier = adversary.attack.modifier || 0;
+    const totalAttack = roll + modifier; 
     
-    logToScreen(`    Roll: 1d20(${roll}) + ${adversary.attack.modifier} = ${totalAttack} vs Evasion ${target.evasion}`);
+    logToScreen(`    Roll: 1d20(${roll}) + ${modifier} = ${totalAttack} vs Evasion ${target.evasion}`);
 
     if (totalAttack >= target.evasion) {
         logToScreen('    HIT!');
@@ -913,21 +933,20 @@ function processRollResources(result, gameState, player) {
 function applyDamage(damageTotal, attacker, target, isDirectDamage = false) {
     let hpToMark = 0;
     
-    // 1. Determine base HP to mark from thresholds
     if (!target.thresholds) {
         logToScreen(`    (ERROR: Target ${target.name} has no thresholds defined!)`);
-        return;
+        // Fallback for adversaries with null thresholds (like Minions)
+        if (damageTotal > 0) hpToMark = 1; 
+    } else {
+         if (damageTotal >= target.thresholds.severe) hpToMark = 3;
+         else if (damageTotal >= target.thresholds.major) hpToMark = 2;
+         else if (damageTotal > 0) hpToMark = 1;
     }
-    
-    if (damageTotal >= target.thresholds.severe) hpToMark = 3;
-    else if (damageTotal >= target.thresholds.major) hpToMark = 2;
-    else if (damageTotal > 0) hpToMark = 1;
 
     let originalHPMark = hpToMark;
-    logToScreen(`    Damage: ${damageTotal} (dealt by ${attacker.name}) vs Thresholds (${target.thresholds.major}/${target.thresholds.severe})`);
+    logToScreen(`    Damage: ${damageTotal} (dealt by ${attacker.name}) vs Thresholds (${target.thresholds?.major || 'N/A'}/${target.thresholds?.severe || 'N/A'})`);
     logToScreen(`    Calculated Severity: ${originalHPMark} HP`);
 
-    // 2. Simple Player AI: Use an Armor Slot if it reduces HP marked.
     if (target.type === 'player' && target.current_armor_slots > 0 && hpToMark > 0 && !isDirectDamage) {
         target.current_armor_slots--;
         hpToMark--;
@@ -936,12 +955,11 @@ function applyDamage(damageTotal, attacker, target, isDirectDamage = false) {
         logToScreen(`    This is DIRECT damage and cannot be mitigated by armor!`);
     }
     
-    // 3. Apply final damage
     target.current_hp -= hpToMark;
     
     if (originalHPMark > hpToMark) {
         logToScreen(`    Final HP marked: ${hpToMark}.`);
-    } else if (originalHPMark > 0) {
+    } else if (originalHSMark > 0) {
         logToScreen(`    Final HP marked: ${hpToMark}.`);
     }
     
@@ -993,7 +1011,6 @@ function rollDamage(damageString, proficiency, critBonus = 0) {
     const { numDice, dieType, modifier, maxDie } = parseDiceString(damageString);
     let totalDamage = 0;
     
-    // PC damage dice are multiplied by proficiency
     let diceToRoll = (proficiency > 1) ? (numDice * proficiency) : numDice;
     
     if (dieType > 0) {
