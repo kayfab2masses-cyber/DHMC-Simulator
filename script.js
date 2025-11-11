@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('remove-character-button').addEventListener('click', removeLastCharacter);
     document.getElementById('remove-adversary-button').addEventListener('click', removeLastAdversary);
     
-    // Adversary SRD Modal Listeners
+    // --- UPDATED: Adversary SRD Modal Listeners ---
     document.getElementById('open-adversary-modal').addEventListener('click', openAdversaryModal);
     document.getElementById('close-adversary-modal').addEventListener('click', closeAdversaryModal);
     document.getElementById('adversary-modal-overlay').addEventListener('click', (e) => {
@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('srd-type-filter').addEventListener('change', renderSRDAdversaries);
     document.getElementById('srd-adversary-list').addEventListener('click', handleSRDListClick);
 
-    // NEW: Player Library Modal Listeners
+    // --- UPDATED: Player Library Modal Listeners ---
     document.getElementById('open-player-modal').addEventListener('click', openPlayerModal);
     document.getElementById('close-player-modal').addEventListener('click', closePlayerModal);
     document.getElementById('player-modal-overlay').addEventListener('click', (e) => {
@@ -81,6 +81,7 @@ async function loadAdversaryDatabase() {
  */
 async function loadPremadeCharacters() {
     try {
+        // --- UPDATED: Reads your new file name ---
         const response = await fetch('data/Premade_Characters.json');
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -668,6 +669,7 @@ function determineNextSpotlight(lastOutcome, gameState) {
     
     // Check for combat end *before* passing turns
     if (isCombatOver(gameState)) {
+        logToScreen(`  --- Combat is Over ---`);
         return; // Don't pass the turn if the fight is over
     }
 
