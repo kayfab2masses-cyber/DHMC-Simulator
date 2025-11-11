@@ -10,12 +10,6 @@
     <header>
         <h1>Daggerheart Monte Carlo Simulator</h1>
     </header>
-    <div class="controls-main">
-        <button id="run-button" class="action-button">Run Simulation (using 'Active Scene')</button>
-        <button id="run-multiple-button" class="action-button">Run 3 Sims</button>
-        <button id="export-log-button" class="action-button">Export Log</button>
-    </div>
-
     <div class="simulator-layout">
         <div class="layout-column" id="input-column">
             <h3><span class="col-number">1</span> Add to Pool</h3>
@@ -66,7 +60,14 @@
     </div>
 
     <div class="log-container">
-        <h3>Simulation Log:</h3>
+        <div class="log-header">
+            <h3>Simulation Log:</h3>
+            <div class="controls-main">
+                <button id="run-button" class="action-button">Run Simulation</button>
+                <button id="run-multiple-button" class="action-button">Run 3 Sims</button>
+                <button id="export-log-button" class="action-button">Export Log</button>
+            </div>
+        </div>
         <pre id="log-output"></pre>
     </div>
 

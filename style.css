@@ -184,25 +184,8 @@ textarea {
 }
 .flush-button:hover { background: #7d0000; }
 
-/* --- Run Button & Log --- */
-.controls-main {
-    text-align: right; /* Aligns button to the right */
-    flex-grow: 1; /* Pushes button to the far right */
-}
 
-#run-button {
-    font-size: 1.2rem;
-    padding: 10px 20px;
-    background-color: #007acc;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-}
-#run-button:hover {
-    background-color: #005f9e;
-}
-
+/* --- Log Container & Controls --- */
 .log-container {
     background-color: #252525;
     border: 1px solid #444;
@@ -211,7 +194,6 @@ textarea {
     margin-top: 20px;
 }
 
-/* NEW: Log Header Style */
 .log-header {
     display: flex;
     justify-content: space-between;
@@ -223,6 +205,41 @@ textarea {
 
 .log-header h3 {
     margin: 0;
+}
+
+.controls-main {
+    display: flex;
+    gap: 10px;
+}
+
+.action-button {
+    font-size: 1rem;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    color: white;
+}
+
+#run-button {
+    background-color: #007acc;
+}
+#run-button:hover {
+    background-color: #005f9e;
+}
+
+#run-multiple-button {
+    background-color: #005f9e;
+}
+#run-multiple-button:hover {
+    background-color: #004675;
+}
+
+#export-log-button {
+    background-color: #006421;
+}
+#export-log-button:hover {
+    background-color: #004d1a;
 }
 
 pre {
