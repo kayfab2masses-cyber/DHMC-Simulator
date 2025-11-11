@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('add-character-button').addEventListener('click', addCharacterToPool);
     document.getElementById('add-adversary-button').addEventListener('click', addAdversaryToPool);
     
-    // --- UPDATED: New Simulation Buttons ---
+    // Simulation Buttons
     document.getElementById('run-button').addEventListener('click', () => runMultipleSimulations(1));
     document.getElementById('run-multiple-button').addEventListener('click', () => runMultipleSimulations(3));
     document.getElementById('export-log-button').addEventListener('click', exportLog);
@@ -341,19 +341,16 @@ function instantiatePlayerAgent(data) {
 }
 
 /**
- * --- UPDATED: GM AI v3.5 (The "NaN" Bug Fix) ---
- * Instantiates an adversary agent from the new JSON structure.
- * Now correctly parses `attack.bonus` (as a number) OR `attack.modifier` (as a string).
+ * --- UPDATED: GM AI v3.6 (Passive Brain) ---
+ * Instantiates an adversary agent and applies passive features.
  */
 function instantiateAdversaryAgent(data) {
-    // --- BUG FIX ---
-    // Check for `bonus` (new format) first, then fall back to `modifier` (old format)
-    // parseInt() handles strings like "+3" or "-1"
+    // --- NaN BUG FIX ---
     const attackBonus = data.attack.bonus !== undefined 
         ? data.attack.bonus 
         : parseInt(data.attack.modifier) || 0;
     
-    const agent = {
+    let agent = {
         ...data, 
         id: data.simId,
         type: 'adversary',
@@ -363,17 +360,47 @@ function instantiateAdversaryAgent(data) {
         max_stress: data.stress,
         attack: {
             ...data.attack,
-            modifier: attackBonus // This is the standardized key our brain will use
+            modifier: attackBonus 
         },
-        conditions: []
+        conditions: [],
+        passives: {} // --- NEW: Object to hold passive abilities ---
     };
+
+    // --- NEW: Apply passive features ---
+    applyPassiveFeatures(agent);
+
     return agent;
 }
+
+/**
+ * --- NEW: GM AI v3.6 ---
+ * Reads an agent's features and permanently applies passive effects.
+ */
+function applyPassiveFeatures(agent) {
+    if (!agent.features) return;
+
+    for (const feature of agent.features) {
+        if (feature.type === 'passive' && feature.parsed_effect) {
+            for (const action of feature.parsed_effect.actions) {
+                if (action.action_type === 'MODIFY_DAMAGE' && action.target === 'ALL_ATTACKS' && action.details.is_direct) {
+                    logToScreen(`  (Passive Applied: ${agent.name} has ${feature.name}. All attacks are DIRECT.)`);
+                    agent.passives.allAttacksAreDirect = true;
+                }
+                if (action.action_type === 'MODIFY_STAT' && action.details.stat === 'resistance') {
+                    logToScreen(`  (Passive Applied: ${agent.name} has ${feature.name}. Resistant to ${action.details.value}.)`);
+                    agent.passives.resistance = action.details.value;
+                }
+                // ... we can add more passive handlers here as we find them.
+            }
+        }
+    }
+}
+
 
 // --- SPOTLIGHT SIMULATION ENGINE ---
 
 /**
- * --- NEW: GM AI v3.5 ---
+ * --- UPDATED: GM AI v3.5 ---
  * Runs multiple simulations in a row.
  */
 async function runMultipleSimulations(count) {
@@ -381,6 +408,8 @@ async function runMultipleSimulations(count) {
     for (let i = 1; i <= count; i++) {
         logToScreen(`\n--- SIMULATION ${i} OF ${count} ---`);
         await runSimulation();
+        // Add a small delay so the browser can update the log
+        await new Promise(resolve => setTimeout(resolve, 100));
     }
     logToScreen(`\n===== BATCH COMPLETE =====`);
 }
@@ -411,11 +440,11 @@ async function runSimulation() {
 
     if (activeParty.length === 0) { 
         logToScreen('--- ERROR --- \nAdd a player to the Active Scene.'); 
-        return; // Stop this single sim
+        return; 
     }
     if (activeAdversaries.length === 0) { 
         logToScreen('--- ERROR --- \nAdd an adversary to the Active Scene.'); 
-        return; // Stop this single sim
+        return; 
     }
 
     let playerAgents, adversaryAgents;
@@ -425,7 +454,7 @@ async function runSimulation() {
     } catch (e) {
         logToScreen(`--- ERROR --- \nFailed to parse agent JSON. \n${e.message}`);
         console.error("Error during instantiation:", e);
-        return; // Stop this single sim
+        return; 
     }
     
     const gameState = {
@@ -444,7 +473,6 @@ async function runSimulation() {
     });
     logToScreen('Instantiated Adversary Agents:');
     adversaryAgents.forEach(agent => {
-        // --- BUG FIX: Check if attack.modifier exists before logging ---
         const mod = agent.attack?.modifier;
         logToScreen(`- ${agent.name} (HP: ${agent.max_hp}, Stress: ${agent.max_stress}, Difficulty: ${agent.difficulty}, Atk Mod: ${mod})`);
     });
@@ -642,7 +670,7 @@ function getAdversaryToAct(gameState, actedThisTurn = []) {
 
 
 /**
- * --- NEW HELPER for v3.3 ---
+ * --- UPDATED: GM AI v3.6 (Passive Brain) ---
  * The logic for a single adversary taking their one action.
  */
 function performAdversaryAction(adversary, target, gameState) {
@@ -716,7 +744,6 @@ function executeParsedEffect(action, adversary, target, gameState) {
                 logToScreen(`    Making an attack roll against ${t.name}...`);
                 const roll = rollD20();
                 
-                // --- BUG FIX: Ensure modifier is a number ---
                 const modifier = adversary.attack.modifier || 0;
                 const totalAttack = roll + modifier;
                 
@@ -791,7 +818,9 @@ function executeParsedEffect(action, adversary, target, gameState) {
                 damageTotal = rollDamage(action.damage_string, 1, critBonus);
             }
             
-            const isDirect = action.is_direct || false;
+            // --- UPDATED: Check for passives ---
+            const isDirect = action.is_direct || adversary.passives.allAttacksAreDirect || false;
+            
             if (damageTotal > 0) {
                  logToScreen(`    Dealing ${damageTotal} ${isDirect ? 'DIRECT' : ''} damage!`);
                 applyDamage(damageTotal, adversary, primaryTarget, isDirect);
@@ -862,11 +891,11 @@ function applyCondition(target, condition) {
 
 
 /**
- * Logic for the GM's basic attack.
+ * --- UPDATED: GM AI v3.6 (Passive Brain) ---
+ * Logic for the GM's basic attack. Now checks for passives.
  */
 function executeGMBasicAttack(adversary, target) {
     const roll = rollD20();
-    // --- BUG FIX: Ensure modifier is a number ---
     const modifier = adversary.attack.modifier || 0;
     const totalAttack = roll + modifier; 
     
@@ -883,7 +912,11 @@ function executeGMBasicAttack(adversary, target) {
         }
 
         const damageTotal = rollDamage(damageString, 1, critBonus); 
-        applyDamage(damageTotal, adversary, target);
+        
+        // --- NEW: Check for passives ---
+        const isDirect = adversary.passives.allAttacksAreDirect || false;
+        
+        applyDamage(damageTotal, adversary, target, isDirect);
     } else {
         logToScreen('    MISS!');
     }
@@ -928,14 +961,15 @@ function processRollResources(result, gameState, player) {
 }
 
 /**
+ * --- UPDATED: GM AI v3.6 (Typo Fix) ---
  * Applies damage to a target and logs the result.
  */
 function applyDamage(damageTotal, attacker, target, isDirectDamage = false) {
     let hpToMark = 0;
     
+    // 1. Determine base HP to mark from thresholds
     if (!target.thresholds) {
         logToScreen(`    (ERROR: Target ${target.name} has no thresholds defined!)`);
-        // Fallback for adversaries with null thresholds (like Minions)
         if (damageTotal > 0) hpToMark = 1; 
     } else {
          if (damageTotal >= target.thresholds.severe) hpToMark = 3;
@@ -957,9 +991,10 @@ function applyDamage(damageTotal, attacker, target, isDirectDamage = false) {
     
     target.current_hp -= hpToMark;
     
+    // --- TYPO FIX: originalHSMark -> originalHPMark ---
     if (originalHPMark > hpToMark) {
         logToScreen(`    Final HP marked: ${hpToMark}.`);
-    } else if (originalHSMark > 0) {
+    } else if (originalHPMark > 0) { 
         logToScreen(`    Final HP marked: ${hpToMark}.`);
     }
     
