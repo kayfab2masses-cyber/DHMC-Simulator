@@ -74,19 +74,18 @@ async function loadSRDDatabase() {
 // NEW: Function to load Premade Characters
 async function loadPCDatabase() {
     try {
-        // Using correct case-sensitive filename
-        const response = await fetch('data/Premade_Characters.json'); 
+        // *** FIX 1: Fetching the all-lowercase filename ***
+        const response = await fetch('data/premade_characters.json'); 
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
         
-        // *** THIS IS THE FIX ***
-        // Look for the "characters" key inside the object
-        if (data && data.characters && Array.isArray(data.characters)) {
-            PREMADE_CHARACTERS = data.characters;
+        // *** FIX 2: Expecting a top-level array, not an object ***
+        if (Array.isArray(data)) {
+            PREMADE_CHARACTERS = data;
         } else {
-            throw new Error("Invalid JSON structure. Expected '{ \"characters\": [...] }'");
+            throw new Error("Invalid JSON structure. Expected a top-level array '[...]'");
         }
 
         logToScreen(`Successfully loaded ${PREMADE_CHARACTERS.length} PCs from catalog.`);
@@ -321,7 +320,6 @@ function renderSRDAdversaries() {
 
     const filteredList = SRD_ADVERSARIES.filter(adv => {
         const tierMatch = (tier === 'any' || adv.tier == tier);
-        // *** THIS IS THE FIX ***
         // Changed to startsWith to handle types like "Horde (5/HP)"
         const typeMatch = (type === 'any' || adv.type.startsWith(type));
         return tierMatch && typeMatch;
