@@ -4,7 +4,6 @@ let adversaryPool = []; // Column 2: Adversary Library
 let activeParty = []; // Column 3: Players in the next sim
 let activeAdversaries = []; // Column 3: Adversaries in the next sim
 let SRD_ADVERSARIES = []; // This will hold our loaded SRD database
-let PREMADE_PLAYERS = []; // NEW: This will hold our loaded Premade Characters
 
 // --- EVENT LISTENERS ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -23,45 +22,35 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('remove-character-button').addEventListener('click', removeLastCharacter);
     document.getElementById('remove-adversary-button').addEventListener('click', removeLastAdversary);
     
-    // --- UPDATED: Adversary SRD Modal Listeners ---
-    document.getElementById('open-adversary-modal').addEventListener('click', openAdversaryModal);
-    document.getElementById('close-adversary-modal').addEventListener('click', closeAdversaryModal);
-    document.getElementById('adversary-modal-overlay').addEventListener('click', (e) => {
-        if (e.target.id === 'adversary-modal-overlay') closeAdversaryModal();
+    // SRD Modal Listeners
+    document.getElementById('open-srd-modal').addEventListener('click', openSRDModal);
+    document.getElementById('close-srd-modal').addEventListener('click', closeSRDModal);
+    document.getElementById('srd-modal-overlay').addEventListener('click', (e) => {
+        if (e.target.id === 'srd-modal-overlay') closeSRDModal();
     });
     document.getElementById('srd-tier-filter').addEventListener('change', renderSRDAdversaries);
     document.getElementById('srd-type-filter').addEventListener('change', renderSRDAdversaries);
     document.getElementById('srd-adversary-list').addEventListener('click', handleSRDListClick);
 
-    // --- UPDATED: Player Library Modal Listeners ---
-    document.getElementById('open-player-modal').addEventListener('click', openPlayerModal);
-    document.getElementById('close-player-modal').addEventListener('click', closePlayerModal);
-    document.getElementById('player-modal-overlay').addEventListener('click', (e) => {
-        if (e.target.id === 'player-modal-overlay') closePlayerModal();
-    });
-    document.getElementById('srd-player-list').addEventListener('click', handlePremadePlayerListClick);
-
-
-    // Load *both* databases
-    loadAdversaryDatabase(); 
-    loadPremadeCharacters();
-    
+    loadSRDDatabase(); 
     renderPools();
     renderActiveScene();
 });
 
 // --- DATA & POOL MANAGEMENT ---
 
-async function loadAdversaryDatabase() {
+async function loadSRDDatabase() {
     try {
         const response = await fetch('data/srd_adversaries.json');
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
+        // Check if the data is an object with an 'adversaries' key
         if (data && data.adversaries && Array.isArray(data.adversaries)) {
             SRD_ADVERSARIES = data.adversaries;
         } else if (Array.isArray(data)) {
+            // Fallback for old format
             SRD_ADVERSARIES = data;
         } else {
             throw new Error("Invalid JSON structure. Expected '{ \"adversaries\": [...] }'");
@@ -72,32 +61,6 @@ async function loadAdversaryDatabase() {
     } catch (error) {
         logToScreen(`--- FATAL ERROR --- Could not load SRD Adversary JSON: ${error.message}`);
         console.error("Failed to fetch SRD data:", error);
-    }
-}
-
-/**
- * --- NEW: Player Library ---
- * Loads the new Premade_Characters.json file.
- */
-async function loadPremadeCharacters() {
-    try {
-        // --- UPDATED: Reads your new file name ---
-        const response = await fetch('data/Premade_Characters.json');
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        if (data && data.players && Array.isArray(data.players)) {
-            PREMADE_PLAYERS = data.players;
-        } else {
-            throw new Error("Invalid JSON structure. Expected '{ \"players\": [...] }'");
-        }
-        
-        logToScreen(`Successfully loaded ${PREMADE_PLAYERS.length} premade characters from Library.`);
-        renderPremadeCharacters(); 
-    } catch (error) {
-        logToScreen(`--- FATAL ERROR --- Could not load Premade Characters JSON: ${error.message}`);
-        console.error("Failed to fetch Premade Characters data:", error);
     }
 }
 
@@ -158,12 +121,7 @@ function removeLastAdversary() {
 
 function handlePoolClick(event) {
     const target = event.target;
-    if (!target.closest('button')) return; // Ignore clicks that aren't on buttons
-
-    const agentItem = target.closest('.pool-item');
-    if (!agentItem) return;
-
-    const agentId = agentItem.dataset.id;
+    const agentId = target.dataset.id;
     if (!agentId) return; 
 
     if (target.classList.contains('move-button')) {
@@ -200,24 +158,21 @@ function handlePoolClick(event) {
 
 function handleSceneClick(event) {
     const target = event.target;
-    if (!target.classList.contains('move-button')) return; // Only care about move buttons
-
-    const agentItem = target.closest('.scene-item');
-    if (!agentItem) return;
-    
-    const agentId = agentItem.dataset.id;
+    const agentId = target.dataset.id;
     if (!agentId) return;
 
-    let playerIndex = activeParty.findIndex(p => p.simId === agentId);
-    if (playerIndex > -1) {
-        const agent = activeParty.splice(playerIndex, 1)[0];
-        playerPool.push(agent);
-        logToScreen(`Moved ${agent.name} back to Player Pool.`);
-    } else {
-        let adversaryIndex = activeAdversaries.findIndex(a => a.simId === agentId);
-        if (adversaryIndex > -1) {
-            const agent = activeAdversaries.splice(adversaryIndex, 1)[0];
-            logToScreen(`Removed ${agent.name} instance from Active Scene.`);
+    if (target.classList.contains('move-button')) {
+        let playerIndex = activeParty.findIndex(p => p.simId === agentId);
+        if (playerIndex > -1) {
+            const agent = activeParty.splice(playerIndex, 1)[0];
+            playerPool.push(agent);
+            logToScreen(`Moved ${agent.name} back to Player Pool.`);
+        } else {
+            let adversaryIndex = activeAdversaries.findIndex(a => a.simId === agentId);
+            if (adversaryIndex > -1) {
+                const agent = activeAdversaries.splice(adversaryIndex, 1)[0];
+                logToScreen(`Removed ${agent.name} instance from Active Scene.`);
+            }
         }
     }
     renderPools();
@@ -234,51 +189,30 @@ function handleSRDListClick(event) {
     }
 }
 
-/**
- * --- NEW: Player Library ---
- * Handles clicks in the Player SRD modal list.
- */
-function handlePremadePlayerListClick(event) {
-    const target = event.target.closest('.srd-item');
-    if (!target) return;
-    
-    if (event.target.classList.contains('move-button')) {
-        const playerName = target.dataset.name;
-        addPlayerFromLibrary(playerName);
-    }
-}
-
-
 // --- DYNAMIC UI RENDERING ---
 
-/**
- * --- UPDATED: UI Consistency ---
- * Applies a consistent layout to both pool lists.
- */
 function renderPools() {
     const playerListDiv = document.getElementById('player-pool-list');
     const adversaryListDiv = document.getElementById('adversary-pool-list');
     playerListDiv.innerHTML = '';
     adversaryListDiv.innerHTML = '';
-
     playerPool.forEach(char => {
         playerListDiv.innerHTML += `
-            <div class="pool-item" data-id="${char.simId}">
+            <div class="pool-item">
                 <span class="agent-name">${char.name} (Lvl ${char.level})</span>
-                <div class="pool-item-controls">
-                    <button class="flush-button" title="Remove from Pool">X</button>
-                    <button class="move-button" title="Add to Active Scene">&gt;</button>
+                <div>
+                    <button class="flush-button" data-id="${char.simId}" title="Remove from Pool">X</button>
+                    <button class="move-button" data-id="${char.simId}" title="Add to Active Scene">&gt;</button>
                 </div>
             </div>`;
     });
-    
     adversaryPool.forEach(adv => {
         adversaryListDiv.innerHTML += `
-            <div class="pool-item" data-id="${adv.simId}">
+            <div class_name="pool-item">
                 <span class="agent-name">${adv.name} (Diff ${adv.difficulty})</span>
-                <div class="pool-item-controls">
-                    <button class="flush-button" title="Remove from Pool">X</button>
-                    <button class="move-button" title="Add to Active Scene">&gt;</button>
+                <div>
+                    <button class="flush-button" data-id="${adv.simId}" title="Remove from Pool">X</button>
+                    <button class="move-button" data-id="${adv.simId}" title="Add to Active Scene">&gt;</button>
                 </div>
             </div>`;
     });
@@ -291,36 +225,26 @@ function renderActiveScene() {
     adversaryListDiv.innerHTML = '';
     activeParty.forEach(char => {
         partyListDiv.innerHTML += `
-            <div class="scene-item" data-id="${char.simId}">
-                <button class="move-button" title="Return to Pool">&lt;</button>
+            <div class_name="scene-item">
+                <button class="move-button" data-id="${char.simId}" title="Return to Pool">&lt;</button>
                 <span class="agent-name">${char.name} (Lvl ${char.level})</span>
             </div>`;
     });
     activeAdversaries.forEach(adv => {
         adversaryListDiv.innerHTML += `
-            <div class="scene-item" data-id="${adv.simId}">
-                <button class="move-button" title="Return to Pool">&lt;</button>
+            <div class_name="scene-item">
+                <button class="move-button" data-id="${adv.simId}" title="Return to Pool">&lt;</button>
                 <span class="agent-name">${adv.name} (Diff ${adv.difficulty})</span>
             </div>`;
     });
 }
 
 // --- SRD Modal Functions ---
-function openAdversaryModal() {
-    document.getElementById('adversary-modal-overlay').classList.remove('hidden');
+function openSRDModal() {
+    document.getElementById('srd-modal-overlay').classList.remove('hidden');
 }
-function closeAdversaryModal() {
-    document.getElementById('adversary-modal-overlay').classList.add('hidden');
-}
-
-/**
- * --- NEW: Player Library ---
- */
-function openPlayerModal() {
-    document.getElementById('player-modal-overlay').classList.remove('hidden');
-}
-function closePlayerModal() {
-    document.getElementById('player-modal-overlay').classList.add('hidden');
+function closeSRDModal() {
+    document.getElementById('srd-modal-overlay').classList.add('hidden');
 }
 
 function renderSRDAdversaries() {
@@ -351,28 +275,6 @@ function renderSRDAdversaries() {
     });
 }
 
-/**
- * --- NEW: Player Library ---
- * Renders the list of players in the Player SRD modal.
- */
-function renderPremadeCharacters() {
-    const listDiv = document.getElementById('srd-player-list');
-    listDiv.innerHTML = ''; 
-    if (PREMADE_PLAYERS.length === 0) {
-        listDiv.innerHTML = '<div class="pool-item"><span>Loading database...</span></div>';
-        return;
-    }
-
-    PREMADE_PLAYERS.forEach(pc => {
-        let features = `Lvl ${pc.level} ${pc.ancestry.name} ${pc.class.name} (${pc.subclass.name})`;
-        listDiv.innerHTML += `
-            <div class="srd-item" data-name="${pc.name}">
-                <span class="agent-name" title="${features}">${pc.name} (Lvl ${pc.level} ${pc.class.name})</span>
-                <button class="move-button" title="Add to Player Pool">Add</button>
-            </div>`;
-    });
-}
-
 function addAdversaryFromSRD(name) {
     const advData = SRD_ADVERSARIES.find(a => a.name === name);
     if (!advData) return;
@@ -386,27 +288,7 @@ function addAdversaryFromSRD(name) {
     adversaryPool.push(newAdversary);
     logToScreen(`Added ${newAdversary.name} from SRD to Adversary Pool.`);
     renderPools(); 
-    closeAdversaryModal(); 
-}
-
-/**
- * --- NEW: Player Library ---
- * Adds a player from the SRD to the Player Pool.
- */
-function addPlayerFromLibrary(name) {
-    const playerData = PREMADE_PLAYERS.find(p => p.name === name);
-    if (!playerData) return;
-    const isDuplicate = playerPool.some(p => p.name === playerData.name);
-    if (isDuplicate) {
-        logToScreen(`--- ERROR --- \n'${playerData.name}' is already in the Player Pool.`);
-        return;
-    }
-    const newPlayer = JSON.parse(JSON.stringify(playerData));
-    newPlayer.simId = `player-${Date.now()}`;
-    playerPool.push(newPlayer);
-    logToScreen(`Added ${newPlayer.name} from Library to Player Pool.`);
-    renderPools(); 
-    closePlayerModal(); 
+    closeSRDModal(); 
 }
 
 // --- PARSING & INSTANTIATION FUNCTIONS ---
@@ -615,16 +497,10 @@ async function runSimulation() {
         
         determineNextSpotlight(lastOutcome, gameState);
         
-        // --- ADDED: Check for combat over *after* turn pass ---
-        if (isCombatOver(gameState)) {
-            break;
-        }
-
         await new Promise(resolve => setTimeout(resolve, 50)); 
         simulationSteps++;
     }
 
-    // --- MOVED: Log completion *after* the loop ---
     logToScreen('\n======================================');
     logToScreen('SIMULATION COMPLETE');
     logToScreen('======================================');
@@ -640,46 +516,17 @@ async function runSimulation() {
 }
 
 /**
- * --- NEW HELPER for v3.8 ---
- * Finds the index of the next living PC to take a turn.
- */
-function findNextLivingPC(gameState) {
-    const { players, lastPlayerSpotlight } = gameState;
-    let nextIndex = (lastPlayerSpotlight + 1) % players.length;
-
-    // Loop up to a full party cycle to find a living PC
-    for (let i = 0; i < players.length; i++) {
-        if (players[nextIndex].current_hp > 0) {
-            return nextIndex; // Found a living PC
-        }
-        // If not, check the *next* PC
-        nextIndex = (nextIndex + 1) % players.length;
-    }
-    
-    return -1; // No players are left alive
-}
-
-
-/**
- * --- UPDATED: GM AI v3.8 (Infinite Loop Fix) ---
- * This function now correctly skips downed PCs.
+ * --- UPDATED: GM AI v3.4 ---
+ * This function now correctly implements the Daggerheart Spotlight rules,
+ * including FAILURE_WITH_HOPE.
  */
 function determineNextSpotlight(lastOutcome, gameState) {
     logToScreen(`  Control Flow: Last outcome was [${lastOutcome}]`);
     
-    // Check for combat end *before* passing turns
-    if (isCombatOver(gameState)) {
-        logToScreen(`  --- Combat is Over ---`);
-        return; // Don't pass the turn if the fight is over
-    }
-
-    let nextPCIndex;
-
     switch (lastOutcome) {
         case 'CRITICAL_SUCCESS':
         case 'PC_DOWN':
-            nextPCIndex = findNextLivingPC(gameState);
-            if (nextPCIndex === -1) return; // All players are down
+            const nextPCIndex = (gameState.lastPlayerSpotlight + 1) % gameState.players.length;
             gameState.spotlight = nextPCIndex;
             logToScreen(`  Spotlight passes to PC: ${gameState.players[nextPCIndex].name}`);
             break;
@@ -691,25 +538,23 @@ function determineNextSpotlight(lastOutcome, gameState) {
                 logToScreen(`  GM Fear: ${gameState.fear}`);
                 gameState.spotlight = 'GM';
             } else {
-                nextPCIndex = findNextLivingPC(gameState);
-                if (nextPCIndex === -1) return; // All players are down
+                const nextPCIndex = (gameState.lastPlayerSpotlight + 1) % gameState.players.length;
                 gameState.spotlight = nextPCIndex;
                 logToScreen(`  Spotlight passes to PC: ${gameState.players[nextPCIndex].name}`);
             }
             break;
             
         case 'SUCCESS_WITH_FEAR':
-        case 'FAILURE_WITH_HOPE': 
+        case 'FAILURE_WITH_HOPE': // <-- Corrected logic
         case 'FAILURE_WITH_FEAR':
             gameState.spotlight = 'GM';
             logToScreen(`  Spotlight seized by GM!`);
             break;
             
         case 'GM_TURN_COMPLETE':
-            nextPCIndex = findNextLivingPC(gameState);
-            if (nextPCIndex === -1) return; // All players are down
-            gameState.spotlight = nextPCIndex;
-            logToScreen(`  Spotlight returns to PC: ${gameState.players[nextPCIndex].name}`);
+            const returnPCIndex = (gameState.lastPlayerSpotlight + 1) % gameState.players.length;
+            gameState.spotlight = returnPCIndex;
+            logToScreen(`  Spotlight returns to PC: ${gameState.players[returnPCIndex].name}`);
             break;
         
         case 'COMBAT_OVER':
@@ -772,7 +617,7 @@ function executeGMTurn(gameState) {
     // --- GM's ADDITIONAL ACTIONS ---
     let spotlightedAdversaries = [adversaryToAct.adversary.id]; // Track who has acted this turn
 
-    while (gameState.fear > 0 && !isCombatOver(gameState)) { // Check combat over here too
+    while (gameState.fear > 0) {
         if (Math.random() < 0.5) { // 50% chance to act again
              logToScreen(`  GM decides to spend 1 Fear for an *additional* spotlight...`);
              gameState.fear--;
@@ -877,7 +722,7 @@ function performAdversaryAction(adversary, target, gameState) {
 
 
 /**
- * --- UPDATED: GM AI v3.8 (Passive Handshake Fix) ---
+ * --- UPDATED: GM AI v3.7 (Passive Handshake Fix) ---
  * This is the central executor that reads a `parsed_effect` action
  * and makes it happen in the simulation.
  */
@@ -975,7 +820,7 @@ function executeParsedEffect(action, adversary, target, gameState) {
                 damageTotal = rollDamage(action.damage_string, 1, critBonus);
             }
             
-            // --- FIX V3.8: Check passives *and* action-specific flags ---
+            // --- FIX V3.7: Check passives *and* action-specific flags ---
             const isDirect = action.is_direct || adversary.passives.allAttacksAreDirect || false;
             
             if (damageTotal > 0) {
@@ -1086,14 +931,8 @@ function isCombatOver(gameState) {
     const playersAlive = gameState.players.some(p => p.current_hp > 0);
     const adversariesAlive = gameState.adversaries.some(a => a.current_hp > 0);
     
-    if (!playersAlive) { 
-        logToScreen('--- All players are defeated! ---'); 
-        return true; 
-    }
-    if (!adversariesAlive) { 
-        logToScreen('--- All adversaries are defeated! ---'); 
-        return true; 
-    }
+    if (!playersAlive) { logToScreen('--- All players are defeated! ---'); return true; }
+    if (!adversariesAlive) { logToScreen('--- All adversaries are defeated! ---'); return true; }
     return false;
 }
 
@@ -1124,7 +963,7 @@ function processRollResources(result, gameState, player) {
 }
 
 /**
- * --- UPDATED: GM AI v3.8 (Typo Fix) ---
+ * --- UPDATED: GM AI v3.7 (Typo Fix) ---
  * Applies damage to a target and logs the result.
  */
 function applyDamage(damageTotal, attacker, target, isDirectDamage = false) {
@@ -1135,8 +974,8 @@ function applyDamage(damageTotal, attacker, target, isDirectDamage = false) {
         logToScreen(`    (ERROR: Target ${target.name} has no thresholds defined!)`);
         if (damageTotal > 0) hpToMark = 1; 
     } else {
-         if (target.thresholds.severe && damageTotal >= target.thresholds.severe) hpToMark = 3;
-         else if (target.thresholds.major && damageTotal >= target.thresholds.major) hpToMark = 2;
+         if (damageTotal >= target.thresholds.severe) hpToMark = 3;
+         else if (damageTotal >= target.thresholds.major) hpToMark = 2;
          else if (damageTotal > 0) hpToMark = 1;
     }
 
@@ -1154,7 +993,7 @@ function applyDamage(damageTotal, attacker, target, isDirectDamage = false) {
     
     target.current_hp -= hpToMark;
     
-    // --- TYPO FIX v3.8: originalHSMark -> originalHPMark ---
+    // --- TYPO FIX v3.7: originalHSMark -> originalHPMark ---
     if (originalHPMark > hpToMark) {
         logToScreen(`    Final HP marked: ${hpToMark}.`);
     } else if (originalHPMark > 0) { 
