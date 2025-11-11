@@ -46,10 +46,13 @@ async function loadSRDDatabase() {
         }
         const data = await response.json();
         
-        if (data && data.adversaries && Array.isArray(data.adversaries)) {
-            SRD_ADVERSARIES = data.adversaries;
+        // *** THIS IS THE FIX ***
+        // The code now checks if the data is an array, which matches your .json file 
+        if (Array.isArray(data)) {
+            SRD_ADVERSARIES = data;
         } else {
-            throw new Error("Invalid JSON structure. Expected '{ \"adversaries\": [...] }'");
+            // This was the old, incorrect check
+            throw new Error("Invalid JSON structure. Expected a top-level array '[...]'");
         }
 
         logToScreen(`Successfully loaded ${SRD_ADVERSARIES.length} adversaries from SRD catalog.`);
@@ -1046,6 +1049,6 @@ function logToScreen(message) {
     const logOutput = document.getElementById('log-output');
     if (logOutput) {
         logOutput.textContent += message + '\n';
-        logOutput.scrollTop = logOutput.scrollHeight; 
+        logOutput.scrollTop = log_output.scrollHeight; 
     }
 }
