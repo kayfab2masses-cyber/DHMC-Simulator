@@ -6,6 +6,31 @@ let activeAdversaries = []; // Column 3: Adversaries in the next sim
 let SRD_ADVERSARIES = []; // This will hold our loaded SRD database
 let PREMADE_CHARACTERS = []; // NEW: This will hold our loaded PC database
 
+// --- NEW: BATTLEFIELD & RANGE CONFIGS ---
+// These are the CANONICAL range conversions from the SRD
+const DAGGERHEART_RANGES = {
+    RANGE_MELEE: 1,
+    RANGE_VERY_CLOSE: 3,
+    RANGE_CLOSE: 6,      // Standard "free move" distance
+    RANGE_FAR: 12        // "Full Action Move" distance
+};
+
+// These are the user-selectable map sizes
+const MAP_CONFIGS = {
+    small: { MAX_X: 15, MAX_Y: 15 },
+    medium: { MAX_X: 20, MAX_Y: 20 },
+    large: { MAX_X: 30, MAX_Y: 30 } // Our default
+};
+
+// This will hold the settings for the *current* simulation
+// TODO: We'll add a dropdown later to change this. For now, default to large.
+let CURRENT_BATTLEFIELD = {
+    ...DAGGERHEART_RANGES,
+    ...MAP_CONFIGS.large 
+};
+// --- END OF NEW CONFIGS ---
+
+
 // --- EVENT LISTENERS ---
 document.addEventListener('DOMContentLoaded', () => {
     // Column 1 Buttons
@@ -453,7 +478,13 @@ function instantiatePlayerAgent(data) {
         features: data.features,
         domainCards: data.domainCards,
         experiences: data.experiences,
-        conditions: []
+        conditions: [],
+        // --- NEW: POSITION & SPEED ---
+        position: {
+            x: Math.floor(Math.random() * 3) + 1, // Start within 3 squares of the "player" edge
+            y: Math.floor(Math.random() * CURRENT_BATTLEFIELD.MAX_Y) + 1 
+        },
+        speed: DAGGERHEART_RANGES.RANGE_CLOSE // speed = 6
     };
     return agent;
 }
@@ -476,7 +507,14 @@ function instantiateAdversaryAgent(data) {
             modifier: attackBonus
         },
         conditions: [],
-        passives: {}
+        passives: {},
+        // --- NEW: POSITION & SPEED ---
+        position: {
+            // Start on the *other* side of the map
+            x: CURRENT_BATTLEFIELD.MAX_X - Math.floor(Math.random() * 3),
+            y: Math.floor(Math.random() * CURRENT_BATTLEFIELD.MAX_Y) + 1
+        },
+        speed: DAGGERHEART_RANGES.RANGE_CLOSE // speed = 6
     };
     applyPassiveFeatures(agent);
     return agent;
@@ -561,12 +599,12 @@ async function runSimulation() {
     logToScreen(`Simulation Initialized. Hope: ${gameState.hope}, Fear: ${gameState.fear}`);
     logToScreen('Instantiated Player Agents:');
     playerAgents.forEach(agent => {
-        logToScreen(`- ${agent.name} (HP: ${agent.max_hp}, Stress: ${agent.max_stress}, Evasion: ${agent.evasion})`);
+        logToScreen(`- ${agent.name} (HP: ${agent.max_hp}, Stress: ${agent.max_stress}, Evasion: ${agent.evasion}) at Pos: (${agent.position.x}, ${agent.position.y})`);
     });
     logToScreen('Instantiated Adversary Agents:');
     adversaryAgents.forEach(agent => {
         const mod = agent.attack?.modifier;
-        logToScreen(`- ${agent.name} (HP: ${agent.max_hp}, Stress: ${agent.max_stress}, Diff: ${agent.difficulty}, Atk Mod: ${mod})`);
+        logToScreen(`- ${agent.name} (HP: ${agent.max_hp}, Stress: ${agent.max_stress}, Diff: ${agent.difficulty}, Atk Mod: ${mod}) at Pos: (${agent.position.x}, ${agent.position.y})`);
     });
 
     logToScreen('--- COMBAT BEGINS ---');
@@ -684,8 +722,15 @@ function executePCTurn(player, gameState) {
     // As you correctly pointed out, 'Restrained' only stops movement, not actions.
     // We will add logic here to handle conditions correctly.
     
+    // CURRENT "DUMB" BRAIN: Find lowest HP target.
+    // We will upgrade this in Step 2 to find *closest* target.
     const target = targets.reduce((prev, curr) => (prev.current_hp < curr.current_hp) ? prev : curr);
     logToScreen(`> ${player.name}'s turn (attacking ${target.name})...`);
+    
+    // TODO: This is where we will add the Step 2 logic:
+    // 1. Check if (isTargetInRange(player, target, player.primary_weapon.range))
+    // 2. If NO, call moveAgentTowards(player, target) and return 'SUCCESS_WITH_HOPE'.
+    // 3. If YES, proceed with the attack below.
     
     const traitName = player.primary_weapon.trait.toLowerCase();
     const traitMod = player.traits[traitName];
@@ -713,6 +758,7 @@ function executePCTurn(player, gameState) {
 function executeGMTurn(gameState) {
     logToScreen(`> GM SPOTLIGHT:`);
     
+    // This targeting will be upgraded in Step 2 to find *closest* PC.
     let adversaryToAct = getAdversaryToAct(gameState);
     if (adversaryToAct) {
         performAdversaryAction(adversaryToAct.adversary, adversaryToAct.target, gameState);
@@ -748,6 +794,9 @@ function executeGMTurn(gameState) {
 function getAdversaryToAct(gameState, actedThisTurn = []) {
     const livingPlayers = gameState.players.filter(p => p.current_hp > 0);
     if (livingPlayers.length === 0) return null; 
+
+    // CURRENT "DUMB" BRAIN: Find lowest HP player.
+    // We will upgrade this in Step 2 to find *closest* living player.
     const target = livingPlayers.reduce((prev, curr) => (prev.current_hp < curr.current_hp) ? prev : curr);
 
     let livingAdversaries = gameState.adversaries.filter(a => a.current_hp > 0);
@@ -768,9 +817,28 @@ function getAdversaryToAct(gameState, actedThisTurn = []) {
 function performAdversaryAction(adversary, target, gameState) {
     logToScreen(` Spotlight is on: ${adversary.name} (targeting ${target.name})`);
 
-    const affordableActions = adversary.features.filter(f => {
-        if (f.type !== 'action' || !f.parsed_effect) return false;
+    // --- (AI Brain v1.5 - "Smart but Blind") ---
+    // 1. Find all "action" features this adversary has.
+    const allActions = adversary.features.filter(f => f.type === 'action' && f.parsed_effect);
+
+    // 2. Find all *affordable* actions.
+    const affordableActions = allActions.filter(f => {
+        // Check for a cost
+        if (f.cost) {
+            if (f.cost.type === 'stress' && (adversary.current_stress + f.cost.value > adversary.max_stress)) {
+                return false; // Can't afford Stress
+            }
+            if (f.cost.type === 'fear' && (gameState.fear < f.cost.value)) {
+                return false; // Can't afford Fear
+            }
+        }
         
+        // TODO: This is where we will add the Step 2 logic:
+        // 1. Get range from f.parsed_effect.actions[0].range (e.g., "Melee", "Far")
+        // 2. Check if (isTargetInRange(adversary, target, range))
+        // 3. If NO, return false.
+
+        // Check for other conditions (e.g., target must be 'Vulnerable')
         if (f.parsed_effect.actions && f.parsed_effect.actions[0] && f.parsed_effect.actions[0].details) {
             const details = f.parsed_effect.actions[0].details;
             if (details.target_condition && !target.conditions.includes(details.target_condition)) {
@@ -778,18 +846,17 @@ function performAdversaryAction(adversary, target, gameState) {
                 return false; 
             }
         }
-
-        if (!f.cost) return true; 
-        if (f.cost.type === 'stress' && (adversary.current_stress + f.cost.value <= adversary.max_stress)) return true;
-        if (f.cost.type === 'fear' && (gameState.fear >= f.cost.value)) return true; 
-        return false;
+        return true; // This action is affordable
     });
 
+    // 3. Decide what to do.
     let chosenAction = null;
     if (affordableActions.length > 0) {
+        // Pick one of the smart features at random
         chosenAction = affordableActions[Math.floor(Math.random() * affordableActions.length)];
     }
 
+    // 4. EXECUTE THE CHOSEN ACTION
     if (chosenAction) {
         logToScreen(` Using Feature: ${chosenAction.name}!`);
         if (chosenAction.cost) {
@@ -806,6 +873,11 @@ function performAdversaryAction(adversary, target, gameState) {
             executeParsedEffect(action, adversary, target, gameState);
         }
     } else {
+        // 5. FALLBACK: If no feature was chosen, do a basic attack.
+        // TODO: This is where we will add the Step 2 logic:
+        // 1. Check if (isTargetInRange(adversary, target, adversary.attack.range))
+        // 2. If NO, call moveAgentTowards(adversary, target).
+        // 3. If YES, call executeGMBasicAttack.
         logToScreen(` (No affordable features found. Defaulting to basic attack.)`);
         executeGMBasicAttack(adversary, target);
     }
@@ -815,6 +887,8 @@ function executeParsedEffect(action, adversary, target, gameState) {
     let primaryTarget = target; 
     let targets = [target]; 
 
+    // TODO: This targeting logic needs to be upgraded with Step 2.
+    // It should check isTargetInRange for ALL_IN_RANGE.
     if (action.target === "ALL_IN_RANGE") {
         targets = gameState.players.filter(p => p.current_hp > 0); 
         logToScreen(` Action targets ALL living players!`);
@@ -1148,6 +1222,99 @@ function parseDiceString(damageString = "1d4") {
     
     return { numDice, dieType, modifier, maxDie: dieType };
 }
+
+// --- NEW: MOVEMENT & RANGE HELPER FUNCTIONS ---
+
+/**
+ * Calculates the "Manhattan distance" (grid distance) between two agents.
+ * @param {object} agentA - The first agent with a .position {x, y}
+ * @param {object} agentB - The second agent with a .position {x, y}
+ * @returns {number} The distance in squares.
+ */
+function getAgentDistance(agentA, agentB) {
+    // Failsafe in case agents haven't been updated (e.g., old JSON)
+    if (!agentA.position || !agentB.position) return 0;
+
+    const dx = Math.abs(agentA.position.x - agentB.position.x);
+    const dy = Math.abs(agentA.position.y - agentB.position.y);
+    return dx + dy;
+}
+
+/**
+ * Checks if a target is within a specified canonical range.
+ * @param {object} attacker - The agent initiating the action.
+ * @param {object} target - The agent being targeted.
+ * @param {string} weaponRangeName - The name of the range (e.g., "Melee", "Close", "Far").
+ * @returns {boolean} True if the target is in range, false otherwise.
+ */
+function isTargetInRange(attacker, target, weaponRangeName) {
+    const distance = getAgentDistance(attacker, target);
+    // Handle potential null/undefined or whitespace issues
+    const range = (weaponRangeName || 'Melee').trim().toLowerCase();
+
+    switch (range) {
+        case 'melee':
+            return distance <= CURRENT_BATTLEFIELD.RANGE_MELEE; // 1
+        case 'very close':
+            return distance <= CURRENT_BATTLEFIELD.RANGE_VERY_CLOSE; // 3
+        case 'close':
+            return distance <= CURRENT_BATTLEFIELD.RANGE_CLOSE; // 6
+        case 'far':
+            return distance <= CURRENT_BATTLEFIELD.RANGE_FAR; // 12
+        default:
+            logToScreen(`(Warning: Unknown range name '${weaponRangeName}')`);
+            return false;
+    }
+}
+
+/**
+ * Moves an agent towards a target, up to their speed.
+ * This is a "greedy" algorithm, closing X distance first, then Y.
+ * @param {object} agent - The agent to move (will be modified).
+ * @param {object} target - The agent to move towards.
+ */
+function moveAgentTowards(agent, target) {
+    let newX = agent.position.x;
+    let newY = agent.position.y;
+    let moved = false;
+    let moveBudget = agent.speed; // e.g., 6 squares
+
+    // Try to move on X axis first
+    if (agent.position.x < target.position.x) {
+        // How far can we move vs how far do we need to?
+        let dist = Math.min(moveBudget, target.position.x - agent.position.x);
+        newX = agent.position.x + dist;
+        moveBudget -= dist;
+        moved = true;
+    } else if (agent.position.x > target.position.x) {
+        let dist = Math.min(moveBudget, agent.position.x - target.position.x);
+        newX = agent.position.x - dist;
+        moveBudget -= dist;
+        moved = true;
+    }
+
+    // Use remaining budget on Y axis
+    if (moveBudget > 0 && agent.position.y < target.position.y) {
+        let dist = Math.min(moveBudget, target.position.y - agent.position.y);
+        newY = agent.position.y + dist;
+        moved = true;
+    } else if (moveBudget > 0 && agent.position.y > target.position.y) {
+        let dist = Math.min(moveBudget, agent.position.y - target.position.y);
+        newY = agent.position.y - dist;
+        moved = true;
+    }
+
+    // Clamp the position to the battlefield boundaries (1-based index)
+    agent.position.x = Math.max(1, Math.min(Math.round(newX), CURRENT_BATTLEFIELD.MAX_X));
+    agent.position.y = Math.max(1, Math.min(Math.round(newY), CURRENT_BATTLEFIELD.MAX_Y));
+
+    if (moved) {
+        logToScreen(` -> ${agent.name} moves to (${agent.position.x}, ${agent.position.y})`);
+    }
+}
+
+// --- END OF NEW HELPER FUNCTIONS ---
+
 
 function logToScreen(message) {
     const logOutput = document.getElementById('log-output');
