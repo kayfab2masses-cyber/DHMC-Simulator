@@ -6,7 +6,7 @@ let activeAdversaries = []; // Column 3: Adversaries in the next sim
 let SRD_ADVERSARIES = []; // This will hold our loaded SRD database
 let PREMADE_CHARACTERS = []; // NEW: This will hold our loaded PC database
 
-// --- NEW: BATTLEFIELD & RANGE CONFIGS ---
+// --- BATTLEFIELD & RANGE CONFIGS ---
 // These are the CANONICAL range conversions from the SRD
 const DAGGERHEART_RANGES = {
     RANGE_MELEE: 1,
@@ -105,16 +105,11 @@ async function loadPCDatabase() {
         }
         const data = await response.json(); // 'data' is now the object { "players": [...] }
         
-        // --- THIS IS THE FIX ---
-        // Instead of checking if 'data' is an array,
-        // we check if 'data.players' is an array.
         if (data && Array.isArray(data.players)) {
             PREMADE_CHARACTERS = data.players; // We assign the 'players' array, not the whole object
         } else {
-            // I've made the error message more specific in case this happens again
             throw new Error("Invalid JSON structure. Expected an object with a top-level 'players' array.");
         }
-        // --- END OF FIX ---
 
         logToScreen(`Successfully loaded ${PREMADE_CHARACTERS.length} PCs from catalog.`);
         renderPCModalList(); // Render them into the new modal
@@ -479,7 +474,6 @@ function instantiatePlayerAgent(data) {
         domainCards: data.domainCards,
         experiences: data.experiences,
         conditions: [],
-        // --- NEW: POSITION & SPEED ---
         position: {
             x: Math.floor(Math.random() * 3) + 1, // Start within 3 squares of the "player" edge
             y: Math.floor(Math.random() * CURRENT_BATTLEFIELD.MAX_Y) + 1 
@@ -508,9 +502,7 @@ function instantiateAdversaryAgent(data) {
         },
         conditions: [],
         passives: {},
-        // --- NEW: POSITION & SPEED ---
         position: {
-            // Start on the *other* side of the map
             x: CURRENT_BATTLEFIELD.MAX_X - Math.floor(Math.random() * 3),
             y: Math.floor(Math.random() * CURRENT_BATTLEFIELD.MAX_Y) + 1
         },
@@ -714,51 +706,68 @@ function determineNextSpotlight(lastOutcome, gameState) {
     }
 }
 
+// --- *** STEP 2 MODIFICATION *** ---
+// This function is now upgraded to be "location-aware".
 function executePCTurn(player, gameState) {
     let targets = gameState.adversaries.filter(a => a.current_hp > 0);
     if (targets.length === 0) return 'COMBAT_OVER';
     
-    // TODO: This is where we will check for conditions like 'Restrained'.
-    // As you correctly pointed out, 'Restrained' only stops movement, not actions.
-    // We will add logic here to handle conditions correctly.
-    
-    // CURRENT "DUMB" BRAIN: Find lowest HP target.
-    // We will upgrade this in Step 2 to find *closest* target.
-    const target = targets.reduce((prev, curr) => (prev.current_hp < curr.current_hp) ? prev : curr);
-    logToScreen(`> ${player.name}'s turn (attacking ${target.name})...`);
-    
-    // TODO: This is where we will add the Step 2 logic:
-    // 1. Check if (isTargetInRange(player, target, player.primary_weapon.range))
-    // 2. If NO, call moveAgentTowards(player, target) and return 'SUCCESS_WITH_HOPE'.
-    // 3. If YES, proceed with the attack below.
-    
-    const traitName = player.primary_weapon.trait.toLowerCase();
-    const traitMod = player.traits[traitName];
-    
-    const result = executeActionRoll(target.difficulty, traitMod, 0);
-    logToScreen(` Roll: ${traitName} (${traitMod}) | Total ${result.total} vs Diff ${target.difficulty} (${result.outcome})`);
-    processRollResources(result, gameState, player);
-    
-    if (result.outcome === 'CRITICAL_SUCCESS' || result.outcome === 'SUCCESS_WITH_HOPE' || result.outcome === 'SUCCESS_WITH_FEAR') {
-        let damageString = player.primary_weapon?.damage || "1d4";
-        let proficiency = player.proficiency;
-        let critBonus = 0; 
+    // --- (AI Decision Step 1: Find a Target) ---
+    // (Simple brain: find the closest, living adversary)
+    const target = targets.sort((a, b) => {
+        let distA = getAgentDistance(player, a);
+        let distB = getAgentDistance(player, b);
+        return distA - distB;
+    })[0];
+
+    logToScreen(`> ${player.name}'s turn (targeting ${target.name} at (${target.position.x}, ${target.position.y}))...`);
+
+    // --- (AI Decision Step 2: Check Range) ---
+    const weaponRange = player.primary_weapon.range;
+    if (isTargetInRange(player, target, weaponRange)) {
+        // --- (AI Decision Step 3: ATTACK) ---
+        logToScreen(` -> ${target.name} is in ${weaponRange} range. Attacking!`);
         
-        if (result.outcome === 'CRITICAL_SUCCESS') {
-            logToScreen(' CRITICAL HIT!');
-            critBonus = parseDiceString(damageString).maxDie; 
+        const traitName = player.primary_weapon.trait.toLowerCase();
+        const traitMod = player.traits[traitName];
+        
+        const result = executeActionRoll(target.difficulty, traitMod, 0);
+        logToScreen(` Roll: ${traitName} (${traitMod}) | Total ${result.total} vs Diff ${target.difficulty} (${result.outcome})`);
+        processRollResources(result, gameState, player);
+        
+        if (result.outcome === 'CRITICAL_SUCCESS' || result.outcome === 'SUCCESS_WITH_HOPE' || result.outcome === 'SUCCESS_WITH_FEAR') {
+            let damageString = player.primary_weapon?.damage || "1d4";
+            let proficiency = player.proficiency;
+            let critBonus = 0; 
+            
+            if (result.outcome === 'CRITICAL_SUCCESS') {
+                logToScreen(' CRITICAL HIT!');
+                critBonus = parseDiceString(damageString).maxDie; 
+            }
+            const damageTotal = rollDamage(damageString, proficiency, critBonus); 
+            applyDamage(damageTotal, player, target, false); 
         }
-        const damageTotal = rollDamage(damageString, proficiency, critBonus); 
-        applyDamage(damageTotal, player, target, false); 
+        return result.outcome;
+    } else {
+        // --- (AI Decision Step 3: MOVE) ---
+        // We are out of range. Move closer.
+        logToScreen(` -> ${target.name} is out of ${weaponRange} range.`);
+        moveAgentTowards(player, target);
+        // Per canonical rules, a "move" is bundled with an "action."
+        // Since our "dumb" PC brain is only attacking, we'll assume the *intent* was to attack,
+        // but they had to move first. We'll roll an Agility check for the "move only" action.
+        // TODO: This will be replaced in Step 4 with a real decision tree.
+        logToScreen(` -> Making Agility roll to move...`);
+        const result = executeActionRoll(10, player.traits.agility || 0, 0); // DC 10 (Average) Agility roll
+        logToScreen(` Roll: agility (0) | Total ${result.total} vs Diff 10 (${result.outcome})`);
+        processRollResources(result, gameState, player);
+        return result.outcome;
     }
-    
-    return result.outcome; 
 }
 
 function executeGMTurn(gameState) {
     logToScreen(`> GM SPOTLIGHT:`);
     
-    // This targeting will be upgraded in Step 2 to find *closest* PC.
     let adversaryToAct = getAdversaryToAct(gameState);
     if (adversaryToAct) {
         performAdversaryAction(adversaryToAct.adversary, adversaryToAct.target, gameState);
@@ -791,13 +800,11 @@ function executeGMTurn(gameState) {
     return 'GM_TURN_COMPLETE'; 
 }
 
+// --- *** STEP 2 MODIFICATION *** ---
+// This function is now upgraded to find the *closest* living player.
 function getAdversaryToAct(gameState, actedThisTurn = []) {
     const livingPlayers = gameState.players.filter(p => p.current_hp > 0);
     if (livingPlayers.length === 0) return null; 
-
-    // CURRENT "DUMB" BRAIN: Find lowest HP player.
-    // We will upgrade this in Step 2 to find *closest* living player.
-    const target = livingPlayers.reduce((prev, curr) => (prev.current_hp < curr.current_hp) ? prev : curr);
 
     let livingAdversaries = gameState.adversaries.filter(a => a.current_hp > 0);
     if (livingAdversaries.length === 0) return null; 
@@ -811,18 +818,29 @@ function getAdversaryToAct(gameState, actedThisTurn = []) {
         logToScreen(` (All adversaries have acted, picking one at random to act again...)`);
         adversary = livingAdversaries[Math.floor(Math.random() * livingAdversaries.length)];
     }
+
+    // --- (AI Brain: Find a Target) ---
+    // Find the *closest* living player to this adversary
+    const target = livingPlayers.sort((a, b) => {
+        let distA = getAgentDistance(adversary, a);
+        let distB = getAgentDistance(adversary, b);
+        return distA - distB;
+    })[0];
+
     return { adversary, target };
 }
 
+// --- *** STEP 2 MODIFICATION *** ---
+// This function is now upgraded to be "location-aware".
 function performAdversaryAction(adversary, target, gameState) {
-    logToScreen(` Spotlight is on: ${adversary.name} (targeting ${target.name})`);
+    logToScreen(` Spotlight is on: ${adversary.name} (targeting ${target.name} at (${target.position.x}, ${target.position.y}))...`);
 
-    // --- (AI Brain v1.5 - "Smart but Blind") ---
+    // --- (AI Brain v1.6 - "Smart AND Sighted") ---
     // 1. Find all "action" features this adversary has.
     const allActions = adversary.features.filter(f => f.type === 'action' && f.parsed_effect);
 
-    // 2. Find all *affordable* actions.
-    const affordableActions = allActions.filter(f => {
+    // 2. Find all *affordable* and *in-range* actions.
+    const affordableAndInRangeActions = allActions.filter(f => {
         // Check for a cost
         if (f.cost) {
             if (f.cost.type === 'stress' && (adversary.current_stress + f.cost.value > adversary.max_stress)) {
@@ -833,10 +851,19 @@ function performAdversaryAction(adversary, target, gameState) {
             }
         }
         
-        // TODO: This is where we will add the Step 2 logic:
-        // 1. Get range from f.parsed_effect.actions[0].range (e.g., "Melee", "Far")
-        // 2. Check if (isTargetInRange(adversary, target, range))
-        // 3. If NO, return false.
+        // --- NEW RANGE CHECK ---
+        // Get range from the feature's *first* effect.
+        // This is a heuristic - we assume the first effect defines the range.
+        const firstEffect = f.parsed_effect.actions[0];
+        const range = firstEffect.range || 'Melee'; // Default to Melee if not specified
+
+        if (range === "Self") return true; // Actions on "Self" are always in range.
+
+        if (!isTargetInRange(adversary, target, range)) {
+            logToScreen(` (Skipping ${f.name}: Target is out of ${range} range.)`);
+            return false; // Target is not in range for this feature
+        }
+        // --- END NEW RANGE CHECK ---
 
         // Check for other conditions (e.g., target must be 'Vulnerable')
         if (f.parsed_effect.actions && f.parsed_effect.actions[0] && f.parsed_effect.actions[0].details) {
@@ -846,19 +873,19 @@ function performAdversaryAction(adversary, target, gameState) {
                 return false; 
             }
         }
-        return true; // This action is affordable
+        return true; // This action is affordable and in range
     });
 
     // 3. Decide what to do.
     let chosenAction = null;
-    if (affordableActions.length > 0) {
+    if (affordableAndInRangeActions.length > 0) {
         // Pick one of the smart features at random
-        chosenAction = affordableActions[Math.floor(Math.random() * affordableActions.length)];
+        chosenAction = affordableAndInRangeActions[Math.floor(Math.random() * affordableAndInRangeActions.length)];
     }
 
     // 4. EXECUTE THE CHOSEN ACTION
     if (chosenAction) {
-        logToScreen(` Using Feature: ${chosenAction.name}!`);
+        logToScreen(` -> Using Feature: ${chosenAction.name}!`);
         if (chosenAction.cost) {
             if (chosenAction.cost.type === 'stress') {
                 adversary.current_stress += chosenAction.cost.value;
@@ -873,13 +900,18 @@ function performAdversaryAction(adversary, target, gameState) {
             executeParsedEffect(action, adversary, target, gameState);
         }
     } else {
-        // 5. FALLBACK: If no feature was chosen, do a basic attack.
-        // TODO: This is where we will add the Step 2 logic:
-        // 1. Check if (isTargetInRange(adversary, target, adversary.attack.range))
-        // 2. If NO, call moveAgentTowards(adversary, target).
-        // 3. If YES, call executeGMBasicAttack.
-        logToScreen(` (No affordable features found. Defaulting to basic attack.)`);
-        executeGMBasicAttack(adversary, target);
+        // 5. FALLBACK: If no feature was chosen, try a basic attack or move.
+        const weaponRange = adversary.attack.range || 'Melee';
+        if (isTargetInRange(adversary, target, weaponRange)) {
+            // --- (AI Decision: ATTACK) ---
+            logToScreen(` -> No features available. Target is in ${weaponRange} range. Defaulting to basic attack.`);
+            executeGMBasicAttack(adversary, target);
+        } else {
+            // --- (AI Decision: MOVE) ---
+            logToScreen(` -> No features available. Target is out of ${weaponRange} range.`);
+            moveAgentTowards(adversary, target);
+            // Adversary "move" is bundled with their action, so this ends their spotlight turn.
+        }
     }
 }
 
@@ -887,14 +919,13 @@ function executeParsedEffect(action, adversary, target, gameState) {
     let primaryTarget = target; 
     let targets = [target]; 
 
-    // TODO: This targeting logic needs to be upgraded with Step 2.
-    // It should check isTargetInRange for ALL_IN_RANGE.
-    if (action.target === "ALL_IN_RANGE") {
-        targets = gameState.players.filter(p => p.current_hp > 0); 
-        logToScreen(` Action targets ALL living players!`);
-    } else if (action.target === "ALL_IN_RANGE_FRONT") {
-        targets = gameState.players.filter(p => p.current_hp > 0); 
-        logToScreen(` Action targets ALL living players in FRONT!`);
+    // --- NEW: Upgraded Targeting ---
+    // Re-check targetting for this specific action
+    if (action.target === "ALL_IN_RANGE" || action.target === "ALL_IN_RANGE_FRONT") {
+        // Find all players within this action's specific range
+        const actionRange = action.range || 'Very Close'; // Default to "Very Close" if not specified
+        targets = gameState.players.filter(p => p.current_hp > 0 && isTargetInRange(adversary, p, actionRange));
+        logToScreen(` -> Action targets ${targets.length} players in ${actionRange} range!`);
     }
 
     switch (action.action_type) {
@@ -1006,6 +1037,11 @@ function executeParsedEffect(action, adversary, target, gameState) {
             } else {
                 applyCondition(primaryTarget, action.condition);
             }
+            break;
+            
+        case 'MOVE': // --- NEW: Handle MOVE action type from parsed effects
+            logToScreen(` -> ${adversary.name} is moving as part of an action...`);
+            moveAgentTowards(adversary, primaryTarget);
             break;
 
         case 'FORCE_MARK_ARMOR_SLOT':
@@ -1223,7 +1259,7 @@ function parseDiceString(damageString = "1d4") {
     return { numDice, dieType, modifier, maxDie: dieType };
 }
 
-// --- NEW: MOVEMENT & RANGE HELPER FUNCTIONS ---
+// --- MOVEMENT & RANGE HELPER FUNCTIONS ---
 
 /**
  * Calculates the "Manhattan distance" (grid distance) between two agents.
@@ -1232,7 +1268,6 @@ function parseDiceString(damageString = "1d4") {
  * @returns {number} The distance in squares.
  */
 function getAgentDistance(agentA, agentB) {
-    // Failsafe in case agents haven't been updated (e.g., old JSON)
     if (!agentA.position || !agentB.position) return 0;
 
     const dx = Math.abs(agentA.position.x - agentB.position.x);
@@ -1249,10 +1284,11 @@ function getAgentDistance(agentA, agentB) {
  */
 function isTargetInRange(attacker, target, weaponRangeName) {
     const distance = getAgentDistance(attacker, target);
-    // Handle potential null/undefined or whitespace issues
     const range = (weaponRangeName || 'Melee').trim().toLowerCase();
 
     switch (range) {
+        case 'self': // Added "Self" for abilities that target the caster
+            return true;
         case 'melee':
             return distance <= CURRENT_BATTLEFIELD.RANGE_MELEE; // 1
         case 'very close':
@@ -1269,7 +1305,6 @@ function isTargetInRange(attacker, target, weaponRangeName) {
 
 /**
  * Moves an agent towards a target, up to their speed.
- * This is a "greedy" algorithm, closing X distance first, then Y.
  * @param {object} agent - The agent to move (will be modified).
  * @param {object} target - The agent to move towards.
  */
@@ -1281,7 +1316,6 @@ function moveAgentTowards(agent, target) {
 
     // Try to move on X axis first
     if (agent.position.x < target.position.x) {
-        // How far can we move vs how far do we need to?
         let dist = Math.min(moveBudget, target.position.x - agent.position.x);
         newX = agent.position.x + dist;
         moveBudget -= dist;
@@ -1313,7 +1347,7 @@ function moveAgentTowards(agent, target) {
     }
 }
 
-// --- END OF NEW HELPER FUNCTIONS ---
+// --- END OF HELPER FUNCTIONS ---
 
 
 function logToScreen(message) {
