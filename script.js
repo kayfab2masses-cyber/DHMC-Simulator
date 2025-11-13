@@ -33,12 +33,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('add-character-button').addEventListener('click', addCharacterToPool);
     document.getElementById('add-adversary-button').addEventListener('click', addAdversaryToPool);
 
-    // --- MODIFIED: Event Listeners for 1, 5, and 10 sims ---
+    // Main Run Button
     document.getElementById('run-button').addEventListener('click', () => runMultipleSimulations(1));
-    document.getElementById('run-multiple-button').addEventListener('click', () => runMultipleSimulations(5)); // Was 3
-    document.getElementById('run-ten-button').addEventListener('click', () => runMultipleSimulations(10)); // NEW
+    document.getElementById('run-multiple-button').addEventListener('click', () => runMultipleSimulations(5));
+    document.getElementById('run-ten-button').addEventListener('click', () => runMultipleSimulations(10));
     document.getElementById('export-log-button').addEventListener('click', exportLog);
-    // --- END MODIFICATION ---
 
     // Column 2 & 3 Buttons
     document.getElementById('pool-column').addEventListener('click', handlePoolClick);
@@ -452,7 +451,6 @@ function instantiatePlayerAgent(data) {
     if (data.advancementsTaken && data.advancementsTaken.add_stress) {
         max_stress += data.advancementsTaken.add_stress;
     }
-    // Specific check for Guardian's "At Ease"
     if (data.class.name === "Guardian" && data.subclass.foundation_feature.name.includes("At Ease")) {
         max_stress += 1;
     }
@@ -654,10 +652,15 @@ async function runSimulation() {
         
         determineNextSpotlight(lastOutcome, gameState);
         
+        // --- *** MODIFIED: "BLAST VS. VIZ" CHECK *** ---
         if (isVisualizing) {
             renderBattlemap(gameState);
-            await new Promise(resolve => setTimeout(resolve, 100)); 
+            await new Promise(resolve => setTimeout(resolve, 100)); // The "dance" pause
+        } else {
+            // "Breathe" to prevent freezing on mass simulations
+            await new Promise(resolve => setTimeout(resolve, 0)); // Yield to main thread
         }
+        // --- END MODIFICATION ---
 
         if (isCombatOver(gameState)) {
             break;
@@ -750,7 +753,7 @@ function determineNextSpotlight(lastOutcome, gameState) {
     }
 }
 
-// --- *** MODIFIED: This is the v1.5 PC Brain. We will upgrade this next. *** ---
+// --- *** This is the v1.5 PC Brain. We will upgrade this next. *** ---
 function executePCTurn(player, gameState) {
     // TODO: This is where the v2.0 "Smart Brain" will go.
     // For now, it's just the v1.5 "Dumb Bot with Legs"
@@ -1164,7 +1167,6 @@ function applyDamage(damageTotal, attacker, target, isDirectDamage = false, game
     if (gameState && target.type === 'player') { // Only check reactions if gameState exists and target is a player
         const interceptingPlayer = checkForPCReactions(damageTotal, attacker, target, isDirectDamage, gameState);
         if (interceptingPlayer) {
-            logToScreen(` -> ${interceptingPlayer.name} intercepts the attack on ${target.name}!`);
             finalTarget = interceptingPlayer; // The damage is redirected!
             isIntercepted = true;
         }
@@ -1177,13 +1179,17 @@ function applyDamage(damageTotal, attacker, target, isDirectDamage = false, game
         logToScreen(` (ERROR: Target ${finalTarget.name} has no thresholds defined!)`);
         if (damageTotal > 0) hpToMark = 1; 
     } else {
-        if (finalTarget.thresholds.severe && damageTotal >= finalTarget.thresholds.severe) hpToMark = 3;
-        else if (finalTarget.thresholds.major && damageTotal >= finalTarget.thresholds.major) hpToMark = 2;
+        // Handle adversaries who might not have major/severe (like Minions)
+        const severe = finalTarget.thresholds.severe || 999;
+        const major = finalTarget.thresholds.major || 998;
+        
+        if (damageTotal >= severe) hpToMark = 3;
+        else if (damageTotal >= major) hpToMark = 2;
         else if (damageTotal > 0) hpToMark = 1;
     }
     
     let originalHPMark = hpToMark;
-    logToScreen(` Damage: ${damageTotal} (dealt by ${attacker.name}) vs ${finalTarget.name}'s Thresholds (${finalTarget.thresholds.major}/${finalTarget.thresholds.severe})`);
+    logToScreen(` Damage: ${damageTotal} (dealt by ${attacker.name}) vs ${finalTarget.name}'s Thresholds (${finalTarget.thresholds.major || 'N/A'}/${finalTarget.thresholds.severe || 'N/A'})`);
     logToScreen(` Calculated Severity: ${originalHPMark} HP`);
     
     // Guardian "I Am Your Shield" special rule: "you can mark any number of Armor Slots."
@@ -1220,6 +1226,10 @@ function applyDamage(damageTotal, attacker, target, isDirectDamage = false, game
 }
 
 // --- *** NEW: PC REACTION LISTENER *** ---
+/**
+ * Checks if any player wants to use a reaction to the incoming damage.
+ * @returns {object|null} The player agent who is intercepting, or null if no one reacts.
+ */
 function checkForPCReactions(damageTotal, attacker, target, isDirectDamage, gameState) {
     // Loop through all players to see if anyone wants to react
     for (const potentialProtector of gameState.players) {
