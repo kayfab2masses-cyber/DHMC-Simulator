@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('pc-catalog-list').addEventListener('click', handlePCListClick);
 
-    // --- NEW: VISUALIZER TOGGLE ---
+    // --- VISUALIZER TOGGLE ---
     document.getElementById('visualize-checkbox').addEventListener('change', (e) => {
         const logContainer = document.getElementById('log-container');
         const mapContainer = document.getElementById('visualizer-container');
@@ -76,7 +76,6 @@ document.addEventListener('DOMContentLoaded', () => {
             mapContainer.classList.add('hidden');
         }
     });
-    // --- END VISUALIZER TOGGLE ---
 
     loadSRDDatabase();
     loadPCDatabase();
@@ -541,13 +540,13 @@ function applyPassiveFeatures(agent) {
 // --- SPOTLIGHT SIMULATION ENGINE ---
 async function runMultipleSimulations(count) {
     logToScreen(`\n===== STARTING BATCH OF ${count} SIMULATION(S) =====`);
+    const isVisualizing = document.getElementById('visualize-checkbox').checked;
+    
     for (let i = 1; i <= count; i++) {
         logToScreen(`\n--- SIMULATION ${i} OF ${count} ---`);
         await runSimulation();
-        // Only pause between sims if visualizing, otherwise go max speed
-        const isVisualizing = document.getElementById('visualize-checkbox').checked;
-        if (isVisualizing) {
-            await new Promise(resolve => setTimeout(resolve, 500)); // Longer pause between sims
+        if (isVisualizing && count > 1) {
+            await new Promise(resolve => setTimeout(resolve, 500)); // Pause between sims if visualizing
         }
     }
     logToScreen(`\n===== BATCH COMPLETE =====`);
@@ -567,24 +566,20 @@ function exportLog() {
     logToScreen(`\n--- Log exported! ---`);
 }
 
-// --- *** MODIFIED: Reads visualizer settings *** ---
 async function runSimulation() {
     logToScreen('======================================');
     logToScreen('INITIALIZING NEW SIMULATION...');
     logToScreen('======================================');
 
-    // --- READ MAP & VISUALIZER SETTINGS ---
     const mapSize = document.getElementById('map-size-select').value;
     const isVisualizing = document.getElementById('visualize-checkbox').checked;
     
-    // Set the global config for this sim run
     CURRENT_BATTLEFIELD = {
         ...DAGGERHEART_RANGES,
         ...MAP_CONFIGS[mapSize] 
     };
 
     if (isVisualizing) {
-        // Set up the grid dimensions in the CSS
         const grid = document.getElementById('battlemap-grid');
         grid.style.gridTemplateColumns = `repeat(${CURRENT_BATTLEFIELD.MAX_X}, 1fr)`;
         grid.style.gridTemplateRows = `repeat(${CURRENT_BATTLEFIELD.MAX_Y}, 1fr)`;
@@ -592,7 +587,6 @@ async function runSimulation() {
     } else {
         logToScreen(`Simulating on ${mapSize} map (${CURRENT_BATTLEFIELD.MAX_X}x${CURRENT_BATTLEFIELD.MAX_Y}) (Visuals disabled)...`);
     }
-    // --- END SETTINGS ---
 
     if (activeParty.length === 0) { 
         logToScreen('--- ERROR --- \nAdd a player to the Active Scene.'); 
@@ -657,11 +651,9 @@ async function runSimulation() {
         
         determineNextSpotlight(lastOutcome, gameState);
         
-        // --- "BLAST VS. VIZ" CHECK ---
         if (isVisualizing) {
             renderBattlemap(gameState);
-            // This pause is what lets us see the "dance"
-            await new Promise(resolve => setTimeout(resolve, 100)); 
+            await new Promise(resolve => setTimeout(resolve, 100)); // The "dance" pause
         }
 
         if (isCombatOver(gameState)) {
@@ -755,7 +747,6 @@ function determineNextSpotlight(lastOutcome, gameState) {
     }
 }
 
-// --- *** MODIFIED: Passes gameState to moveAgentTowards *** ---
 function executePCTurn(player, gameState) {
     let targets = gameState.adversaries.filter(a => a.current_hp > 0);
     if (targets.length === 0) return 'COMBAT_OVER';
@@ -789,7 +780,7 @@ function executePCTurn(player, gameState) {
                 critBonus = parseDiceString(damageString).maxDie; 
             }
             const damageTotal = rollDamage(damageString, proficiency, critBonus); 
-            applyDamage(damageTotal, player, target, false); 
+            applyDamage(damageTotal, player, target, false, gameState); // Pass gameState
         }
         return result.outcome;
     } else {
@@ -865,7 +856,6 @@ function getAdversaryToAct(gameState, actedThisTurn = []) {
     return { adversary, target };
 }
 
-// --- *** MODIFIED: Passes gameState to moveAgentTowards *** ---
 function performAdversaryAction(adversary, target, gameState) {
     logToScreen(` Spotlight is on: ${adversary.name} (targeting ${target.name} at (${target.position.x}, ${target.position.y}))...`);
 
@@ -924,7 +914,7 @@ function performAdversaryAction(adversary, target, gameState) {
         const weaponRange = adversary.attack.range || 'Melee';
         if (isTargetInRange(adversary, target, weaponRange)) {
             logToScreen(` -> No features available. Target is in ${weaponRange} range. Defaulting to basic attack.`);
-            executeGMBasicAttack(adversary, target);
+            executeGMBasicAttack(adversary, target, gameState); // Pass gameState
         } else {
             logToScreen(` -> No features available. Target is out of ${weaponRange} range.`);
             moveAgentTowards(adversary, target, gameState); // Pass gameState
@@ -932,7 +922,6 @@ function performAdversaryAction(adversary, target, gameState) {
     }
 }
 
-// --- *** MODIFIED: Passes gameState to moveAgentTowards *** ---
 function executeParsedEffect(action, adversary, target, gameState) {
     let primaryTarget = target; 
     let targets = [target]; 
@@ -1025,7 +1014,7 @@ function executeParsedEffect(action, adversary, target, gameState) {
             
             if (damageTotal > 0) {
                 logToScreen(` Dealing ${damageTotal} ${isDirect ? 'DIRECT' : ''} damage!`);
-                applyDamage(damageTotal, adversary, primaryTarget, isDirect);
+                applyDamage(damageTotal, adversary, primaryTarget, isDirect, gameState); // Pass gameState
             } else {
                 logToScreen(` Damage roll was 0, no damage dealt.`);
             }
@@ -1090,7 +1079,7 @@ function applyCondition(target, condition) {
     }
 }
 
-function executeGMBasicAttack(adversary, target) {
+function executeGMBasicAttack(adversary, target, gameState) {
     const roll = rollD20();
     const modifier = adversary.attack.modifier || 0;
     const totalAttack = roll + modifier; 
@@ -1110,7 +1099,7 @@ function executeGMBasicAttack(adversary, target) {
         
         const isDirect = adversary.passives.allAttacksAreDirect || false;
         
-        applyDamage(damageTotal, adversary, target, isDirect);
+        applyDamage(damageTotal, adversary, target, isDirect, gameState); // Pass gameState
     } else {
         logToScreen(' MISS!');
     }
@@ -1158,31 +1147,46 @@ function processRollResources(result, gameState, player) {
     }
 }
 
-function applyDamage(damageTotal, attacker, target, isDirectDamage = false) {
+// --- *** NEW: This function is now the "listener" broadcaster *** ---
+function applyDamage(damageTotal, attacker, target, isDirectDamage = false, gameState) {
+    
+    let finalTarget = target;
+
+    // --- PC REACTION LISTENER ---
+    // Check if any player wants to react to this damage event
+    if (gameState) { // gameState is only passed in during combat
+        const interceptingPlayer = checkForPCReactions(damageTotal, attacker, target, isDirectDamage, gameState);
+        if (interceptingPlayer) {
+            logToScreen(` -> ${interceptingPlayer.name} intercepts the attack!`);
+            finalTarget = interceptingPlayer; // The damage is redirected!
+        }
+    }
+    // --- END LISTENER ---
+
     let hpToMark = 0;
     
-    if (!target.thresholds) {
-        logToScreen(` (ERROR: Target ${target.name} has no thresholds defined!)`);
+    if (!finalTarget.thresholds) {
+        logToScreen(` (ERROR: Target ${finalTarget.name} has no thresholds defined!)`);
         if (damageTotal > 0) hpToMark = 1; 
     } else {
-        if (target.thresholds.severe && damageTotal >= target.thresholds.severe) hpToMark = 3;
-        else if (target.thresholds.major && damageTotal >= target.thresholds.major) hpToMark = 2;
+        if (finalTarget.thresholds.severe && damageTotal >= finalTarget.thresholds.severe) hpToMark = 3;
+        else if (finalTarget.thresholds.major && damageTotal >= finalTarget.thresholds.major) hpToMark = 2;
         else if (damageTotal > 0) hpToMark = 1;
     }
     
     let originalHPMark = hpToMark;
-    logToScreen(` Damage: ${damageTotal} (dealt by ${attacker.name}) vs Thresholds (${target.thresholds.major}/${target.thresholds.severe})`);
+    logToScreen(` Damage: ${damageTotal} (dealt by ${attacker.name}) vs Thresholds (${finalTarget.thresholds.major}/${finalTarget.thresholds.severe})`);
     logToScreen(` Calculated Severity: ${originalHPMark} HP`);
     
-    if (target.type === 'player' && target.current_armor_slots > 0 && hpToMark > 0 && !isDirectDamage) {
-        target.current_armor_slots--;
+    if (finalTarget.type === 'player' && finalTarget.current_armor_slots > 0 && hpToMark > 0 && !isDirectDamage) {
+        finalTarget.current_armor_slots--;
         hpToMark--;
-        logToScreen(` ${target.name} marks 1 Armor Slot! (Slots left: ${target.current_armor_slots})`);
-    } else if (isDirectDamage && target.type === 'player') {
+        logToScreen(` ${finalTarget.name} marks 1 Armor Slot! (Slots left: ${finalTarget.current_armor_slots})`);
+    } else if (isDirectDamage && finalTarget.type === 'player') {
         logToScreen(` This is DIRECT damage and cannot be mitigated by armor!`);
     }
 
-    target.current_hp -= hpToMark;
+    finalTarget.current_hp -= hpToMark;
     
     if (originalHPMark > hpToMark) {
         logToScreen(` Final HP marked: ${hpToMark}.`);
@@ -1190,12 +1194,51 @@ function applyDamage(damageTotal, attacker, target, isDirectDamage = false) {
         logToScreen(` Final HP marked: ${hpToMark}.`);
     }
     
-    logToScreen(` ${target.name} HP: ${target.current_hp} / ${target.max_hp}`);
+    logToScreen(` ${finalTarget.name} HP: ${finalTarget.current_hp} / ${finalTarget.max_hp}`);
     
-    if (target.current_hp <= 0) {
-        logToScreen(` *** ${target.name} has been defeated! ***`);
+    if (finalTarget.current_hp <= 0) {
+        logToScreen(` *** ${finalTarget.name} has been defeated! ***`);
     }
 }
+
+// --- *** NEW: PC REACTION LISTENER *** ---
+/**
+ * Checks if any player wants to use a reaction to the incoming damage.
+ * @returns {object|null} The player agent who is intercepting, or null if no one reacts.
+ */
+function checkForPCReactions(damageTotal, attacker, target, isDirectDamage, gameState) {
+    if (target.type !== 'player') {
+        return null; // Can only protect other players
+    }
+
+    for (const potentialProtector of gameState.players) {
+        // Skip if protector is down, or is the one being attacked
+        if (potentialProtector.current_hp <= 0 || potentialProtector.id === target.id) {
+            continue;
+        }
+
+        // --- AI Check for "I Am Your Shield" ---
+        const shieldCard = potentialProtector.domainCards.find(c => c.name === "I Am Your Shield");
+        if (shieldCard) {
+            // Check cost (1 Stress)
+            if (potentialProtector.current_stress < potentialProtector.max_stress) {
+                // Check range (Very Close)
+                if (isTargetInRange(potentialProtector, target, "Very Close")) {
+                    // AI DECISION: For now, the Guardian will *always* protect.
+                    // TODO: Upgrade this to only protect if the ally is in danger?
+                    logToScreen(` -> ${potentialProtector.name} sees ${target.name} about to be hit...`);
+                    logToScreen(` -> ${potentialProtector.name} uses "I Am Your Shield"!`);
+                    potentialProtector.current_stress += 1; // Mark 1 Stress
+                    logToScreen(` -> ${potentialProtector.name} marks 1 Stress (Total: ${potentialProtector.current_stress})`);
+                    return potentialProtector; // Return the new target!
+                }
+            }
+        }
+    }
+
+    return null; // No one reacted
+}
+
 
 // --- CORE DICE & PARSING UTILITIES ---
 function rollD20() { return Math.floor(Math.random() * 20) + 1; }
@@ -1276,25 +1319,17 @@ function parseDiceString(damageString = "1d4") {
 
 // --- MOVEMENT & RANGE HELPER FUNCTIONS ---
 
-/**
- * NEW: Helper function to check if a cell is occupied.
- * @param {number} x - The x-coordinate to check.
- * @param {number} y - The y-coordinate to check.
- * @param {object} gameState - The entire game state.
- * @param {string} selfId - The ID of the agent moving, to avoid self-collision.
- * @returns {boolean} True if the cell is occupied by another living agent.
- */
 function isCellOccupied(x, y, gameState, selfId) {
     const allAgents = [...gameState.players, ...gameState.adversaries];
     for (const agent of allAgents) {
         if (agent.id === selfId || agent.current_hp <= 0) {
-            continue; // Skip self and defeated agents
+            continue; 
         }
         if (agent.position.x === x && agent.position.y === y) {
-            return true; // Cell is occupied
+            return true; 
         }
     }
-    return false; // Cell is free
+    return false;
 }
 
 function getAgentDistance(agentA, agentB) {
@@ -1325,29 +1360,24 @@ function isTargetInRange(attacker, target, weaponRangeName) {
     }
 }
 
-/**
- * --- *** NEW: Rewritten moveAgentTowards to handle collisions *** ---
- * Moves an agent towards a target one square at a time, up to their speed.
- * @param {object} agent - The agent to move (will be modified).
- * @param {object} target - The agent to move towards.
- * @param {object} gameState - The entire game state, for collision checking.
- */
+// --- *** REWRITTEN moveAgentTowards with collision avoidance *** ---
 function moveAgentTowards(agent, target, gameState) {
-    let budget = agent.speed; // e.g., 6 squares
+    let budget = agent.speed;
     let currentX = agent.position.x;
     let currentY = agent.position.y;
-    let originalX = agent.position.x;
-    let originalY = agent.position.y;
+    let moved = false;
 
     while (budget > 0) {
         let movedThisStep = false;
         const dx = target.position.x - currentX;
         const dy = target.position.y - currentY;
 
-        // Stop if we've reached the target
-        if (dx === 0 && dy === 0) break;
+        // Stop if we've reached the target or are 1 square away (melee)
+        if (getAgentDistance({position: {x: currentX, y: currentY}}, target) <= 1) {
+            break;
+        }
 
-        // Prioritize moving along the axis with the greater distance
+        // Try to move on the axis with the greater distance
         if (Math.abs(dx) > Math.abs(dy)) {
             let nextX = currentX + Math.sign(dx);
             if (!isCellOccupied(nextX, currentY, gameState, agent.id)) {
@@ -1362,15 +1392,15 @@ function moveAgentTowards(agent, target, gameState) {
             }
         }
 
-        // If the preferred direction was blocked, try the other direction
+        // If preferred direction was blocked, try the other axis
         if (!movedThisStep) {
-            if (Math.abs(dx) > Math.abs(dy)) { // Preferred X was blocked, try Y
+            if (Math.abs(dx) > Math.abs(dy)) { // Preferred X blocked, try Y
                 let nextY = currentY + Math.sign(dy);
                 if (dy !== 0 && !isCellOccupied(currentX, nextY, gameState, agent.id)) {
                     currentY = nextY;
                     movedThisStep = true;
                 }
-            } else { // Preferred Y was blocked, try X
+            } else { // Preferred Y blocked, try X
                 let nextX = currentX + Math.sign(dx);
                 if (dx !== 0 && !isCellOccupied(nextX, currentY, gameState, agent.id)) {
                     currentX = nextX;
@@ -1379,17 +1409,17 @@ function moveAgentTowards(agent, target, gameState) {
             }
         }
 
-        // If we're blocked in both directions, we're stuck
+        // If blocked in both directions, stop trying
         if (!movedThisStep) {
             logToScreen(` -> ${agent.name} is blocked and cannot move further.`);
             break;
         }
 
         budget--;
+        moved = true;
     }
 
-    // Only update and log if the position has actually changed
-    if (agent.position.x !== currentX || agent.position.y !== currentY) {
+    if (moved) {
         agent.position.x = currentX;
         agent.position.y = currentY;
         logToScreen(` -> ${agent.name} moves to (${currentX}, ${currentY})`);
@@ -1406,21 +1436,20 @@ function logToScreen(message) {
     }
 }
 
-// --- *** NEW: VISUALIZER RENDER FUNCTION *** ---
+// --- VISUALIZER RENDER FUNCTION ---
 function renderBattlemap(gameState) {
     const map = document.getElementById('battlemap-grid');
     if (!map) return; 
     
     map.innerHTML = ''; // Clear the map
 
-    // --- NEW: Render the grid cells ---
+    // Render the grid cells
     const totalCells = CURRENT_BATTLEFIELD.MAX_X * CURRENT_BATTLEFIELD.MAX_Y;
     let gridHtml = '';
     for (let i = 0; i < totalCells; i++) {
         gridHtml += '<div class="empty-cell"></div>';
     }
     map.innerHTML = gridHtml;
-    // --- END NEW ---
 
     // Render players
     for (const player of gameState.players) {
