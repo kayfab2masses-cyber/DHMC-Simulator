@@ -12,15 +12,14 @@ body {
 header {
     border-bottom: 2px solid #444;
     padding-bottom: 10px;
-    /* NEW: Flex layout for title and controls */
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
 
 header h1 {
-    margin: 0; /* Remove default margin */
-    text-align: left; /* Align title left */
+    margin: 0; 
+    text-align: left;
 }
 
 /* --- Main 3-Column Layout --- */
@@ -201,7 +200,6 @@ textarea {
     border: 1px solid #444;
     border-radius: 5px;
     padding: 15px;
-    /* NEW: Removed margin-top */
 }
 
 .log-header {
@@ -340,7 +338,7 @@ pre {
 }
 
 
-/* --- START: NEW STYLES FOR VISUALIZER --- */
+/* --- START: VISUALIZER STYLES --- */
 
 /* Header Controls */
 .sim-controls {
@@ -361,15 +359,7 @@ pre {
     gap: 5px;
 }
 
-.sim-controls select {
-    background-color: #333;
-    color: #e0e0e0;
-    border: 1px solid #555;
-    border-radius: 4px;
-    padding: 5px;
-}
-
-/* New 50/50 Output Layout */
+/* 50/50 Output Layout */
 .output-area {
     display: flex;
     gap: 20px;
@@ -377,13 +367,19 @@ pre {
 }
 
 .log-container {
-    flex: 1; /* Take up 1 part of the flex space */
-    min-width: 400px; /* Ensure log doesn't get too small */
-    margin-top: 0; /* Handled by output-area */
+    flex: 1; 
+    min-width: 400px; 
+    margin-top: 0;
+    transition: flex-basis 0.3s ease; /* Smooth transition */
+}
+
+/* This class makes the log take 100% width when map is hidden */
+.log-container.full-width {
+    flex-basis: 100%;
 }
 
 .visualizer-container {
-    flex: 1; /* Take up 1 part of the flex space */
+    flex: 1; 
     background-color: #252525;
     border: 1px solid #444;
     border-radius: 5px;
@@ -392,21 +388,56 @@ pre {
     flex-direction: column;
 }
 
-.visualizer-container h3 {
-    margin-top: 0;
+/* This hides the map */
+.visualizer-container.hidden {
+    display: none;
+}
+
+.visualizer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     border-bottom: 1px solid #555;
     padding-bottom: 10px;
-    text-align: center;
+    margin-bottom: 10px;
 }
+
+.visualizer-header h3 {
+    margin: 0;
+}
+
+.map-controls label {
+    font-weight: 600;
+    color: #ccc;
+    margin-right: 5px;
+}
+
+.map-controls select {
+    background-color: #333;
+    color: #e0e0e0;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 5px;
+}
+
 
 #battlemap-grid {
     display: grid;
-    /* JS will set grid-template-columns/rows */
     background-color: #1e1e1e;
     border: 2px solid #555;
     width: 100%;
-    aspect-ratio: 1 / 1; /* Keep it perfectly square */
-    max-height: 624px; /* Match max-height of log <pre> + headers */
+    aspect-ratio: 1 / 1;
+    max-height: 624px; 
+}
+
+/* NEW: This style makes the grid visible */
+.empty-cell {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    border-right: 1px solid #333;
+    border-bottom: 1px solid #333;
+    z-index: 1;
 }
 
 /* Token Styles */
@@ -414,19 +445,17 @@ pre {
     width: 100%;
     height: 100%;
     border-radius: 50%;
-    box-sizing: border-box; /* Fixes border issues */
+    box-sizing: border-box; 
+    z-index: 10; /* Make sure tokens are on top of grid cells */
 }
 
 .player-token {
     background-color: #007acc;
     border: 2px solid #fff;
-    z-index: 10;
 }
 
 .adversary-token {
     background-color: #a40000;
     border: 2px solid #fff;
-    z-index: 10;
 }
-
 /* --- END: NEW STYLES --- */

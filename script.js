@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('srd-type-filter').addEventListener('change', renderSRDAdversaries);
     document.getElementById('srd-adversary-list').addEventListener('click', handleSRDListClick);
 
-    // NEW: PC Modal Listeners
+    // PC Modal Listeners
     document.getElementById('open-pc-modal').addEventListener('click', openPCModal);
     document.getElementById('close-pc-modal').addEventListener('click', closePCModal);
     document.getElementById('pc-modal-overlay').addEventListener('click', (e) => {
@@ -62,8 +62,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('pc-catalog-list').addEventListener('click', handlePCListClick);
 
+    // --- NEW: VISUALIZER TOGGLE ---
+    document.getElementById('visualize-checkbox').addEventListener('change', (e) => {
+        const logContainer = document.getElementById('log-container');
+        const mapContainer = document.getElementById('visualizer-container');
+        if (e.target.checked) {
+            // Show Map, make log 50%
+            logContainer.classList.remove('full-width');
+            mapContainer.classList.remove('hidden');
+        } else {
+            // Hide Map, make log 100%
+            logContainer.classList.add('full-width');
+            mapContainer.classList.add('hidden');
+        }
+    });
+    // --- END VISUALIZER TOGGLE ---
+
     loadSRDDatabase();
-    loadPCDatabase(); // NEW: Load the PC database
+    loadPCDatabase();
     renderPools();
     renderActiveScene();
 });
@@ -467,10 +483,10 @@ function instantiatePlayerAgent(data) {
         experiences: data.experiences,
         conditions: [],
         position: {
-            x: Math.floor(Math.random() * 3) + 1, // Start within 3 squares of the "player" edge
+            x: Math.floor(Math.random() * 3) + 1, 
             y: Math.floor(Math.random() * CURRENT_BATTLEFIELD.MAX_Y) + 1 
         },
-        speed: DAGGERHEART_RANGES.RANGE_CLOSE // speed = 6
+        speed: DAGGERHEART_RANGES.RANGE_CLOSE 
     };
     return agent;
 }
@@ -498,7 +514,7 @@ function instantiateAdversaryAgent(data) {
             x: CURRENT_BATTLEFIELD.MAX_X - Math.floor(Math.random() * 3),
             y: Math.floor(Math.random() * CURRENT_BATTLEFIELD.MAX_Y) + 1
         },
-        speed: DAGGERHEART_RANGES.RANGE_CLOSE // speed = 6
+        speed: DAGGERHEART_RANGES.RANGE_CLOSE 
     };
     applyPassiveFeatures(agent);
     return agent;
@@ -528,7 +544,11 @@ async function runMultipleSimulations(count) {
     for (let i = 1; i <= count; i++) {
         logToScreen(`\n--- SIMULATION ${i} OF ${count} ---`);
         await runSimulation();
-        await new Promise(resolve => setTimeout(resolve, 100)); // Short delay between sims
+        // Only pause between sims if visualizing, otherwise go max speed
+        const isVisualizing = document.getElementById('visualize-checkbox').checked;
+        if (isVisualizing) {
+            await new Promise(resolve => setTimeout(resolve, 500)); // Longer pause between sims
+        }
     }
     logToScreen(`\n===== BATCH COMPLETE =====`);
 }
@@ -547,15 +567,15 @@ function exportLog() {
     logToScreen(`\n--- Log exported! ---`);
 }
 
-// --- *** STEP 3 MODIFICATION *** ---
-// This function is now upgraded to read the map settings and render the visualizer.
+// --- *** MODIFIED: Reads visualizer settings *** ---
 async function runSimulation() {
     logToScreen('======================================');
     logToScreen('INITIALIZING NEW SIMULATION...');
     logToScreen('======================================');
 
-    // --- NEW: READ MAP & VISUALIZER SETTINGS ---
+    // --- READ MAP & VISUALIZER SETTINGS ---
     const mapSize = document.getElementById('map-size-select').value;
+    const isVisualizing = document.getElementById('visualize-checkbox').checked;
     
     // Set the global config for this sim run
     CURRENT_BATTLEFIELD = {
@@ -563,13 +583,16 @@ async function runSimulation() {
         ...MAP_CONFIGS[mapSize] 
     };
 
-    // Set up the grid dimensions in the CSS
-    const grid = document.getElementById('battlemap-grid');
-    grid.style.gridTemplateColumns = `repeat(${CURRENT_BATTLEFIELD.MAX_X}, 1fr)`;
-    grid.style.gridTemplateRows = `repeat(${CURRENT_BATTLEFIELD.MAX_Y}, 1fr)`;
-
-    logToScreen(`Simulating on ${mapSize} map (${CURRENT_BATTLEFIELD.MAX_X}x${CURRENT_BATTLEFIELD.MAX_Y})...`);
-    // --- END NEW SETTINGS ---
+    if (isVisualizing) {
+        // Set up the grid dimensions in the CSS
+        const grid = document.getElementById('battlemap-grid');
+        grid.style.gridTemplateColumns = `repeat(${CURRENT_BATTLEFIELD.MAX_X}, 1fr)`;
+        grid.style.gridTemplateRows = `repeat(${CURRENT_BATTLEFIELD.MAX_Y}, 1fr)`;
+        logToScreen(`Visualizing on ${mapSize} map (${CURRENT_BATTLEFIELD.MAX_X}x${CURRENT_BATTLEFIELD.MAX_Y})...`);
+    } else {
+        logToScreen(`Simulating on ${mapSize} map (${CURRENT_BATTLEFIELD.MAX_X}x${CURRENT_BATTLEFIELD.MAX_Y}) (Visuals disabled)...`);
+    }
+    // --- END SETTINGS ---
 
     if (activeParty.length === 0) { 
         logToScreen('--- ERROR --- \nAdd a player to the Active Scene.'); 
@@ -613,8 +636,9 @@ async function runSimulation() {
     logToScreen('--- COMBAT BEGINS ---');
     logToScreen(`Spotlight starts on: ${gameState.players[0].name}`);
 
-    // --- NEW: Initial Map Render ---
-    renderBattlemap(gameState);
+    if (isVisualizing) {
+        renderBattlemap(gameState);
+    }
 
     let simulationSteps = 0;
     while (!isCombatOver(gameState) && simulationSteps < 50) {
@@ -633,10 +657,12 @@ async function runSimulation() {
         
         determineNextSpotlight(lastOutcome, gameState);
         
-        // --- NEW: "BLAST VS. VIZ" CHECK IS NOW ALWAYS ON ---
-        renderBattlemap(gameState);
-        // This pause is what lets us see the "dance"
-        await new Promise(resolve => setTimeout(resolve, 100)); 
+        // --- "BLAST VS. VIZ" CHECK ---
+        if (isVisualizing) {
+            renderBattlemap(gameState);
+            // This pause is what lets us see the "dance"
+            await new Promise(resolve => setTimeout(resolve, 100)); 
+        }
 
         if (isCombatOver(gameState)) {
             break;
@@ -645,8 +671,9 @@ async function runSimulation() {
         simulationSteps++;
     }
 
-    // Final render to show the end state
-    renderBattlemap(gameState);
+    if (isVisualizing) {
+        renderBattlemap(gameState); // Final render
+    }
 
     logToScreen('\n======================================');
     logToScreen('SIMULATION COMPLETE');
@@ -728,7 +755,7 @@ function determineNextSpotlight(lastOutcome, gameState) {
     }
 }
 
-// This function is the "v1.5 PC Brain"
+// --- *** MODIFIED: Passes gameState to moveAgentTowards *** ---
 function executePCTurn(player, gameState) {
     let targets = gameState.adversaries.filter(a => a.current_hp > 0);
     if (targets.length === 0) return 'COMBAT_OVER';
@@ -767,10 +794,10 @@ function executePCTurn(player, gameState) {
         return result.outcome;
     } else {
         logToScreen(` -> ${target.name} is out of ${weaponRange} range.`);
-        moveAgentTowards(player, target);
+        moveAgentTowards(player, target, gameState); // Pass gameState
         
         logToScreen(` -> Making Agility roll to move...`);
-        const result = executeActionRoll(10, player.traits.agility || 0, 0); // DC 10 (Average) Agility roll
+        const result = executeActionRoll(10, player.traits.agility || 0, 0); 
         logToScreen(` Roll: agility (0) | Total ${result.total} vs Diff 10 (${result.outcome})`);
         processRollResources(result, gameState, player);
         return result.outcome;
@@ -812,7 +839,6 @@ function executeGMTurn(gameState) {
     return 'GM_TURN_COMPLETE'; 
 }
 
-// This function is the "v1.5 GM Brain" (finds closest target)
 function getAdversaryToAct(gameState, actedThisTurn = []) {
     const livingPlayers = gameState.players.filter(p => p.current_hp > 0);
     if (livingPlayers.length === 0) return null; 
@@ -839,7 +865,7 @@ function getAdversaryToAct(gameState, actedThisTurn = []) {
     return { adversary, target };
 }
 
-// This function is the "v1.6 GM Brain (range-aware)
+// --- *** MODIFIED: Passes gameState to moveAgentTowards *** ---
 function performAdversaryAction(adversary, target, gameState) {
     logToScreen(` Spotlight is on: ${adversary.name} (targeting ${target.name} at (${target.position.x}, ${target.position.y}))...`);
 
@@ -901,11 +927,12 @@ function performAdversaryAction(adversary, target, gameState) {
             executeGMBasicAttack(adversary, target);
         } else {
             logToScreen(` -> No features available. Target is out of ${weaponRange} range.`);
-            moveAgentTowards(adversary, target);
+            moveAgentTowards(adversary, target, gameState); // Pass gameState
         }
     }
 }
 
+// --- *** MODIFIED: Passes gameState to moveAgentTowards *** ---
 function executeParsedEffect(action, adversary, target, gameState) {
     let primaryTarget = target; 
     let targets = [target]; 
@@ -1029,7 +1056,7 @@ function executeParsedEffect(action, adversary, target, gameState) {
             
         case 'MOVE':
             logToScreen(` -> ${adversary.name} is moving as part of an action...`);
-            moveAgentTowards(adversary, primaryTarget);
+            moveAgentTowards(adversary, primaryTarget, gameState); // Pass gameState
             break;
 
         case 'FORCE_MARK_ARMOR_SLOT':
@@ -1248,9 +1275,30 @@ function parseDiceString(damageString = "1d4") {
 }
 
 // --- MOVEMENT & RANGE HELPER FUNCTIONS ---
+
+/**
+ * NEW: Helper function to check if a cell is occupied.
+ * @param {number} x - The x-coordinate to check.
+ * @param {number} y - The y-coordinate to check.
+ * @param {object} gameState - The entire game state.
+ * @param {string} selfId - The ID of the agent moving, to avoid self-collision.
+ * @returns {boolean} True if the cell is occupied by another living agent.
+ */
+function isCellOccupied(x, y, gameState, selfId) {
+    const allAgents = [...gameState.players, ...gameState.adversaries];
+    for (const agent of allAgents) {
+        if (agent.id === selfId || agent.current_hp <= 0) {
+            continue; // Skip self and defeated agents
+        }
+        if (agent.position.x === x && agent.position.y === y) {
+            return true; // Cell is occupied
+        }
+    }
+    return false; // Cell is free
+}
+
 function getAgentDistance(agentA, agentB) {
     if (!agentA.position || !agentB.position) return 0;
-
     const dx = Math.abs(agentA.position.x - agentB.position.x);
     const dy = Math.abs(agentA.position.y - agentB.position.y);
     return dx + dy;
@@ -1277,45 +1325,76 @@ function isTargetInRange(attacker, target, weaponRangeName) {
     }
 }
 
-function moveAgentTowards(agent, target) {
-    let newX = agent.position.x;
-    let newY = agent.position.y;
-    let moved = false;
-    let moveBudget = agent.speed; // e.g., 6 squares
+/**
+ * --- *** NEW: Rewritten moveAgentTowards to handle collisions *** ---
+ * Moves an agent towards a target one square at a time, up to their speed.
+ * @param {object} agent - The agent to move (will be modified).
+ * @param {object} target - The agent to move towards.
+ * @param {object} gameState - The entire game state, for collision checking.
+ */
+function moveAgentTowards(agent, target, gameState) {
+    let budget = agent.speed; // e.g., 6 squares
+    let currentX = agent.position.x;
+    let currentY = agent.position.y;
+    let originalX = agent.position.x;
+    let originalY = agent.position.y;
 
-    // Try to move on X axis first
-    if (agent.position.x < target.position.x) {
-        let dist = Math.min(moveBudget, target.position.x - agent.position.x);
-        newX = agent.position.x + dist;
-        moveBudget -= dist;
-        moved = true;
-    } else if (agent.position.x > target.position.x) {
-        let dist = Math.min(moveBudget, agent.position.x - target.position.x);
-        newX = agent.position.x - dist;
-        moveBudget -= dist;
-        moved = true;
+    while (budget > 0) {
+        let movedThisStep = false;
+        const dx = target.position.x - currentX;
+        const dy = target.position.y - currentY;
+
+        // Stop if we've reached the target
+        if (dx === 0 && dy === 0) break;
+
+        // Prioritize moving along the axis with the greater distance
+        if (Math.abs(dx) > Math.abs(dy)) {
+            let nextX = currentX + Math.sign(dx);
+            if (!isCellOccupied(nextX, currentY, gameState, agent.id)) {
+                currentX = nextX;
+                movedThisStep = true;
+            }
+        } else {
+            let nextY = currentY + Math.sign(dy);
+            if (!isCellOccupied(currentX, nextY, gameState, agent.id)) {
+                currentY = nextY;
+                movedThisStep = true;
+            }
+        }
+
+        // If the preferred direction was blocked, try the other direction
+        if (!movedThisStep) {
+            if (Math.abs(dx) > Math.abs(dy)) { // Preferred X was blocked, try Y
+                let nextY = currentY + Math.sign(dy);
+                if (dy !== 0 && !isCellOccupied(currentX, nextY, gameState, agent.id)) {
+                    currentY = nextY;
+                    movedThisStep = true;
+                }
+            } else { // Preferred Y was blocked, try X
+                let nextX = currentX + Math.sign(dx);
+                if (dx !== 0 && !isCellOccupied(nextX, currentY, gameState, agent.id)) {
+                    currentX = nextX;
+                    movedThisStep = true;
+                }
+            }
+        }
+
+        // If we're blocked in both directions, we're stuck
+        if (!movedThisStep) {
+            logToScreen(` -> ${agent.name} is blocked and cannot move further.`);
+            break;
+        }
+
+        budget--;
     }
 
-    // Use remaining budget on Y axis
-    if (moveBudget > 0 && agent.position.y < target.position.y) {
-        let dist = Math.min(moveBudget, target.position.y - agent.position.y);
-        newY = agent.position.y + dist;
-        moved = true;
-    } else if (moveBudget > 0 && agent.position.y > target.position.y) {
-        let dist = Math.min(moveBudget, agent.position.y - target.position.y);
-        newY = agent.position.y - dist;
-        moved = true;
-    }
-
-    // Clamp the position to the battlefield boundaries (1-based index)
-    agent.position.x = Math.max(1, Math.min(Math.round(newX), CURRENT_BATTLEFIELD.MAX_X));
-    agent.position.y = Math.max(1, Math.min(Math.round(newY), CURRENT_BATTLEFIELD.MAX_Y));
-
-    if (moved) {
-        logToScreen(` -> ${agent.name} moves to (${agent.position.x}, ${agent.position.y})`);
+    // Only update and log if the position has actually changed
+    if (agent.position.x !== currentX || agent.position.y !== currentY) {
+        agent.position.x = currentX;
+        agent.position.y = currentY;
+        logToScreen(` -> ${agent.name} moves to (${currentX}, ${currentY})`);
     }
 }
-
 // --- END OF HELPER FUNCTIONS ---
 
 
@@ -1330,19 +1409,27 @@ function logToScreen(message) {
 // --- *** NEW: VISUALIZER RENDER FUNCTION *** ---
 function renderBattlemap(gameState) {
     const map = document.getElementById('battlemap-grid');
-    if (!map) return; // Failsafe
+    if (!map) return; 
     
     map.innerHTML = ''; // Clear the map
 
+    // --- NEW: Render the grid cells ---
+    const totalCells = CURRENT_BATTLEFIELD.MAX_X * CURRENT_BATTLEFIELD.MAX_Y;
+    let gridHtml = '';
+    for (let i = 0; i < totalCells; i++) {
+        gridHtml += '<div class="empty-cell"></div>';
+    }
+    map.innerHTML = gridHtml;
+    // --- END NEW ---
+
     // Render players
     for (const player of gameState.players) {
-        if (player.current_hp <= 0) continue; // Don't draw defeated agents
+        if (player.current_hp <= 0) continue; 
         
         const token = document.createElement('div');
         token.className = 'token player-token';
         token.title = `${player.name} (HP: ${player.current_hp})`;
         
-        // CSS Grid position is 1-based
         token.style.gridColumn = player.position.x;
         token.style.gridRow = player.position.y;
         

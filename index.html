@@ -10,12 +10,10 @@
     <header>
         <h1>Daggerheart Monte Carlo Simulator</h1>
         <div class="sim-controls">
-            <label for="map-size-select">Map Size:</label>
-            <select id="map-size-select">
-                <option value="large">Large (30x30)</option>
-                <option value="medium">Medium (20x20)</option>
-                <option value="small">Small (15x15)</option>
-            </select>
+            <label for="visualize-checkbox">
+                <input type="checkbox" id="visualize-checkbox">
+                Visualize Sim?
+            </label>
         </div>
         </header>
     
@@ -72,7 +70,7 @@
     </div>
 
     <div class="output-area">
-        <div class="log-container" id="log-container">
+        <div class="log-container full-width" id="log-container">
             <div class="log-header">
                 <h3>Simulation Log:</h3>
                 <div class="controls-main">
@@ -84,12 +82,22 @@
             <pre id="log-output"></pre>
         </div>
 
-        <div class="visualizer-container" id="visualizer-container">
-            <h3>Battle Map</h3>
+        <div class="visualizer-container hidden" id="visualizer-container">
+            <div class="visualizer-header">
+                <h3>Battle Map</h3>
+                <div class="map-controls">
+                    <label for="map-size-select">Map Size:</label>
+                    <select id="map-size-select">
+                        <option value="large">Large (30x30)</option>
+                        <option value="medium">Medium (20x20)</option>
+                        <option value="small">Small (15x15)</option>
+                    </select>
+                </div>
+            </div>
             <div id="battlemap-grid">
                 </div>
         </div>
-        </div>
+    </div>
 
     <div id="srd-modal-overlay" class="modal-overlay hidden">
         <div class="modal-content">
