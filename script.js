@@ -6,6 +6,11 @@ let activeAdversaries = []; // Column 3: Adversaries in the next sim
 let SRD_ADVERSARIES = []; // This will hold our loaded SRD database
 let PREMADE_CHARACTERS = []; // NEW: This will hold our loaded PC database
 
+// --- *** NEW: BATCH LOGGING VARIABLE *** ---
+// This variable will be used to "hijack" the logger for "Blast Mode"
+let BATCH_LOG = null; 
+// --- END NEW ---
+
 // --- BATTLEFIELD & RANGE CONFIGS ---
 const DAGGERHEART_RANGES = {
     RANGE_MELEE: 1,
@@ -538,16 +543,27 @@ function applyPassiveFeatures(agent) {
     }
 }
 
-// --- SPOTLIGHT SIMULATION ENGINE ---
+// --- *** MODIFIED: Logic for "Blast Mode" *** ---
 async function runMultipleSimulations(count) {
     logToScreen(`\n===== STARTING BATCH OF ${count} SIMULATION(S) =====`);
     const isVisualizing = document.getElementById('visualize-checkbox').checked;
     
+    // "Blast Mode" is active if we're running a batch (more than 1) AND visuals are off.
+    const isBlastMode = count > 1 && !isVisualizing;
+
     for (let i = 1; i <= count; i++) {
         logToScreen(`\n--- SIMULATION ${i} OF ${count} ---`);
-        await runSimulation();
+        
+        await runSimulation(isBlastMode); // Pass the mode to the simulator
+        
         if (isVisualizing && count > 1) {
+            // If visualizing, pause so the user can see the final map state
             await new Promise(resolve => setTimeout(resolve, 500)); 
+        } else if (isBlastMode) {
+            // If in "Blast Mode", pause for 0ms. This is the "breathe"
+            // that stops the browser from freezing, letting the UI
+            // update with the *entire* log from the sim that just finished.
+            await new Promise(resolve => setTimeout(resolve, 0));
         }
     }
     logToScreen(`\n===== BATCH COMPLETE =====`);
@@ -567,7 +583,13 @@ function exportLog() {
     logToScreen(`\n--- Log exported! ---`);
 }
 
-async function runSimulation() {
+// --- *** MODIFIED: Accepts `isBlastMode` and uses `BATCH_LOG` *** ---
+async function runSimulation(isBlastMode = false) {
+    // 1. Set up the "Blast Mode" logger if needed
+    if (isBlastMode) {
+        BATCH_LOG = []; // Hijack the logger
+    }
+
     logToScreen('======================================');
     logToScreen('INITIALIZING NEW SIMULATION...');
     logToScreen('======================================');
@@ -585,16 +607,18 @@ async function runSimulation() {
         grid.style.gridTemplateColumns = `repeat(${CURRENT_BATTLEFIELD.MAX_X}, 1fr)`;
         grid.style.gridTemplateRows = `repeat(${CURRENT_BATTLEFIELD.MAX_Y}, 1fr)`;
         logToScreen(`Visualizing on ${mapSize} map (${CURRENT_BATTLEFIELD.MAX_X}x${CURRENT_BATTLEFIELD.MAX_Y})...`);
-    } else {
+    } else if (!isBlastMode) { // Only log this if it's a *single* non-visual run
         logToScreen(`Simulating on ${mapSize} map (${CURRENT_BATTLEFIELD.MAX_X}x${CURRENT_BATTLEFIELD.MAX_Y}) (Visuals disabled)...`);
     }
 
     if (activeParty.length === 0) { 
         logToScreen('--- ERROR --- \nAdd a player to the Active Scene.'); 
+        if (isBlastMode) { BATCH_LOG = null; } // Clear hijack on error
         return; 
     }
     if (activeAdversaries.length === 0) { 
         logToScreen('--- ERROR --- \nAdd an adversary to the Active Scene.'); 
+        if (isBlastMode) { BATCH_LOG = null; } // Clear hijack on error
         return; 
     }
 
@@ -605,6 +629,7 @@ async function runSimulation() {
     } catch (e) {
         logToScreen(`--- ERROR --- \nFailed to parse agent JSON. \n${e.message}`);
         console.error("Error during instantiation:", e);
+        if (isBlastMode) { BATCH_LOG = null; } // Clear hijack on error
         return; 
     }
 
@@ -652,14 +677,12 @@ async function runSimulation() {
         
         determineNextSpotlight(lastOutcome, gameState);
         
-        // --- *** MODIFIED: "BLAST VS. VIZ" CHECK *** ---
+        // --- MODIFIED: Removed the "else" pause ---
         if (isVisualizing) {
             renderBattlemap(gameState);
-            await new Promise(resolve => setTimeout(resolve, 100)); // The "dance" pause
-        } else {
-            // "Breathe" to prevent freezing on mass simulations
-            await new Promise(resolve => setTimeout(resolve, 0)); // Yield to main thread
+            await new Promise(resolve => setTimeout(resolve, 100)); 
         }
+        // The "blast" mode speed is now handled by BATCH_LOG
         // --- END MODIFICATION ---
 
         if (isCombatOver(gameState)) {
@@ -685,6 +708,14 @@ async function runSimulation() {
         logToScreen(`- ${a.name}: ${a.current_hp} / ${a.max_hp} HP | ${a.current_stress} / ${a.max_stress} Stress`);
     });
     logToScreen(`Final Resources: ${gameState.hope} Hope, ${gameState.fear} Fear`);
+
+    // 2. Dump the "Blast Mode" log (if it exists)
+    if (isBlastMode && BATCH_LOG !== null) {
+        const logOutput = document.getElementById('log-output');
+        logOutput.textContent += BATCH_LOG.join('\n') + '\n'; // Dump in one operation
+        logOutput.scrollTop = logOutput.scrollHeight;
+        BATCH_LOG = null; // Release the hijack
+    }
 }
 
 
@@ -753,10 +784,8 @@ function determineNextSpotlight(lastOutcome, gameState) {
     }
 }
 
-// --- *** This is the v1.5 PC Brain. We will upgrade this next. *** ---
 function executePCTurn(player, gameState) {
     // TODO: This is where the v2.0 "Smart Brain" will go.
-    // For now, it's just the v1.5 "Dumb Bot with Legs"
     
     let targets = gameState.adversaries.filter(a => a.current_hp > 0);
     if (targets.length === 0) return 'COMBAT_OVER';
@@ -1157,21 +1186,18 @@ function processRollResources(result, gameState, player) {
     }
 }
 
-// --- *** MODIFIED: This function is now the "listener" broadcaster *** ---
 function applyDamage(damageTotal, attacker, target, isDirectDamage = false, gameState) {
     
     let finalTarget = target;
     let isIntercepted = false;
 
-    // --- PC REACTION LISTENER ---
-    if (gameState && target.type === 'player') { // Only check reactions if gameState exists and target is a player
+    if (gameState && target.type === 'player') { 
         const interceptingPlayer = checkForPCReactions(damageTotal, attacker, target, isDirectDamage, gameState);
         if (interceptingPlayer) {
-            finalTarget = interceptingPlayer; // The damage is redirected!
+            finalTarget = interceptingPlayer; 
             isIntercepted = true;
         }
     }
-    // --- END LISTENER ---
 
     let hpToMark = 0;
     
@@ -1179,7 +1205,6 @@ function applyDamage(damageTotal, attacker, target, isDirectDamage = false, game
         logToScreen(` (ERROR: Target ${finalTarget.name} has no thresholds defined!)`);
         if (damageTotal > 0) hpToMark = 1; 
     } else {
-        // Handle adversaries who might not have major/severe (like Minions)
         const severe = finalTarget.thresholds.severe || 999;
         const major = finalTarget.thresholds.major || 998;
         
@@ -1192,7 +1217,6 @@ function applyDamage(damageTotal, attacker, target, isDirectDamage = false, game
     logToScreen(` Damage: ${damageTotal} (dealt by ${attacker.name}) vs ${finalTarget.name}'s Thresholds (${finalTarget.thresholds.major || 'N/A'}/${finalTarget.thresholds.severe || 'N/A'})`);
     logToScreen(` Calculated Severity: ${originalHPMark} HP`);
     
-    // Guardian "I Am Your Shield" special rule: "you can mark any number of Armor Slots."
     if (isIntercepted && finalTarget.class === "Guardian") {
         logToScreen(` -> Guardian "I Am Your Shield" applies!`);
         while (hpToMark > 0 && finalTarget.current_armor_slots > 0) {
@@ -1201,7 +1225,6 @@ function applyDamage(damageTotal, attacker, target, isDirectDamage = false, game
             logToScreen(` ${finalTarget.name} marks 1 Armor Slot! (Slots left: ${finalTarget.current_armor_slots})`);
         }
     } 
-    // Standard armor check
     else if (finalTarget.type === 'player' && finalTarget.current_armor_slots > 0 && hpToMark > 0 && !isDirectDamage) {
         finalTarget.current_armor_slots--;
         hpToMark--;
@@ -1225,37 +1248,25 @@ function applyDamage(damageTotal, attacker, target, isDirectDamage = false, game
     }
 }
 
-// --- *** NEW: PC REACTION LISTENER *** ---
-/**
- * Checks if any player wants to use a reaction to the incoming damage.
- * @returns {object|null} The player agent who is intercepting, or null if no one reacts.
- */
 function checkForPCReactions(damageTotal, attacker, target, isDirectDamage, gameState) {
-    // Loop through all players to see if anyone wants to react
     for (const potentialProtector of gameState.players) {
         if (potentialProtector.current_hp <= 0 || potentialProtector.id === target.id) {
-            continue; // Skip self and defeated agents
+            continue; 
         }
 
-        // --- AI Check for "I Am Your Shield" (Guardian) ---
         if (potentialProtector.class === "Guardian") {
             const shieldCard = potentialProtector.domainCards.find(c => c.name === "I Am Your Shield");
             if (shieldCard) {
-                // Check cost (1 Stress)
                 if (potentialProtector.current_stress < potentialProtector.max_stress) {
-                    // Check range (Very Close)
                     if (isTargetInRange(potentialProtector, target, "Very Close")) {
-                        // AI DECISION: Guardian will *always* protect if they can.
-                        potentialProtector.current_stress += 1; // Mark 1 Stress
+                        potentialProtector.current_stress += 1; 
                         logToScreen(` -> ${potentialProtector.name} uses "I Am Your Shield"!`);
                         logToScreen(` -> ${potentialProtector.name} marks 1 Stress (Total: ${potentialProtector.current_stress})`);
-                        return potentialProtector; // Return the new target!
+                        return potentialProtector; 
                     }
                 }
             }
         }
-        
-        // ... (Future checks for other class reactions can go here) ...
     }
 
     return null; // No one reacted
@@ -1444,8 +1455,15 @@ function moveAgentTowards(agent, target, gameState) {
 }
 // --- END OF HELPER FUNCTIONS ---
 
-
+// --- *** MODIFIED: This function now respects BATCH_LOG *** ---
 function logToScreen(message) {
+    // If BATCH_LOG is active (not null), add to it instead of the DOM
+    if (BATCH_LOG !== null) {
+        BATCH_LOG.push(message);
+        return;
+    }
+
+    // Otherwise, log to the screen as normal
     const logOutput = document.getElementById('log-output');
     if (logOutput) {
         logOutput.textContent += message + '\n';
