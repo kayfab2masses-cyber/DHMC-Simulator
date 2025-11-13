@@ -33,10 +33,12 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('add-character-button').addEventListener('click', addCharacterToPool);
     document.getElementById('add-adversary-button').addEventListener('click', addAdversaryToPool);
 
-    // Main Run Button
+    // --- MODIFIED: Event Listeners for 1, 5, and 10 sims ---
     document.getElementById('run-button').addEventListener('click', () => runMultipleSimulations(1));
-    document.getElementById('run-multiple-button').addEventListener('click', () => runMultipleSimulations(3));
+    document.getElementById('run-multiple-button').addEventListener('click', () => runMultipleSimulations(5)); // Was 3
+    document.getElementById('run-ten-button').addEventListener('click', () => runMultipleSimulations(10)); // NEW
     document.getElementById('export-log-button').addEventListener('click', exportLog);
+    // --- END MODIFICATION ---
 
     // Column 2 & 3 Buttons
     document.getElementById('pool-column').addEventListener('click', handlePoolClick);
@@ -67,11 +69,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const logContainer = document.getElementById('log-container');
         const mapContainer = document.getElementById('visualizer-container');
         if (e.target.checked) {
-            // Show Map, make log 50%
             logContainer.classList.remove('full-width');
             mapContainer.classList.remove('hidden');
         } else {
-            // Hide Map, make log 100%
             logContainer.classList.add('full-width');
             mapContainer.classList.add('hidden');
         }
@@ -452,14 +452,17 @@ function instantiatePlayerAgent(data) {
     if (data.advancementsTaken && data.advancementsTaken.add_stress) {
         max_stress += data.advancementsTaken.add_stress;
     }
-    if (data.subclass.foundation_feature.name.includes("At Ease")) {
+    // Specific check for Guardian's "At Ease"
+    if (data.class.name === "Guardian" && data.subclass.foundation_feature.name.includes("At Ease")) {
         max_stress += 1;
     }
+    
     let current_hope = 2;
     const agent = {
         id: data.simId,
         name: data.name,
         type: 'player',
+        class: data.class.name, // Store class name
         current_hp: max_hp,
         max_hp: max_hp,
         current_stress: 0,
@@ -546,7 +549,7 @@ async function runMultipleSimulations(count) {
         logToScreen(`\n--- SIMULATION ${i} OF ${count} ---`);
         await runSimulation();
         if (isVisualizing && count > 1) {
-            await new Promise(resolve => setTimeout(resolve, 500)); // Pause between sims if visualizing
+            await new Promise(resolve => setTimeout(resolve, 500)); 
         }
     }
     logToScreen(`\n===== BATCH COMPLETE =====`);
@@ -653,7 +656,7 @@ async function runSimulation() {
         
         if (isVisualizing) {
             renderBattlemap(gameState);
-            await new Promise(resolve => setTimeout(resolve, 100)); // The "dance" pause
+            await new Promise(resolve => setTimeout(resolve, 100)); 
         }
 
         if (isCombatOver(gameState)) {
@@ -688,12 +691,12 @@ function findNextLivingPC(gameState) {
     
     for (let i = 0; i < players.length; i++) {
         if (players[nextIndex].current_hp > 0) {
-            return nextIndex; // Found a living PC
+            return nextIndex; 
         }
         nextIndex = (nextIndex + 1) % players.length;
     }
     
-    return -1; // No players are left alive
+    return -1;
 }
 
 function determineNextSpotlight(lastOutcome, gameState) {
@@ -747,7 +750,11 @@ function determineNextSpotlight(lastOutcome, gameState) {
     }
 }
 
+// --- *** MODIFIED: This is the v1.5 PC Brain. We will upgrade this next. *** ---
 function executePCTurn(player, gameState) {
+    // TODO: This is where the v2.0 "Smart Brain" will go.
+    // For now, it's just the v1.5 "Dumb Bot with Legs"
+    
     let targets = gameState.adversaries.filter(a => a.current_hp > 0);
     if (targets.length === 0) return 'COMBAT_OVER';
     
@@ -1147,18 +1154,19 @@ function processRollResources(result, gameState, player) {
     }
 }
 
-// --- *** NEW: This function is now the "listener" broadcaster *** ---
+// --- *** MODIFIED: This function is now the "listener" broadcaster *** ---
 function applyDamage(damageTotal, attacker, target, isDirectDamage = false, gameState) {
     
     let finalTarget = target;
+    let isIntercepted = false;
 
     // --- PC REACTION LISTENER ---
-    // Check if any player wants to react to this damage event
-    if (gameState) { // gameState is only passed in during combat
+    if (gameState && target.type === 'player') { // Only check reactions if gameState exists and target is a player
         const interceptingPlayer = checkForPCReactions(damageTotal, attacker, target, isDirectDamage, gameState);
         if (interceptingPlayer) {
-            logToScreen(` -> ${interceptingPlayer.name} intercepts the attack!`);
+            logToScreen(` -> ${interceptingPlayer.name} intercepts the attack on ${target.name}!`);
             finalTarget = interceptingPlayer; // The damage is redirected!
+            isIntercepted = true;
         }
     }
     // --- END LISTENER ---
@@ -1175,10 +1183,20 @@ function applyDamage(damageTotal, attacker, target, isDirectDamage = false, game
     }
     
     let originalHPMark = hpToMark;
-    logToScreen(` Damage: ${damageTotal} (dealt by ${attacker.name}) vs Thresholds (${finalTarget.thresholds.major}/${finalTarget.thresholds.severe})`);
+    logToScreen(` Damage: ${damageTotal} (dealt by ${attacker.name}) vs ${finalTarget.name}'s Thresholds (${finalTarget.thresholds.major}/${finalTarget.thresholds.severe})`);
     logToScreen(` Calculated Severity: ${originalHPMark} HP`);
     
-    if (finalTarget.type === 'player' && finalTarget.current_armor_slots > 0 && hpToMark > 0 && !isDirectDamage) {
+    // Guardian "I Am Your Shield" special rule: "you can mark any number of Armor Slots."
+    if (isIntercepted && finalTarget.class === "Guardian") {
+        logToScreen(` -> Guardian "I Am Your Shield" applies!`);
+        while (hpToMark > 0 && finalTarget.current_armor_slots > 0) {
+            finalTarget.current_armor_slots--;
+            hpToMark--;
+            logToScreen(` ${finalTarget.name} marks 1 Armor Slot! (Slots left: ${finalTarget.current_armor_slots})`);
+        }
+    } 
+    // Standard armor check
+    else if (finalTarget.type === 'player' && finalTarget.current_armor_slots > 0 && hpToMark > 0 && !isDirectDamage) {
         finalTarget.current_armor_slots--;
         hpToMark--;
         logToScreen(` ${finalTarget.name} marks 1 Armor Slot! (Slots left: ${finalTarget.current_armor_slots})`);
@@ -1202,38 +1220,32 @@ function applyDamage(damageTotal, attacker, target, isDirectDamage = false, game
 }
 
 // --- *** NEW: PC REACTION LISTENER *** ---
-/**
- * Checks if any player wants to use a reaction to the incoming damage.
- * @returns {object|null} The player agent who is intercepting, or null if no one reacts.
- */
 function checkForPCReactions(damageTotal, attacker, target, isDirectDamage, gameState) {
-    if (target.type !== 'player') {
-        return null; // Can only protect other players
-    }
-
+    // Loop through all players to see if anyone wants to react
     for (const potentialProtector of gameState.players) {
-        // Skip if protector is down, or is the one being attacked
         if (potentialProtector.current_hp <= 0 || potentialProtector.id === target.id) {
-            continue;
+            continue; // Skip self and defeated agents
         }
 
-        // --- AI Check for "I Am Your Shield" ---
-        const shieldCard = potentialProtector.domainCards.find(c => c.name === "I Am Your Shield");
-        if (shieldCard) {
-            // Check cost (1 Stress)
-            if (potentialProtector.current_stress < potentialProtector.max_stress) {
-                // Check range (Very Close)
-                if (isTargetInRange(potentialProtector, target, "Very Close")) {
-                    // AI DECISION: For now, the Guardian will *always* protect.
-                    // TODO: Upgrade this to only protect if the ally is in danger?
-                    logToScreen(` -> ${potentialProtector.name} sees ${target.name} about to be hit...`);
-                    logToScreen(` -> ${potentialProtector.name} uses "I Am Your Shield"!`);
-                    potentialProtector.current_stress += 1; // Mark 1 Stress
-                    logToScreen(` -> ${potentialProtector.name} marks 1 Stress (Total: ${potentialProtector.current_stress})`);
-                    return potentialProtector; // Return the new target!
+        // --- AI Check for "I Am Your Shield" (Guardian) ---
+        if (potentialProtector.class === "Guardian") {
+            const shieldCard = potentialProtector.domainCards.find(c => c.name === "I Am Your Shield");
+            if (shieldCard) {
+                // Check cost (1 Stress)
+                if (potentialProtector.current_stress < potentialProtector.max_stress) {
+                    // Check range (Very Close)
+                    if (isTargetInRange(potentialProtector, target, "Very Close")) {
+                        // AI DECISION: Guardian will *always* protect if they can.
+                        potentialProtector.current_stress += 1; // Mark 1 Stress
+                        logToScreen(` -> ${potentialProtector.name} uses "I Am Your Shield"!`);
+                        logToScreen(` -> ${potentialProtector.name} marks 1 Stress (Total: ${potentialProtector.current_stress})`);
+                        return potentialProtector; // Return the new target!
+                    }
                 }
             }
         }
+        
+        // ... (Future checks for other class reactions can go here) ...
     }
 
     return null; // No one reacted
@@ -1360,9 +1372,8 @@ function isTargetInRange(attacker, target, weaponRangeName) {
     }
 }
 
-// --- *** REWRITTEN moveAgentTowards with collision avoidance *** ---
 function moveAgentTowards(agent, target, gameState) {
-    let budget = agent.speed;
+    let budget = agent.speed; 
     let currentX = agent.position.x;
     let currentY = agent.position.y;
     let moved = false;
@@ -1372,12 +1383,10 @@ function moveAgentTowards(agent, target, gameState) {
         const dx = target.position.x - currentX;
         const dy = target.position.y - currentY;
 
-        // Stop if we've reached the target or are 1 square away (melee)
         if (getAgentDistance({position: {x: currentX, y: currentY}}, target) <= 1) {
             break;
         }
 
-        // Try to move on the axis with the greater distance
         if (Math.abs(dx) > Math.abs(dy)) {
             let nextX = currentX + Math.sign(dx);
             if (!isCellOccupied(nextX, currentY, gameState, agent.id)) {
@@ -1392,15 +1401,14 @@ function moveAgentTowards(agent, target, gameState) {
             }
         }
 
-        // If preferred direction was blocked, try the other axis
         if (!movedThisStep) {
-            if (Math.abs(dx) > Math.abs(dy)) { // Preferred X blocked, try Y
+            if (Math.abs(dx) > Math.abs(dy)) { 
                 let nextY = currentY + Math.sign(dy);
                 if (dy !== 0 && !isCellOccupied(currentX, nextY, gameState, agent.id)) {
                     currentY = nextY;
                     movedThisStep = true;
                 }
-            } else { // Preferred Y blocked, try X
+            } else { 
                 let nextX = currentX + Math.sign(dx);
                 if (dx !== 0 && !isCellOccupied(nextX, currentY, gameState, agent.id)) {
                     currentX = nextX;
@@ -1409,7 +1417,6 @@ function moveAgentTowards(agent, target, gameState) {
             }
         }
 
-        // If blocked in both directions, stop trying
         if (!movedThisStep) {
             logToScreen(` -> ${agent.name} is blocked and cannot move further.`);
             break;
@@ -1441,9 +1448,8 @@ function renderBattlemap(gameState) {
     const map = document.getElementById('battlemap-grid');
     if (!map) return; 
     
-    map.innerHTML = ''; // Clear the map
+    map.innerHTML = ''; 
 
-    // Render the grid cells
     const totalCells = CURRENT_BATTLEFIELD.MAX_X * CURRENT_BATTLEFIELD.MAX_Y;
     let gridHtml = '';
     for (let i = 0; i < totalCells; i++) {
