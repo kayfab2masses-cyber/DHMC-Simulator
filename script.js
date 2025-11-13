@@ -6,10 +6,7 @@ let activeAdversaries = []; // Column 3: Adversaries in the next sim
 let SRD_ADVERSARIES = []; // This will hold our loaded SRD database
 let PREMADE_CHARACTERS = []; // NEW: This will hold our loaded PC database
 
-// --- *** NEW: BATCH LOGGING VARIABLE *** ---
-// This variable will be used to "hijack" the logger for "Blast Mode"
 let BATCH_LOG = null; 
-// --- END NEW ---
 
 // --- BATTLEFIELD & RANGE CONFIGS ---
 const DAGGERHEART_RANGES = {
@@ -543,26 +540,23 @@ function applyPassiveFeatures(agent) {
     }
 }
 
-// --- *** MODIFIED: Logic for "Blast Mode" *** ---
+// --- SPOTLIGHT SIMULATION ENGINE ---
 async function runMultipleSimulations(count) {
     logToScreen(`\n===== STARTING BATCH OF ${count} SIMULATION(S) =====`);
     const isVisualizing = document.getElementById('visualize-checkbox').checked;
     
-    // "Blast Mode" is active if we're running a batch (more than 1) AND visuals are off.
+    // "Blast Mode" = batch run + visuals off
     const isBlastMode = count > 1 && !isVisualizing;
 
     for (let i = 1; i <= count; i++) {
         logToScreen(`\n--- SIMULATION ${i} OF ${count} ---`);
         
-        await runSimulation(isBlastMode); // Pass the mode to the simulator
+        await runSimulation(isBlastMode); 
         
         if (isVisualizing && count > 1) {
-            // If visualizing, pause so the user can see the final map state
             await new Promise(resolve => setTimeout(resolve, 500)); 
         } else if (isBlastMode) {
-            // If in "Blast Mode", pause for 0ms. This is the "breathe"
-            // that stops the browser from freezing, letting the UI
-            // update with the *entire* log from the sim that just finished.
+            // "Breathe" to prevent freezing
             await new Promise(resolve => setTimeout(resolve, 0));
         }
     }
@@ -583,9 +577,7 @@ function exportLog() {
     logToScreen(`\n--- Log exported! ---`);
 }
 
-// --- *** MODIFIED: Accepts `isBlastMode` and uses `BATCH_LOG` *** ---
 async function runSimulation(isBlastMode = false) {
-    // 1. Set up the "Blast Mode" logger if needed
     if (isBlastMode) {
         BATCH_LOG = []; // Hijack the logger
     }
@@ -607,18 +599,18 @@ async function runSimulation(isBlastMode = false) {
         grid.style.gridTemplateColumns = `repeat(${CURRENT_BATTLEFIELD.MAX_X}, 1fr)`;
         grid.style.gridTemplateRows = `repeat(${CURRENT_BATTLEFIELD.MAX_Y}, 1fr)`;
         logToScreen(`Visualizing on ${mapSize} map (${CURRENT_BATTLEFIELD.MAX_X}x${CURRENT_BATTLEFIELD.MAX_Y})...`);
-    } else if (!isBlastMode) { // Only log this if it's a *single* non-visual run
+    } else if (!isBlastMode) { 
         logToScreen(`Simulating on ${mapSize} map (${CURRENT_BATTLEFIELD.MAX_X}x${CURRENT_BATTLEFIELD.MAX_Y}) (Visuals disabled)...`);
     }
 
     if (activeParty.length === 0) { 
         logToScreen('--- ERROR --- \nAdd a player to the Active Scene.'); 
-        if (isBlastMode) { BATCH_LOG = null; } // Clear hijack on error
+        if (isBlastMode) { BATCH_LOG = null; } 
         return; 
     }
     if (activeAdversaries.length === 0) { 
         logToScreen('--- ERROR --- \nAdd an adversary to the Active Scene.'); 
-        if (isBlastMode) { BATCH_LOG = null; } // Clear hijack on error
+        if (isBlastMode) { BATCH_LOG = null; } 
         return; 
     }
 
@@ -629,7 +621,7 @@ async function runSimulation(isBlastMode = false) {
     } catch (e) {
         logToScreen(`--- ERROR --- \nFailed to parse agent JSON. \n${e.message}`);
         console.error("Error during instantiation:", e);
-        if (isBlastMode) { BATCH_LOG = null; } // Clear hijack on error
+        if (isBlastMode) { BATCH_LOG = null; } 
         return; 
     }
 
@@ -677,13 +669,10 @@ async function runSimulation(isBlastMode = false) {
         
         determineNextSpotlight(lastOutcome, gameState);
         
-        // --- MODIFIED: Removed the "else" pause ---
         if (isVisualizing) {
             renderBattlemap(gameState);
             await new Promise(resolve => setTimeout(resolve, 100)); 
         }
-        // The "blast" mode speed is now handled by BATCH_LOG
-        // --- END MODIFICATION ---
 
         if (isCombatOver(gameState)) {
             break;
@@ -709,10 +698,9 @@ async function runSimulation(isBlastMode = false) {
     });
     logToScreen(`Final Resources: ${gameState.hope} Hope, ${gameState.fear} Fear`);
 
-    // 2. Dump the "Blast Mode" log (if it exists)
     if (isBlastMode && BATCH_LOG !== null) {
         const logOutput = document.getElementById('log-output');
-        logOutput.textContent += BATCH_LOG.join('\n') + '\n'; // Dump in one operation
+        logOutput.textContent += BATCH_LOG.join('\n') + '\n'; 
         logOutput.scrollTop = logOutput.scrollHeight;
         BATCH_LOG = null; // Release the hijack
     }
@@ -784,12 +772,12 @@ function determineNextSpotlight(lastOutcome, gameState) {
     }
 }
 
+// --- *** NEW: v2.0 PC "SMART" BRAIN *** ---
 function executePCTurn(player, gameState) {
-    // TODO: This is where the v2.0 "Smart Brain" will go.
-    
     let targets = gameState.adversaries.filter(a => a.current_hp > 0);
     if (targets.length === 0) return 'COMBAT_OVER';
     
+    // 1. Find the closest, living adversary
     const target = targets.sort((a, b) => {
         let distA = getAgentDistance(player, a);
         let distB = getAgentDistance(player, b);
@@ -798,41 +786,176 @@ function executePCTurn(player, gameState) {
 
     logToScreen(`> ${player.name}'s turn (targeting ${target.name} at (${target.position.x}, ${target.position.y}))...`);
 
-    const weaponRange = player.primary_weapon.range;
-    if (isTargetInRange(player, target, weaponRange)) {
-        logToScreen(` -> ${target.name} is in ${weaponRange} range. Attacking!`);
-        
-        const traitName = player.primary_weapon.trait.toLowerCase();
-        const traitMod = player.traits[traitName];
-        
-        const result = executeActionRoll(target.difficulty, traitMod, 0);
-        logToScreen(` Roll: ${traitName} (${traitMod}) | Total ${result.total} vs Diff ${target.difficulty} (${result.outcome})`);
-        processRollResources(result, gameState, player);
-        
-        if (result.outcome === 'CRITICAL_SUCCESS' || result.outcome === 'SUCCESS_WITH_HOPE' || result.outcome === 'SUCCESS_WITH_FEAR') {
-            let damageString = player.primary_weapon?.damage || "1d4";
-            let proficiency = player.proficiency;
-            let critBonus = 0; 
-            
-            if (result.outcome === 'CRITICAL_SUCCESS') {
-                logToScreen(' CRITICAL HIT!');
-                critBonus = parseDiceString(damageString).maxDie; 
-            }
-            const damageTotal = rollDamage(damageString, proficiency, critBonus); 
-            applyDamage(damageTotal, player, target, false, gameState); // Pass gameState
+    // 2. Ask the "Smart Brain" what to do
+    const chosenAction = choosePCAction(player, target, gameState);
+    let result;
+
+    // 3. Execute the chosen action
+    if (chosenAction) {
+        switch (chosenAction.type) {
+            case 'SPELL':
+                result = executePCSpell(player, chosenAction.card, target, gameState);
+                break;
+            case 'ATTACK':
+                result = executePCBasicAttack(player, target, gameState);
+                break;
+            default:
+                logToScreen(`(ERROR: Unknown action type: ${chosenAction.type})`);
+                result = { outcome: 'FAILURE_WITH_FEAR' }; // Failsafe
         }
-        return result.outcome;
     } else {
-        logToScreen(` -> ${target.name} is out of ${weaponRange} range.`);
-        moveAgentTowards(player, target, gameState); // Pass gameState
+        // 4. If no action was chosen, the only option is to move
+        logToScreen(` -> ${target.name} is out of range of all options. Moving closer.`);
+        moveAgentTowards(player, target, gameState); 
         
         logToScreen(` -> Making Agility roll to move...`);
-        const result = executeActionRoll(10, player.traits.agility || 0, 0); 
+        result = executeActionRoll(10, player.traits.agility || 0, 0); 
         logToScreen(` Roll: agility (0) | Total ${result.total} vs Diff 10 (${result.outcome})`);
-        processRollResources(result, gameState, player);
-        return result.outcome;
     }
+    
+    processRollResources(result, gameState, player);
+    return result.outcome;
 }
+
+/**
+ * --- *** NEW: v2.0 PC "DECISION" BRAIN *** ---
+ * This is the "brain" that decides WHAT to do.
+ * @returns {object|null} The best action object, or null if no action is possible (must move).
+ */
+function choosePCAction(player, target, gameState) {
+    let possibleActions = [];
+
+    // 1. Check Domain Cards
+    for (const card of player.domainCards) {
+        switch (card.name) {
+            case "Vicious Entangle": // Ranger
+                if (isTargetInRange(player, target, "Far")) {
+                    possibleActions.push({ type: 'SPELL', card: card, priority: 1, name: "Vicious Entangle" });
+                }
+                break;
+            case "Bolt Beacon": // Wizard
+                if (player.current_hope >= 1 && isTargetInRange(player, target, "Far")) {
+                    possibleActions.push({ type: 'SPELL', card: card, priority: 1, name: "Bolt Beacon" });
+                }
+                break;
+            case "Book of Illiat": // Bard / Wizard
+                // AI will try to use "Slumber"
+                if (isTargetInRange(player, target, "Very Close")) {
+                    possibleActions.push({ type: 'SPELL', card: card, priority: 2, name: "Slumber" });
+                }
+                break;
+            // TODO: Add more 'case' statements here for other cards
+        }
+    }
+
+    // 2. Check Basic Attack
+    const weaponRange = player.primary_weapon.range;
+    if (isTargetInRange(player, target, weaponRange)) {
+        possibleActions.push({ type: 'ATTACK', priority: 0, name: `Basic Attack (${player.primary_weapon.name})` });
+    }
+
+    // 3. Decide which action to take
+    if (possibleActions.length === 0) {
+        return null; // No actions possible, must move
+    }
+
+    // Sort by priority (highest number wins)
+    possibleActions.sort((a, b) => b.priority - a.priority);
+    
+    logToScreen(` -> ${player.name} considered: [${possibleActions.map(a => a.name).join(', ')}]`);
+    
+    // For now, AI is simple and just picks the highest priority (first) action
+    const bestAction = possibleActions[0];
+    logToScreen(` -> Decided on: ${bestAction.name}`);
+    return bestAction;
+}
+
+/**
+ * --- *** NEW: PC "ACTION LEXICON" (Attack) *** ---
+ * Executes a standard primary weapon attack.
+ */
+function executePCBasicAttack(player, target, gameState) {
+    logToScreen(` -> Attacking with ${player.primary_weapon.name}!`);
+    const traitName = player.primary_weapon.trait.toLowerCase();
+    const traitMod = player.traits[traitName];
+    
+    const result = executeActionRoll(target.difficulty, traitMod, 0);
+    logToScreen(` Roll: ${traitName} (${traitMod}) | Total ${result.total} vs Diff ${target.difficulty} (${result.outcome})`);
+    
+    if (result.outcome === 'CRITICAL_SUCCESS' || result.outcome === 'SUCCESS_WITH_HOPE' || result.outcome === 'SUCCESS_WITH_FEAR') {
+        let damageString = player.primary_weapon?.damage || "1d4";
+        let proficiency = player.proficiency;
+        let critBonus = 0; 
+        
+        if (result.outcome === 'CRITICAL_SUCCESS') {
+            logToScreen(' CRITICAL HIT!');
+            critBonus = parseDiceString(damageString).maxDie; 
+        }
+        const damageTotal = rollDamage(damageString, proficiency, critBonus); 
+        applyDamage(damageTotal, player, target, false, gameState);
+    }
+    return result;
+}
+
+/**
+ * --- *** NEW: PC "ACTION LEXICON" (Spells) *** ---
+ * Executes a spell from a Domain Card.
+ */
+function executePCSpell(player, card, target, gameState) {
+    const traitMod = player.traits[player.spellcastTrait];
+    let result;
+
+    switch (card.name) {
+        case "Vicious Entangle":
+            logToScreen(` -> Casting "Vicious Entangle" on ${target.name}!`);
+            result = executeActionRoll(target.difficulty, traitMod, 0);
+            logToScreen(` Roll: ${player.spellcastTrait} (${traitMod}) | Total ${result.total} vs Diff ${target.difficulty} (${result.outcome})`);
+            
+            if (result.outcome === 'CRITICAL_SUCCESS' || result.outcome === 'SUCCESS_WITH_HOPE' || result.outcome === 'SUCCESS_WITH_FEAR') {
+                const damageTotal = rollDamage("1d8+1", 1, 0); // 1d8+1 phy
+                applyDamage(damageTotal, player, target, false, gameState);
+                applyCondition(target, "Restrained");
+            }
+            break;
+
+        case "Bolt Beacon":
+            logToScreen(` -> Casting "Bolt Beacon" on ${target.name}!`);
+            if (player.current_hope < 1) {
+                logToScreen(` -> Not enough Hope to cast! (Cost: 1)`);
+                return { outcome: 'FAILURE_WITH_FEAR' }; // Failed action
+            }
+            player.current_hope--; // Pay cost
+            logToScreen(` -> Spent 1 Hope (Total: ${player.current_hope})`);
+            
+            result = executeActionRoll(target.difficulty, traitMod, 0);
+            logToScreen(` Roll: ${player.spellcastTrait} (${traitMod}) | Total ${result.total} vs Diff ${target.difficulty} (${result.outcome})`);
+            
+            if (result.outcome === 'CRITICAL_SUCCESS' || result.outcome === 'SUCCESS_WITH_HOPE' || result.outcome === 'SUCCESS_WITH_FEAR') {
+                const damageTotal = rollDamage("1d8+2", player.proficiency, 0); // d8+2 magic, uses proficiency
+                applyDamage(damageTotal, player, target, false, gameState);
+                applyCondition(target, "Vulnerable");
+            }
+            break;
+
+        case "Book of Illiat":
+            // AI is using "Slumber"
+            logToScreen(` -> Casting "Slumber" (from Book of Illiat) on ${target.name}!`);
+            result = executeActionRoll(target.difficulty, traitMod, 0);
+            logToScreen(` Roll: ${player.spellcastTrait} (${traitMod}) | Total ${result.total} vs Diff ${target.difficulty} (${result.outcome})`);
+
+            if (result.outcome === 'CRITICAL_SUCCESS' || result.outcome === 'SUCCESS_WITH_HOPE' || result.outcome === 'SUCCESS_WITH_FEAR') {
+                applyCondition(target, "Asleep");
+            }
+            break;
+        
+        default:
+            logToScreen(`(ERROR: AI does not know how to cast spell: ${card.name})`);
+            return { outcome: 'FAILURE_WITH_FEAR' }; // Failsafe
+    }
+
+    return result;
+}
+
 
 function executeGMTurn(gameState) {
     logToScreen(`> GM SPOTLIGHT:`);
@@ -847,6 +970,7 @@ function executeGMTurn(gameState) {
 
     let spotlightedAdversaries = [adversaryToAct.adversary.id]; 
     while (gameState.fear > 0 && !isCombatOver(gameState)) {
+        // TODO: This is the "dumb" coin-flip logic we need to upgrade
         if (Math.random() < 0.5) { 
             logToScreen(` GM decides to spend 1 Fear for an *additional* spotlight...`);
             gameState.fear--;
@@ -955,6 +1079,7 @@ function performAdversaryAction(adversary, target, gameState) {
             logToScreen(` -> No features available. Target is in ${weaponRange} range. Defaulting to basic attack.`);
             executeGMBasicAttack(adversary, target, gameState); // Pass gameState
         } else {
+            // TODO: This is where we will add the "Smarter Far Move" logic
             logToScreen(` -> No features available. Target is out of ${weaponRange} range.`);
             moveAgentTowards(adversary, target, gameState); // Pass gameState
         }
@@ -1455,7 +1580,7 @@ function moveAgentTowards(agent, target, gameState) {
 }
 // --- END OF HELPER FUNCTIONS ---
 
-// --- *** MODIFIED: This function now respects BATCH_LOG *** ---
+// --- *** MODIFIED: logToScreen now supports "Blast Mode" *** ---
 function logToScreen(message) {
     // If BATCH_LOG is active (not null), add to it instead of the DOM
     if (BATCH_LOG !== null) {
