@@ -7,7 +7,6 @@ let SRD_ADVERSARIES = []; // This will hold our loaded SRD database
 let PREMADE_CHARACTERS = []; // NEW: This will hold our loaded PC database
 
 // --- BATTLEFIELD & RANGE CONFIGS ---
-// These are the CANONICAL range conversions from the SRD
 const DAGGERHEART_RANGES = {
     RANGE_MELEE: 1,
     RANGE_VERY_CLOSE: 3,
@@ -15,15 +14,12 @@ const DAGGERHEART_RANGES = {
     RANGE_FAR: 12        // "Full Action Move" distance
 };
 
-// These are the user-selectable map sizes
 const MAP_CONFIGS = {
     small: { MAX_X: 15, MAX_Y: 15 },
     medium: { MAX_X: 20, MAX_Y: 20 },
     large: { MAX_X: 30, MAX_Y: 30 } // Our default
 };
 
-// This will hold the settings for the *current* simulation
-// TODO: We'll add a dropdown later to change this. For now, default to large.
 let CURRENT_BATTLEFIELD = {
     ...DAGGERHEART_RANGES,
     ...MAP_CONFIGS.large 
@@ -66,7 +62,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('pc-catalog-list').addEventListener('click', handlePCListClick);
 
-
     loadSRDDatabase();
     loadPCDatabase(); // NEW: Load the PC database
     renderPools();
@@ -96,23 +91,22 @@ async function loadSRDDatabase() {
     }
 }
 
-// NEW: Function to load Premade Characters
 async function loadPCDatabase() {
     try {
         const response = await fetch('data/premade_characters.json'); 
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        const data = await response.json(); // 'data' is now the object { "players": [...] }
+        const data = await response.json(); 
         
         if (data && Array.isArray(data.players)) {
-            PREMADE_CHARACTERS = data.players; // We assign the 'players' array, not the whole object
+            PREMADE_CHARACTERS = data.players;
         } else {
             throw new Error("Invalid JSON structure. Expected an object with a top-level 'players' array.");
         }
 
         logToScreen(`Successfully loaded ${PREMADE_CHARACTERS.length} PCs from catalog.`);
-        renderPCModalList(); // Render them into the new modal
+        renderPCModalList();
     } catch (error) {
         logToScreen(`--- FATAL ERROR --- Could not load Premade PC JSON: ${error.message}`);
         console.error("Failed to fetch PC data:", error);
@@ -252,7 +246,6 @@ function handleSRDListClick(event) {
     }
 }
 
-// NEW: Click handler for the PC Catalog list
 function handlePCListClick(event) {
     const target = event.target.closest('.pc-item');
     if (!target) return;
@@ -343,7 +336,6 @@ function renderSRDAdversaries() {
 
     const filteredList = SRD_ADVERSARIES.filter(adv => {
         const tierMatch = (tier === 'any' || adv.tier == tier);
-        // Changed to startsWith to handle types like "Horde (5/HP)"
         const typeMatch = (type === 'any' || adv.type.startsWith(type));
         return tierMatch && typeMatch;
     });
@@ -536,7 +528,7 @@ async function runMultipleSimulations(count) {
     for (let i = 1; i <= count; i++) {
         logToScreen(`\n--- SIMULATION ${i} OF ${count} ---`);
         await runSimulation();
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 100)); // Short delay between sims
     }
     logToScreen(`\n===== BATCH COMPLETE =====`);
 }
@@ -555,10 +547,29 @@ function exportLog() {
     logToScreen(`\n--- Log exported! ---`);
 }
 
+// --- *** STEP 3 MODIFICATION *** ---
+// This function is now upgraded to read the map settings and render the visualizer.
 async function runSimulation() {
     logToScreen('======================================');
     logToScreen('INITIALIZING NEW SIMULATION...');
     logToScreen('======================================');
+
+    // --- NEW: READ MAP & VISUALIZER SETTINGS ---
+    const mapSize = document.getElementById('map-size-select').value;
+    
+    // Set the global config for this sim run
+    CURRENT_BATTLEFIELD = {
+        ...DAGGERHEART_RANGES,
+        ...MAP_CONFIGS[mapSize] 
+    };
+
+    // Set up the grid dimensions in the CSS
+    const grid = document.getElementById('battlemap-grid');
+    grid.style.gridTemplateColumns = `repeat(${CURRENT_BATTLEFIELD.MAX_X}, 1fr)`;
+    grid.style.gridTemplateRows = `repeat(${CURRENT_BATTLEFIELD.MAX_Y}, 1fr)`;
+
+    logToScreen(`Simulating on ${mapSize} map (${CURRENT_BATTLEFIELD.MAX_X}x${CURRENT_BATTLEFIELD.MAX_Y})...`);
+    // --- END NEW SETTINGS ---
 
     if (activeParty.length === 0) { 
         logToScreen('--- ERROR --- \nAdd a player to the Active Scene.'); 
@@ -602,6 +613,9 @@ async function runSimulation() {
     logToScreen('--- COMBAT BEGINS ---');
     logToScreen(`Spotlight starts on: ${gameState.players[0].name}`);
 
+    // --- NEW: Initial Map Render ---
+    renderBattlemap(gameState);
+
     let simulationSteps = 0;
     while (!isCombatOver(gameState) && simulationSteps < 50) {
         let lastOutcome = '';
@@ -619,13 +633,20 @@ async function runSimulation() {
         
         determineNextSpotlight(lastOutcome, gameState);
         
+        // --- NEW: "BLAST VS. VIZ" CHECK IS NOW ALWAYS ON ---
+        renderBattlemap(gameState);
+        // This pause is what lets us see the "dance"
+        await new Promise(resolve => setTimeout(resolve, 100)); 
+
         if (isCombatOver(gameState)) {
             break;
         }
-
-        await new Promise(resolve => setTimeout(resolve, 50));
+        
         simulationSteps++;
     }
+
+    // Final render to show the end state
+    renderBattlemap(gameState);
 
     logToScreen('\n======================================');
     logToScreen('SIMULATION COMPLETE');
@@ -640,6 +661,7 @@ async function runSimulation() {
     });
     logToScreen(`Final Resources: ${gameState.hope} Hope, ${gameState.fear} Fear`);
 }
+
 
 function findNextLivingPC(gameState) {
     const { players, lastPlayerSpotlight } = gameState;
@@ -706,14 +728,11 @@ function determineNextSpotlight(lastOutcome, gameState) {
     }
 }
 
-// --- *** STEP 2 MODIFICATION *** ---
-// This function is now upgraded to be "location-aware".
+// This function is the "v1.5 PC Brain"
 function executePCTurn(player, gameState) {
     let targets = gameState.adversaries.filter(a => a.current_hp > 0);
     if (targets.length === 0) return 'COMBAT_OVER';
     
-    // --- (AI Decision Step 1: Find a Target) ---
-    // (Simple brain: find the closest, living adversary)
     const target = targets.sort((a, b) => {
         let distA = getAgentDistance(player, a);
         let distB = getAgentDistance(player, b);
@@ -722,10 +741,8 @@ function executePCTurn(player, gameState) {
 
     logToScreen(`> ${player.name}'s turn (targeting ${target.name} at (${target.position.x}, ${target.position.y}))...`);
 
-    // --- (AI Decision Step 2: Check Range) ---
     const weaponRange = player.primary_weapon.range;
     if (isTargetInRange(player, target, weaponRange)) {
-        // --- (AI Decision Step 3: ATTACK) ---
         logToScreen(` -> ${target.name} is in ${weaponRange} range. Attacking!`);
         
         const traitName = player.primary_weapon.trait.toLowerCase();
@@ -749,14 +766,9 @@ function executePCTurn(player, gameState) {
         }
         return result.outcome;
     } else {
-        // --- (AI Decision Step 3: MOVE) ---
-        // We are out of range. Move closer.
         logToScreen(` -> ${target.name} is out of ${weaponRange} range.`);
         moveAgentTowards(player, target);
-        // Per canonical rules, a "move" is bundled with an "action."
-        // Since our "dumb" PC brain is only attacking, we'll assume the *intent* was to attack,
-        // but they had to move first. We'll roll an Agility check for the "move only" action.
-        // TODO: This will be replaced in Step 4 with a real decision tree.
+        
         logToScreen(` -> Making Agility roll to move...`);
         const result = executeActionRoll(10, player.traits.agility || 0, 0); // DC 10 (Average) Agility roll
         logToScreen(` Roll: agility (0) | Total ${result.total} vs Diff 10 (${result.outcome})`);
@@ -800,8 +812,7 @@ function executeGMTurn(gameState) {
     return 'GM_TURN_COMPLETE'; 
 }
 
-// --- *** STEP 2 MODIFICATION *** ---
-// This function is now upgraded to find the *closest* living player.
+// This function is the "v1.5 GM Brain" (finds closest target)
 function getAdversaryToAct(gameState, actedThisTurn = []) {
     const livingPlayers = gameState.players.filter(p => p.current_hp > 0);
     if (livingPlayers.length === 0) return null; 
@@ -819,8 +830,6 @@ function getAdversaryToAct(gameState, actedThisTurn = []) {
         adversary = livingAdversaries[Math.floor(Math.random() * livingAdversaries.length)];
     }
 
-    // --- (AI Brain: Find a Target) ---
-    // Find the *closest* living player to this adversary
     const target = livingPlayers.sort((a, b) => {
         let distA = getAgentDistance(adversary, a);
         let distB = getAgentDistance(adversary, b);
@@ -830,60 +839,46 @@ function getAdversaryToAct(gameState, actedThisTurn = []) {
     return { adversary, target };
 }
 
-// --- *** STEP 2 MODIFICATION *** ---
-// This function is now upgraded to be "location-aware".
+// This function is the "v1.6 GM Brain (range-aware)
 function performAdversaryAction(adversary, target, gameState) {
     logToScreen(` Spotlight is on: ${adversary.name} (targeting ${target.name} at (${target.position.x}, ${target.position.y}))...`);
 
-    // --- (AI Brain v1.6 - "Smart AND Sighted") ---
-    // 1. Find all "action" features this adversary has.
     const allActions = adversary.features.filter(f => f.type === 'action' && f.parsed_effect);
 
-    // 2. Find all *affordable* and *in-range* actions.
     const affordableAndInRangeActions = allActions.filter(f => {
-        // Check for a cost
         if (f.cost) {
             if (f.cost.type === 'stress' && (adversary.current_stress + f.cost.value > adversary.max_stress)) {
-                return false; // Can't afford Stress
+                return false; 
             }
             if (f.cost.type === 'fear' && (gameState.fear < f.cost.value)) {
-                return false; // Can't afford Fear
-            }
-        }
-        
-        // --- NEW RANGE CHECK ---
-        // Get range from the feature's *first* effect.
-        // This is a heuristic - we assume the first effect defines the range.
-        const firstEffect = f.parsed_effect.actions[0];
-        const range = firstEffect.range || 'Melee'; // Default to Melee if not specified
-
-        if (range === "Self") return true; // Actions on "Self" are always in range.
-
-        if (!isTargetInRange(adversary, target, range)) {
-            logToScreen(` (Skipping ${f.name}: Target is out of ${range} range.)`);
-            return false; // Target is not in range for this feature
-        }
-        // --- END NEW RANGE CHECK ---
-
-        // Check for other conditions (e.g., target must be 'Vulnerable')
-        if (f.parsed_effect.actions && f.parsed_effect.actions[0] && f.parsed_effect.actions[0].details) {
-            const details = f.parsed_effect.actions[0].details;
-            if (details.target_condition && !target.conditions.includes(details.target_condition)) {
-                logToScreen(` (Skipping ${f.name}: Target is not ${details.target_condition})`);
                 return false; 
             }
         }
-        return true; // This action is affordable and in range
+        
+        const firstEffect = f.parsed_effect.actions[0];
+        const range = (firstEffect && firstEffect.range) ? firstEffect.range : 'Melee';
+
+        if (range.toLowerCase() === "self") return true; 
+
+        if (!isTargetInRange(adversary, target, range)) {
+            logToScreen(` (Skipping ${f.name}: Target is out of ${range} range.)`);
+            return false; 
+        }
+        
+        if (firstEffect.details) {
+            if (firstEffect.details.target_condition && !target.conditions.includes(firstEffect.details.target_condition)) {
+                logToScreen(` (Skipping ${f.name}: Target is not ${firstEffect.details.target_condition})`);
+                return false; 
+            }
+        }
+        return true; 
     });
 
-    // 3. Decide what to do.
     let chosenAction = null;
     if (affordableAndInRangeActions.length > 0) {
-        // Pick one of the smart features at random
         chosenAction = affordableAndInRangeActions[Math.floor(Math.random() * affordableAndInRangeActions.length)];
     }
 
-    // 4. EXECUTE THE CHOSEN ACTION
     if (chosenAction) {
         logToScreen(` -> Using Feature: ${chosenAction.name}!`);
         if (chosenAction.cost) {
@@ -900,17 +895,13 @@ function performAdversaryAction(adversary, target, gameState) {
             executeParsedEffect(action, adversary, target, gameState);
         }
     } else {
-        // 5. FALLBACK: If no feature was chosen, try a basic attack or move.
         const weaponRange = adversary.attack.range || 'Melee';
         if (isTargetInRange(adversary, target, weaponRange)) {
-            // --- (AI Decision: ATTACK) ---
             logToScreen(` -> No features available. Target is in ${weaponRange} range. Defaulting to basic attack.`);
             executeGMBasicAttack(adversary, target);
         } else {
-            // --- (AI Decision: MOVE) ---
             logToScreen(` -> No features available. Target is out of ${weaponRange} range.`);
             moveAgentTowards(adversary, target);
-            // Adversary "move" is bundled with their action, so this ends their spotlight turn.
         }
     }
 }
@@ -919,11 +910,8 @@ function executeParsedEffect(action, adversary, target, gameState) {
     let primaryTarget = target; 
     let targets = [target]; 
 
-    // --- NEW: Upgraded Targeting ---
-    // Re-check targetting for this specific action
     if (action.target === "ALL_IN_RANGE" || action.target === "ALL_IN_RANGE_FRONT") {
-        // Find all players within this action's specific range
-        const actionRange = action.range || 'Very Close'; // Default to "Very Close" if not specified
+        const actionRange = action.range || 'Very Close';
         targets = gameState.players.filter(p => p.current_hp > 0 && isTargetInRange(adversary, p, actionRange));
         logToScreen(` -> Action targets ${targets.length} players in ${actionRange} range!`);
     }
@@ -1039,7 +1027,7 @@ function executeParsedEffect(action, adversary, target, gameState) {
             }
             break;
             
-        case 'MOVE': // --- NEW: Handle MOVE action type from parsed effects
+        case 'MOVE':
             logToScreen(` -> ${adversary.name} is moving as part of an action...`);
             moveAgentTowards(adversary, primaryTarget);
             break;
@@ -1260,13 +1248,6 @@ function parseDiceString(damageString = "1d4") {
 }
 
 // --- MOVEMENT & RANGE HELPER FUNCTIONS ---
-
-/**
- * Calculates the "Manhattan distance" (grid distance) between two agents.
- * @param {object} agentA - The first agent with a .position {x, y}
- * @param {object} agentB - The second agent with a .position {x, y}
- * @returns {number} The distance in squares.
- */
 function getAgentDistance(agentA, agentB) {
     if (!agentA.position || !agentB.position) return 0;
 
@@ -1275,19 +1256,12 @@ function getAgentDistance(agentA, agentB) {
     return dx + dy;
 }
 
-/**
- * Checks if a target is within a specified canonical range.
- * @param {object} attacker - The agent initiating the action.
- * @param {object} target - The agent being targeted.
- * @param {string} weaponRangeName - The name of the range (e.g., "Melee", "Close", "Far").
- * @returns {boolean} True if the target is in range, false otherwise.
- */
 function isTargetInRange(attacker, target, weaponRangeName) {
     const distance = getAgentDistance(attacker, target);
     const range = (weaponRangeName || 'Melee').trim().toLowerCase();
 
     switch (range) {
-        case 'self': // Added "Self" for abilities that target the caster
+        case 'self':
             return true;
         case 'melee':
             return distance <= CURRENT_BATTLEFIELD.RANGE_MELEE; // 1
@@ -1303,11 +1277,6 @@ function isTargetInRange(attacker, target, weaponRangeName) {
     }
 }
 
-/**
- * Moves an agent towards a target, up to their speed.
- * @param {object} agent - The agent to move (will be modified).
- * @param {object} target - The agent to move towards.
- */
 function moveAgentTowards(agent, target) {
     let newX = agent.position.x;
     let newY = agent.position.y;
@@ -1355,5 +1324,42 @@ function logToScreen(message) {
     if (logOutput) {
         logOutput.textContent += message + '\n';
         logOutput.scrollTop = logOutput.scrollHeight; 
+    }
+}
+
+// --- *** NEW: VISUALIZER RENDER FUNCTION *** ---
+function renderBattlemap(gameState) {
+    const map = document.getElementById('battlemap-grid');
+    if (!map) return; // Failsafe
+    
+    map.innerHTML = ''; // Clear the map
+
+    // Render players
+    for (const player of gameState.players) {
+        if (player.current_hp <= 0) continue; // Don't draw defeated agents
+        
+        const token = document.createElement('div');
+        token.className = 'token player-token';
+        token.title = `${player.name} (HP: ${player.current_hp})`;
+        
+        // CSS Grid position is 1-based
+        token.style.gridColumn = player.position.x;
+        token.style.gridRow = player.position.y;
+        
+        map.appendChild(token);
+    }
+
+    // Render adversaries
+    for (const adv of gameState.adversaries) {
+        if (adv.current_hp <= 0) continue; 
+        
+        const token = document.createElement('div');
+        token.className = 'token adversary-token';
+        token.title = `${adv.name} (HP: ${adv.current_hp})`;
+        
+        token.style.gridColumn = adv.position.x;
+        token.style.gridRow = adv.position.y;
+        
+        map.appendChild(token);
     }
 }

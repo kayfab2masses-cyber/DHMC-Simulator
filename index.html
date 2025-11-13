@@ -9,7 +9,15 @@
 <body>
     <header>
         <h1>Daggerheart Monte Carlo Simulator</h1>
-    </header>
+        <div class="sim-controls">
+            <label for="map-size-select">Map Size:</label>
+            <select id="map-size-select">
+                <option value="large">Large (30x30)</option>
+                <option value="medium">Medium (20x20)</option>
+                <option value="small">Small (15x15)</option>
+            </select>
+        </div>
+        </header>
     
     <div class="simulator-layout">
         <div class="layout-column" id="input-column">
@@ -63,17 +71,25 @@
         </div>
     </div>
 
-    <div class="log-container">
-        <div class="log-header">
-            <h3>Simulation Log:</h3>
-            <div class="controls-main">
-                <button id="run-button" class="action-button">Run Simulation</button>
-                <button id="run-multiple-button" class="action-button">Run 3 Sims</button>
-                <button id="export-log-button" class="action-button">Export Log</button>
+    <div class="output-area">
+        <div class="log-container" id="log-container">
+            <div class="log-header">
+                <h3>Simulation Log:</h3>
+                <div class="controls-main">
+                    <button id="run-button" class="action-button">Run Simulation</button>
+                    <button id="run-multiple-button" class="action-button">Run 3 Sims</button>
+                    <button id="export-log-button" class="action-button">Export Log</button>
+                </div>
             </div>
+            <pre id="log-output"></pre>
         </div>
-        <pre id="log-output"></pre>
-    </div>
+
+        <div class="visualizer-container" id="visualizer-container">
+            <h3>Battle Map</h3>
+            <div id="battlemap-grid">
+                </div>
+        </div>
+        </div>
 
     <div id="srd-modal-overlay" class="modal-overlay hidden">
         <div class="modal-content">
@@ -83,12 +99,12 @@
             </div>
             <div class="modal-filters">
                 <select id="srd-tier-filter">
-                <option value="any">Any Tier</option>
-                <option value="1">Tier 1</option>
-                <option value="2">Tier 2</option>
-                <option value="3">Tier 3</option>
-                <option value="4">Tier 4</option>
-            </select>
+                    <option value="any">Any Tier</option>
+                    <option value="1">Tier 1</option>
+                    <option value="2">Tier 2</option>
+                    <option value="3">Tier 3</option>
+                    <option value="4">Tier 4</option>
+                </select>
                 <select id="srd-type-filter">
                     <option value="any">Any Type</option>
                     <option value="Standard">Standard</option>
