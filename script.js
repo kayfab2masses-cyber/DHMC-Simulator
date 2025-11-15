@@ -98,8 +98,8 @@ async function loadAndPopulateDatabases() {
 
 async function loadSRDDatabase() {
     try {
-        // --- FIX: Removed 'data/' prefix ---
-        const response = await fetch('srd_adversaries.json');
+        // --- FIX: Added 'data/' prefix ---
+        const response = await fetch('data/srd_adversaries.json');
         if (!response.ok) { throw new Error(`HTTP error! status: ${response.status}`); }
         const data = await response.json(); 
         if (Array.isArray(data)) {
@@ -117,8 +117,8 @@ async function loadSRDDatabase() {
 
 async function loadPCDatabase() {
     try {
-        // --- FIX: Removed 'data/' prefix ---
-        const response = await fetch('premade_characters.json'); 
+        // --- FIX: Added 'data/' prefix ---
+        const response = await fetch('data/premade_characters.json'); 
         if (!response.ok) { throw new Error(`HTTP error! status: ${response.status}`); }
         const data = await response.json(); 
         if (data && Array.isArray(data.players)) {
@@ -136,8 +136,8 @@ async function loadPCDatabase() {
 
 async function loadEnvironmentDatabase() {
     try {
-        // --- FIX: Changed from placeholders to fetch environments.json ---
-        const response = await fetch('environments.json');
+        // --- FIX: Added 'data/' prefix ---
+        const response = await fetch('data/environments.json');
         if (!response.ok) { throw new Error(`HTTP error! status: ${response.status}`); }
         const data = await response.json();
         if (Array.isArray(data)) {
@@ -780,22 +780,7 @@ async function runFullEncounterSequence() {
         if (playbackBtn) playbackBtn.disabled = false;
     }
 }
-// *** ADD THIS FUNCTION BACK IN ***
-function exportLog() {
-    const logOutput = document.getElementById('log-output');
-    // Use innerText to capture all text content, including line breaks
-    const logContent = logOutput.innerText; 
-    
-    const blob = new Blob([logContent], { type: 'text/plain;charset=utf-8' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `dhmc_simulation_log_${Date.now()}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    printToLog(`\n--- Log exported! ---`);
-}
-// *** END OF NEW FUNCTION ***
+
 
 // --- *** THE CORE SIMULATION FUNCTION *** ---
 // encounterIndex = The number of the encounter (1, 2, 3...)
@@ -1121,7 +1106,7 @@ function executePCTurn(player, gameState) {
 
     if (chosenAction) {
         // --- PC MOVE & ACTION (Close Range) ---
-        [cite_start]// Per SRD, "you can move to a location within Close range as part of that action." [cite: 20466]
+        // Per SRD, "you can move to a location within Close range as part of that action."
         // We assume the PC moves into range for their chosen action if they aren't already.
         if (!isTargetInRange(player, target, chosenAction.range)) {
             simLog(` -> Moving to ${chosenAction.range} range...`);
@@ -1141,12 +1126,12 @@ function executePCTurn(player, gameState) {
         }
     } else {
         // --- PC SPRINT (Far/Very Far Range) ---
-        [cite_start]// Per SRD, "you need to succeed on an Agility Roll to safely reposition yourself." [cite: 20467]
+        // Per SRD, "you need to succeed on an Agility Roll to safely reposition yourself."
         simLog(` -> ${target.name} is out of range of all options. Sprinting closer (Agility Roll).`);
         moveAgentTowards(player, target, gameState, true); // true = isSprint
         
         simLog(` -> Making Agility roll to move...`);
-        result = executeActionRoll(gameState.sceneDifficulty, player.traits.agility || 0, 0); //
+        result = executeActionRoll(gameState.sceneDifficulty, player.traits.agility || 0, 0); 
         simLog(` Roll: agility (${player.traits.agility || 0}) | Total ${result.total} vs Diff ${gameState.sceneDifficulty} (${result.outcome})`);
     }
     
@@ -1355,7 +1340,7 @@ function getAdversaryToAct(gameState, actedThisTurn = []) {
 function performAdversaryAction(adversary, target, gameState) {
     simLog(` Spotlight is on: ${adversary.name} (targeting ${target.name} at (${target.position.x}, ${target.position.y}))...`);
     
-    [cite_start]// Standard move is "Close" range [cite: 20473]
+    // Standard move is "Close" range
     moveAgentTowards(adversary, target, gameState, false); // false = not a sprint
 
     const allActions = adversary.features.filter(f => f.type === 'action' && f.parsed_effect);
@@ -1414,7 +1399,7 @@ function performAdversaryAction(adversary, target, gameState) {
             simLog(` -> No features in range. Defaulting to basic attack.`);
             executeGMBasicAttack(adversary, target, gameState);
         } else {
-            [cite_start]// SRD: "An adversary can move within Close range for free as part of an action, or within Very Far range as a separate action." [cite: 20473, 20474, 20468]
+            // SRD: "An adversary can move within Close range for free as part of an action, or within Very Far range as a separate action."
             simLog(` -> Target is out of range for all actions. Sprinting closer.`);
             moveAgentTowards(adversary, target, gameState, true); // true = isSprint
         }
@@ -1883,13 +1868,8 @@ function applyDamage(damageInfo, attacker, target, gameState) {
         simLog(` Final HP marked: ${hpToMark}.`); //
     }
     simLog(` ${finalTarget.name} HP: ${finalTarget.current_hp} / ${finalTarget.max_hp}`); //
-    const damageEventInfo = {
-        amount: amount,
-        hpMarked: hpToMark,
-        isMajor: isMajor,
-        isSevere: isSevere,
-        isPhysical: isPhysical,
-        isStandardAttack: isStandardAttack // [cite: 14707-14712]
+    const damageEventInfo = { //
+        amount, hpMarked: hpToMark, isMajor, isSevere, isPhysical, isStandardAttack //
     };
     if (finalTarget.type === 'adversary') { //
         checkAdversaryReactions("ON_TAKE_DAMAGE", finalTarget, attacker, gameState, damageEventInfo); //
@@ -1903,7 +1883,7 @@ function applyDamage(damageInfo, attacker, target, gameState) {
     if (attacker.type === 'adversary' && hpToMark > 0) { //
         if (damageInfo.isStandardAttack && attacker.passives.knockbackOnHP) { //
              simLog(` -> ${attacker.name}'s PASSIVE triggers: Overwhelming Force!`); //
-             const knockbackEffect = { action_type: 'KNOCKBACK', range: attacker.passives.knockbackOnHP.range, is_direct: false }; [cite_start]// [cite: 14732-14737]
+             const knockbackEffect = { action_type: 'KNOCKBACK', range: attacker.passives.knockbackOnHP.range, is_direct: false }; //
              executeParsedEffect(knockbackEffect, attacker, finalTarget, gameState); //
         }
     }
@@ -2035,8 +2015,8 @@ function isTargetInRange(attacker, target, weaponRangeName) {
 }
 // --- MODIFIED: Added 'isSprint' flag ---
 function moveAgentTowards(agent, target, gameState, isSprint = false) {
-    [cite_start]// SRD: "a character can move to a location within Close range as part of that action." [cite: 20466]
-    [cite_start]// SRD: "An adversary can move within Close range for free as part of an action, or within Very Far range as a separate action." [cite: 20468]
+    // SRD: "a character can move to a location within Close range as part of that action."
+    // SRD: "An adversary can move within Close range for free as part of an action, or within Very Far range as a separate action."
     let budget;
     if (agent.type === 'player') {
         budget = isSprint ? DAGGERHEART_RANGES.RANGE_FAR : DAGGERHEART_RANGES.RANGE_CLOSE; //
