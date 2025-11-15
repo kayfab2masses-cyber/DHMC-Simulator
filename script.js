@@ -576,8 +576,9 @@ async function runMultipleSimulations(count) {
     logToScreen(`\n===== STARTING BATCH OF ${count} SIMULATION(S) =====`);
     const isVisualizing = document.getElementById('visualize-checkbox').checked;
     
-    // "Blast Mode" = batch run + visuals off
-    const isBlastMode = count > 1 && !isVisualizing;
+    // --- NEW PATCH: "Run 1" now uses Blast Mode ---
+    const isBlastMode = !isVisualizing;
+    // --- END PATCH ---
 
     for (let i = 1; i <= count; i++) {
         logToScreen(`\n--- SIMULATION ${i} OF ${count} ---`);
@@ -704,7 +705,8 @@ async function runSimulation(isBlastMode = false) {
             renderBattlemap(gameState); // This just moves tokens now
             await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay per turn
         } else if (!isBlastMode) {
-            // Breathe ONLY if NOT visualizing AND NOT in blast mode
+            // This should no longer be reachable, but is safe to leave in.
+            // All non-visual runs are now Blast Mode.
             await new Promise(resolve => setTimeout(resolve, 0)); 
         }
         // --- END PATCH ---
