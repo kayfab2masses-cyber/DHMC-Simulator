@@ -7,7 +7,7 @@ let SRD_ADVERSARIES = []; // This will hold our loaded SRD database
 let PREMADE_CHARACTERS = []; // This will hold our loaded PC database
 
 let BATCH_LOG = null; 
-let tokenCache = {}; // For high-speed visualizer
+let tokenCache = {}; // --- NEW: For high-speed visualizer
 
 // --- NEW: History System ---
 let simHistory = []; // Stores objects: { id, logText, playbackLog: [], finalState }
@@ -46,17 +46,30 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('export-log-button').addEventListener('click', exportLog);
     
     // --- NEW: Playback Button Listener ---
-    const playbackButton = document.createElement('button');
-    playbackButton.id = 'playback-button';
-    playbackButton.textContent = 'Play Back Last Sim';
-    playbackButton.disabled = true;
-    playbackButton.style.marginTop = '10px';
-    document.querySelector('.controls-section:nth-child(2)').appendChild(playbackButton);
-    playbackButton.addEventListener('click', () => {
-        if (simHistory.length > 0) {
-            playBackSimulation(simHistory.length - 1);
+    const playbackButton = document.getElementById('playback-button');
+    if (!playbackButton) {
+        // If the element doesn't exist yet (e.g., first load), create it
+        const controlsSection = document.querySelector('.controls-section:nth-child(2)');
+        if (controlsSection) {
+            const newPlaybackButton = document.createElement('button');
+            newPlaybackButton.id = 'playback-button';
+            newPlaybackButton.textContent = 'Play Back Last Sim';
+            newPlaybackButton.disabled = true;
+            newPlaybackButton.style.marginTop = '10px';
+            controlsSection.appendChild(newPlaybackButton);
+            newPlaybackButton.addEventListener('click', () => {
+                if (simHistory.length > 0) {
+                    playBackSimulation(simHistory.length - 1);
+                }
+            });
         }
-    });
+    } else {
+        playbackButton.addEventListener('click', () => {
+            if (simHistory.length > 0) {
+                playBackSimulation(simHistory.length - 1);
+            }
+        });
+    }
     // --- END NEW ---
 
     // Column 2 & 3 Buttons
@@ -88,8 +101,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if(visualizeToggle) visualizeToggle.style.display = 'none'; // Hide the original checkbox
     // --- END VISUALIZER TOGGLE ---
 
+    // --- CRITICAL FIX: Restore load functions to populate modals ---
     loadSRDDatabase();
     loadPCDatabase();
+    // --- END CRITICAL FIX ---
+    
     renderPools();
     renderActiveScene();
     initializeBattlemap(); // Initialize the empty map grid
@@ -609,7 +625,7 @@ async function runMultipleSimulations(count) {
     logToScreen(`\n===== BATCH COMPLETE =====`);
     
     // Enable playback button if only 1 run was executed
-    if (count === 1) {
+    if (count === 1 && simHistory.length === 1 && simHistory[0].playbackLog) {
         document.getElementById('playback-button').disabled = false;
     }
 }
@@ -630,7 +646,7 @@ function exportLog() {
 
 // --- NEW SIGNATURE: runSimulation accepts count ---
 async function runSimulation(count, isBlastMode = false) {
-    // Determine if we need to record map data (Only for single, non-visualized runs)
+    // Determine if we need to record map data (Only for single runs)
     const recordPlayback = (count === 1); 
     
     if (isBlastMode) {
@@ -790,7 +806,6 @@ async function playBackSimulation(historyIndex) {
     logContainer.classList.remove('full-width');
     
     // Temporarily hide actual game agents and use the visualizer map
-    // We only need to render the tokens in the cache if the simulation was run visually.
     
     logToScreen(`\n\n=== STARTING REPLAY OF SIMULATION #${simData.id} ===`);
 
@@ -2161,7 +2176,7 @@ function initializeBattlemap(gameState) {
     const map = document.getElementById('battlemap-grid');
     if (!map) return;
     map.innerHTML = '';
-    tokenCache = {}; // Reset cache
+    tokenCache = {}; // Reset token cache for visualization
 
     // 1. Draw the grid cells ONCE
     map.style.gridTemplateColumns = `repeat(${CURRENT_BATTLEFIELD.MAX_X}, 1fr)`;
