@@ -699,10 +699,15 @@ async function runSimulation(isBlastMode = false) {
         
         determineNextSpotlight(lastOutcome, gameState);
         
+        // --- NEW PATCH: FIX FOR "RUN 1" FREEZE ---
         if (isVisualizing) {
             renderBattlemap(gameState); // This just moves tokens now
             await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay per turn
+        } else if (!isBlastMode) {
+            // Breathe ONLY if NOT visualizing AND NOT in blast mode
+            await new Promise(resolve => setTimeout(resolve, 0)); 
         }
+        // --- END PATCH ---
 
         if (isCombatOver(gameState)) {
             break;
@@ -1279,14 +1284,15 @@ function executeParsedEffect(action, adversary, target, gameState) {
                     logToScreen(` -> ${adversary.name} takes the spotlight again! (Logic not implemented)`);
                 }
             }
-            // Handle multi-target success (Acid Burrower's Spit Acid)
+            
+            // --- ACID BURROWER BUG FIX ---
+            // Handle multi-target success
             if (action.details.on_success_multi_target && hitCount >= 2) {
-                // --- NEW PATCH: Hard-coded fix for Spit Acid ---
                 // This bypasses the flawed JSON data and follows the user's text.
-                if (adversary.name === "Acid Burrower" && action.details.on_success[1].action_type === "FORCE_MARK_ARMOR_SLOT") {
+                if (adversary.name === "Acid Burrower" && action.details.on_success[1]?.action_type === "FORCE_MARK_ARMOR_SLOT") {
                     logToScreen(` -> (Ignoring flawed JSON multi-target 'Fear' gain)`);
                 } else {
-                // --- END PATCH ---
+                // --- END FIX ---
                     logToScreen(` -> Hit ${hitCount} targets, triggering multi-target effect!`);
                     executeParsedEffect(action.details.on_success_multi_target, adversary, target, gameState);
                 }
