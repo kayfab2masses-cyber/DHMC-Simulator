@@ -4,10 +4,14 @@ let adversaryPool = []; // Column 2: Adversary Library
 let activeParty = []; // Column 3: Players in the next sim
 let activeAdversaries = []; // Column 3: Adversaries in the next sim
 let SRD_ADVERSARIES = []; // This will hold our loaded SRD database
-let PREMADE_CHARACTERS = []; // NEW: This will hold our loaded PC database
+let PREMADE_CHARACTERS = []; // This will hold our loaded PC database
 
 let BATCH_LOG = null; 
-let tokenCache = {}; // --- NEW: For high-speed visualizer
+let tokenCache = {}; // For high-speed visualizer
+
+// --- NEW: History System ---
+let simHistory = []; // Stores objects: { id, logText, playbackLog: [], finalState }
+// --- END NEW ---
 
 // --- BATTLEFIELD & RANGE CONFIGS ---
 const DAGGERHEART_RANGES = {
@@ -27,7 +31,6 @@ let CURRENT_BATTLEFIELD = {
     ...DAGGERHEART_RANGES,
     ...MAP_CONFIGS.large 
 };
-// --- END OF NEW CONFIGS ---
 
 
 // --- EVENT LISTENERS ---
@@ -41,6 +44,20 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('run-multiple-button').addEventListener('click', () => runMultipleSimulations(5));
     document.getElementById('run-ten-button').addEventListener('click', () => runMultipleSimulations(10));
     document.getElementById('export-log-button').addEventListener('click', exportLog);
+    
+    // --- NEW: Playback Button Listener ---
+    const playbackButton = document.createElement('button');
+    playbackButton.id = 'playback-button';
+    playbackButton.textContent = 'Play Back Last Sim';
+    playbackButton.disabled = true;
+    playbackButton.style.marginTop = '10px';
+    document.querySelector('.controls-section:nth-child(2)').appendChild(playbackButton);
+    playbackButton.addEventListener('click', () => {
+        if (simHistory.length > 0) {
+            playBackSimulation(simHistory.length - 1);
+        }
+    });
+    // --- END NEW ---
 
     // Column 2 & 3 Buttons
     document.getElementById('pool-column').addEventListener('click', handlePoolClick);
@@ -66,23 +83,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('pc-catalog-list').addEventListener('click', handlePCListClick);
 
-    // --- VISUALIZER TOGGLE ---
-    document.getElementById('visualize-checkbox').addEventListener('change', (e) => {
-        const logContainer = document.getElementById('log-container');
-        const mapContainer = document.getElementById('visualizer-container');
-        if (e.target.checked) {
-            logContainer.classList.remove('full-width');
-            mapContainer.classList.remove('hidden');
-        } else {
-            logContainer.classList.add('full-width');
-            mapContainer.classList.add('hidden');
-        }
-    });
+    // --- VISUALIZER TOGGLE (Functionality moved to Playback Button) ---
+    const visualizeToggle = document.getElementById('visualize-checkbox');
+    if(visualizeToggle) visualizeToggle.style.display = 'none'; // Hide the original checkbox
+    // --- END VISUALIZER TOGGLE ---
 
     loadSRDDatabase();
     loadPCDatabase();
     renderPools();
     renderActiveScene();
+    initializeBattlemap(); // Initialize the empty map grid
 });
 
 // --- DATA & POOL MANAGEMENT ---
@@ -576,23 +586,32 @@ async function runMultipleSimulations(count) {
     logToScreen(`\n===== STARTING BATCH OF ${count} SIMULATION(S) =====`);
     const isVisualizing = document.getElementById('visualize-checkbox').checked;
     
-    // --- NEW PATCH: "Run 1" now uses Blast Mode ---
-    const isBlastMode = !isVisualizing;
-    // --- END PATCH ---
+    // --- NEW PATCH: TRUE BLAST MODE FOR ALL NON-VISUAL RUNS ---
+    // isBlastMode is TRUE if visuals are OFF (i.e., we are logging text to memory)
+    const isBlastMode = !isVisualizing; 
+    // --- END NEW PATCH ---
+
+    // Reset log and history for the start of a batch
+    simHistory = [];
+    document.getElementById('playback-button').disabled = true;
 
     for (let i = 1; i <= count; i++) {
         logToScreen(`\n--- SIMULATION ${i} OF ${count} ---`);
         
-        await runSimulation(isBlastMode); 
+        await runSimulation(count, isBlastMode); // Pass total count and blast status
         
-        if (isVisualizing && count > 1) {
-            await new Promise(resolve => setTimeout(resolve, 100)); // --- REDUCED DELAY ---
-        } else if (isBlastMode) {
-            // "Breathe" to prevent freezing
+        // --- NEW ARCHITECTURE: No delay needed in this loop since the inner loop is synchronous ---
+        if (isBlastMode) {
+            // "Breathe" to prevent freezing after a very fast synchronous run
             await new Promise(resolve => setTimeout(resolve, 0));
         }
     }
     logToScreen(`\n===== BATCH COMPLETE =====`);
+    
+    // Enable playback button if only 1 run was executed
+    if (count === 1) {
+        document.getElementById('playback-button').disabled = false;
+    }
 }
 
 function exportLog() {
@@ -609,7 +628,11 @@ function exportLog() {
     logToScreen(`\n--- Log exported! ---`);
 }
 
-async function runSimulation(isBlastMode = false) {
+// --- NEW SIGNATURE: runSimulation accepts count ---
+async function runSimulation(count, isBlastMode = false) {
+    // Determine if we need to record map data (Only for single, non-visualized runs)
+    const recordPlayback = (count === 1); 
+    
     if (isBlastMode) {
         BATCH_LOG = []; // Hijack the logger
     }
@@ -654,6 +677,9 @@ async function runSimulation(isBlastMode = false) {
         return; 
     }
 
+    let currentPlaybackLog = []; // Local array for map snapshots
+    const startTime = Date.now(); // Start timer for stats
+
     const gameState = {
         players: playerAgents,
         adversaries: adversaryAgents,
@@ -664,28 +690,17 @@ async function runSimulation(isBlastMode = false) {
     };
 
     logToScreen(`Simulation Initialized. Hope: ${gameState.hope}, Fear: ${gameState.fear}`);
-    logToScreen('Instantiated Player Agents:');
-    playerAgents.forEach(agent => {
-        logToScreen(`- ${agent.name} (HP: ${agent.max_hp}, Stress: ${agent.max_stress}, Evasion: ${agent.evasion}) at Pos: (${agent.position.x}, ${agent.position.y})`);
-    });
-    logToScreen('Instantiated Adversary Agents:');
-    adversaryAgents.forEach(agent => {
-        const mod = agent.attack?.modifier;
-        logToScreen(`- ${agent.name} (HP: ${agent.max_hp}, Stress: ${agent.max_stress}, Diff: ${agent.difficulty}, Atk Mod: ${mod}) at Pos: (${agent.position.x}, ${agent.position.y})`);
-    });
+    // Log initial state setup (not full details, just summary)
 
-    logToScreen('--- COMBAT BEGINS ---');
-    logToScreen(`Spotlight starts on: ${gameState.players[0].name}`);
-
-    // --- NEW: Initialize battlemap once ---
-    if (isVisualizing) {
-        initializeBattlemap(gameState);
-    }
-    // --- END NEW ---
-
-    // --- PATCH: REMOVED 50 STEP LIMIT ---
+    // --- SYNCHRONOUS SIMULATION LOOP ---
     while (!isCombatOver(gameState)) {
         let lastOutcome = '';
+        
+        // Record snapshot before the turn starts
+        if (recordPlayback) {
+            recordSnapshot(gameState, currentPlaybackLog);
+        }
+
         if (gameState.spotlight === 'GM') {
             lastOutcome = executeGMTurn(gameState);
         } else {
@@ -700,46 +715,137 @@ async function runSimulation(isBlastMode = false) {
         
         determineNextSpotlight(lastOutcome, gameState);
         
-        // --- NEW PATCH: FIX FOR "RUN 1" FREEZE ---
-        if (isVisualizing) {
-            renderBattlemap(gameState); // This just moves tokens now
-            await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay per turn
-        } else if (!isBlastMode) {
-            // This should no longer be reachable, but is safe to leave in.
-            // All non-visual runs are now Blast Mode.
-            await new Promise(resolve => setTimeout(resolve, 0)); 
-        }
-        // --- END PATCH ---
-
         if (isCombatOver(gameState)) {
             break;
         }
     }
-    // --- END PATCH ---
+    // --- END SYNCHRONOUS SIMULATION LOOP ---
 
-    if (isVisualizing) {
-        renderBattlemap(gameState); // Final render
+    const endTime = Date.now();
+    const duration = (endTime - startTime) / 1000;
+
+    // --- FINAL LOG DUMP & HISTORY SAVE ---
+    if (recordPlayback) {
+        // Record final snapshot
+        recordSnapshot(gameState, currentPlaybackLog);
     }
 
-    logToScreen('\n======================================');
-    logToScreen('SIMULATION COMPLETE');
-    logToScreen('======================================');
-    logToScreen('Final Party State:');
-    gameState.players.forEach(p => {
-        logToScreen(`- ${p.name}: ${p.current_hp} / ${p.max_hp} HP | ${p.current_stress} / ${p.max_stress} Stress`);
+    const finalLogText = BATCH_LOG ? BATCH_LOG.join('\n') : `(No detailed log recorded for batch run, duration: ${duration}s)`;
+    
+    // Save final results to history
+    simHistory.push({
+        id: simHistory.length + 1,
+        duration: duration,
+        logText: finalLogText,
+        players: gameState.players.map(p => ({ name: p.name, hp: p.current_hp, stress: p.current_stress })),
+        adversaries: gameState.adversaries.map(a => ({ name: a.name, hp: a.current_hp, stress: a.current_stress })),
+        playbackLog: currentPlaybackLog.length > 0 ? currentPlaybackLog : null
     });
-    logToScreen('Final Adversary State:');
-    gameState.adversaries.forEach(a => {
-        logToScreen(`- ${a.name}: ${a.current_hp} / ${a.max_hp} HP | ${a.current_stress} / ${a.max_stress} Stress`);
-    });
-    logToScreen(`Final Resources: ${gameState.hope} Hope, ${gameState.fear} Fear`);
-
-    if (isBlastMode && BATCH_LOG !== null) {
+    
+    // Dump results if in blast mode (or this is the final sim in a long run)
+    if (isBlastMode) {
         const logOutput = document.getElementById('log-output');
-        logOutput.textContent += BATCH_LOG.join('\n') + '\n'; 
-        logOutput.scrollTop = logOutput.scrollHeight;
+        if (logOutput) {
+             // For batches > 1, we still want the summary to appear instantly
+             logOutput.textContent += finalLogText + '\n';
+             logOutput.scrollTop = logOutput.scrollHeight;
+        }
         BATCH_LOG = null; // Release the hijack
     }
+}
+
+// --- NEW FUNCTION: RECORDS STATE SNAPSHOT ---
+function recordSnapshot(gameState, playbackLog) {
+    // Deep copy current state for the playback 'tape'
+    const snapshot = {
+        players: gameState.players.map(p => ({
+            id: p.id,
+            name: p.name,
+            current_hp: p.current_hp,
+            position: { ...p.position }
+        })),
+        adversaries: gameState.adversaries.map(a => ({
+            id: a.id,
+            name: a.name,
+            current_hp: a.current_hp,
+            position: { ...a.position }
+        }))
+    };
+    playbackLog.push(snapshot);
+}
+
+// --- NEW FUNCTION: PLAYS BACK SAVED SIMULATION ---
+async function playBackSimulation(historyIndex) {
+    const simData = simHistory[historyIndex];
+    if (!simData || !simData.playbackLog) {
+        alert("No visual playback data found for this simulation.");
+        return;
+    }
+    
+    const mapContainer = document.getElementById('visualizer-container');
+    const logContainer = document.getElementById('log-container');
+    
+    // 1. Prepare UI for playback
+    mapContainer.classList.remove('hidden');
+    logContainer.classList.remove('full-width');
+    
+    // Temporarily hide actual game agents and use the visualizer map
+    // We only need to render the tokens in the cache if the simulation was run visually.
+    
+    logToScreen(`\n\n=== STARTING REPLAY OF SIMULATION #${simData.id} ===`);
+
+    // 2. Clear old state and set up for playback
+    const map = document.getElementById('battlemap-grid');
+    map.innerHTML = '';
+    tokenCache = {}; // Reset token cache for replay
+    
+    // Use the coordinates from the first frame to initialize the map and create tokens
+    const initialState = simData.playbackLog[0];
+
+    map.style.gridTemplateColumns = `repeat(${CURRENT_BATTLEFIELD.MAX_X}, 1fr)`;
+    map.style.gridTemplateRows = `repeat(${CURRENT_BATTLEFIELD.MAX_Y}, 1fr)`;
+
+    let gridHtml = '';
+    const totalCells = CURRENT_BATTLEFIELD.MAX_X * CURRENT_BATTLEFIELD.MAX_Y;
+    for (let i = 0; i < totalCells; i++) {
+        gridHtml += '<div class="empty-cell"></div>';
+    }
+    map.innerHTML = gridHtml;
+
+    // Create tokens based on initial state
+    const allAgents = [...initialState.players, ...initialState.adversaries];
+    for (const agent of allAgents) {
+        const token = document.createElement('div');
+        token.className = agent.id.startsWith('player') ? 'token player-token' : 'token adversary-token';
+        token.id = agent.id;
+        map.appendChild(token);
+        tokenCache[agent.id] = token;
+    }
+    
+    // 3. Play back the frames
+    for (let i = 0; i < simData.playbackLog.length; i++) {
+        const snapshot = simData.playbackLog[i];
+        
+        // This is a simplified render function that only uses the snapshot data
+        for (const agent of [...snapshot.players, ...snapshot.adversaries]) {
+            const token = tokenCache[agent.id];
+            if (!token) continue;
+            
+            if (agent.current_hp <= 0) {
+                token.style.display = 'none';
+            } else {
+                token.style.display = 'block';
+                token.title = `${agent.name} (HP: ${agent.current_hp})`;
+                token.style.gridColumn = agent.position.x;
+                token.style.gridRow = agent.position.y;
+            }
+        }
+        
+        // Pause for playback speed
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    logToScreen(`=== REPLAY COMPLETE. Duration: ${simData.duration.toFixed(2)}s ===`);
 }
 
 
@@ -2055,7 +2161,7 @@ function initializeBattlemap(gameState) {
     const map = document.getElementById('battlemap-grid');
     if (!map) return;
     map.innerHTML = '';
-    tokenCache = {}; // Clear cache
+    tokenCache = {}; // Reset cache
 
     // 1. Draw the grid cells ONCE
     map.style.gridTemplateColumns = `repeat(${CURRENT_BATTLEFIELD.MAX_X}, 1fr)`;
