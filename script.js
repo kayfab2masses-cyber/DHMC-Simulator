@@ -922,7 +922,6 @@ function executePCBasicAttack(player, target, gameState) {
         }
 
         // --- BUGFIX: Removed call to checkAdversaryReactions. ---
-        // This was incorrectly triggering enemy "Overload" on the PC's turn.
         const damageTotal = rollDamage(damageString, proficiency, critBonus); 
         
         const damageInfo = { 
@@ -1282,8 +1281,15 @@ function executeParsedEffect(action, adversary, target, gameState) {
             }
             // Handle multi-target success (Acid Burrower's Spit Acid)
             if (action.details.on_success_multi_target && hitCount >= 2) {
-                logToScreen(` -> Hit ${hitCount} targets, triggering multi-target effect!`);
-                executeParsedEffect(action.details.on_success_multi_target, adversary, target, gameState);
+                // --- NEW PATCH: Hard-coded fix for Spit Acid ---
+                // This bypasses the flawed JSON data and follows the user's text.
+                if (adversary.name === "Acid Burrower" && action.details.on_success[1].action_type === "FORCE_MARK_ARMOR_SLOT") {
+                    logToScreen(` -> (Ignoring flawed JSON multi-target 'Fear' gain)`);
+                } else {
+                // --- END PATCH ---
+                    logToScreen(` -> Hit ${hitCount} targets, triggering multi-target effect!`);
+                    executeParsedEffect(action.details.on_success_multi_target, adversary, target, gameState);
+                }
             }
             break;
 
