@@ -662,16 +662,34 @@ async function runSimulation(count, isBlastMode = false) {
 
     logToScreen(`Simulating on ${mapSize} map (${CURRENT_BATTLEFIELD.MAX_X}x${CURRENT_BATTLEFIELD.MAX_Y})...`);
 
+    // --- START FIX ---
     if (activeParty.length === 0) { 
         logToScreen('--- ERROR --- \nAdd a player to the Active Scene.'); 
-        if (isBlastMode) { BATCH_LOG = null; } 
+        if (isBlastMode) {
+            // We MUST dump the log before nullifying it
+            const logOutput = document.getElementById('log-output');
+            if (logOutput) {
+                 logOutput.textContent += BATCH_LOG.join('\n') + '\n';
+                 logOutput.scrollTop = logOutput.scrollHeight;
+            }
+            BATCH_LOG = null; // Now it's safe
+        } 
         return; 
     }
     if (activeAdversaries.length === 0) { 
         logToScreen('--- ERROR --- \nAdd an adversary to the Active Scene.'); 
-        if (isBlastMode) { BATCH_LOG = null; } 
+        if (isBlastMode) {
+            // We MUST dump the log before nullifying it
+            const logOutput = document.getElementById('log-output');
+            if (logOutput) {
+                 logOutput.textContent += BATCH_LOG.join('\n') + '\n';
+                 logOutput.scrollTop = logOutput.scrollHeight;
+            }
+            BATCH_LOG = null; // Now it's safe
+        } 
         return; 
     }
+    // --- END FIX ---
 
     let playerAgents, adversaryAgents;
     try {
