@@ -1,13 +1,14 @@
 // --- GLOBAL STATE ---
 let playerPool = [];
 let adversaryPool = [];
-let environmentPool = []; // NEW
+let environmentPool = [];
 let activeParty = [];
-let activeAdversaries = [];
-let activeEnvironment = null; // NEW: Singular active environment
+let activeAdversaries = {}; // CHANGED: Now an object { 'encounter-1': [], 'encounter-2': [] }
+let activeEnvironment = null;
 let SRD_ADVERSARIES = [];
 let PREMADE_CHARACTERS = [];
-let PLACEHOLDER_ENVIRONMENTS = []; // NEW
+let PLACEHOLDER_ENVIRONMENTS = [];
+let encounterCount = 1; // Start with 1 encounter
 
 let BATCH_LOG = []; // Global log capture
 let tokenCache = {}; 
@@ -19,35 +20,30 @@ const DAGGERHEART_RANGES = {
     RANGE_VERY_CLOSE: 3,
     RANGE_CLOSE: 6,
     RANGE_FAR: 12,
-    RANGE_VERY_FAR: 24 // Added Very Far for rules completeness
+    RANGE_VERY_FAR: 24
 };
-
 const MAP_CONFIGS = {
-    small: { MAX_X: 15, MAX_Y: 15 },
-    medium: { MAX_X: 20, MAX_Y: 20 },
-    large: { MAX_X: 30, MAX_Y: 30 }
+    small: { MAX_X: 15, MAX_Y: 15  },
+    medium: { MAX_X: 20, MAX_Y: 20  },
+    large: { MAX_X: 30, MAX_Y: 30  }
 };
-
 let CURRENT_BATTLEFIELD = {
     ...DAGGERHEART_RANGES,
     ...MAP_CONFIGS.large 
 };
-
 
 // --- EVENT LISTENERS ---
 document.addEventListener('DOMContentLoaded', () => {
     // Column 1 Buttons
     document.getElementById('add-character-button').addEventListener('click', addCharacterToPool);
     document.getElementById('add-adversary-button').addEventListener('click', addAdversaryToPool);
-    document.getElementById('add-environment-button').addEventListener('click', addEnvironmentToPool); // NEW
+    document.getElementById('add-environment-button').addEventListener('click', addEnvironmentToPool);
 
-    // Main Run Buttons
-    document.getElementById('run-button').addEventListener('click', () => runMultipleSimulations(1));
-    document.getElementById('run-multiple-button').addEventListener('click', () => runMultipleSimulations(5));
-    document.getElementById('run-ten-button').addEventListener('click', () => runMultipleSimulations(10));
-    document.getElementById('export-log-button').addEventListener('click', exportLog);
+    // Main Run Buttons (Now for Encounter 1 ONLY)
+    document.getElementById('run-button').addEventListener('click', () => runMultipleSimulations(1)); // This now runs Enc 1, 1 time
+    document.getElementById('run-multiple-button').addEventListener('click', () => runMultipleSimulations(5)); // This now runs Enc 1, 5 times
     
-    // Playback Button Listener
+    // Playback Button
     const playbackButton = document.getElementById('playback-button');
     if (playbackButton) {
         playbackButton.addEventListener('click', () => {
@@ -55,8 +51,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 playBackSimulation(simHistory.length - 1);
             }
         });
-    } else {
-        console.error("CRITICAL: Playback button not found in index.html");
     }
 
     // Column 2 & 3 Click Handlers
@@ -69,6 +63,14 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('adv-pool-tier-filter').addEventListener('change', renderPools);
     document.getElementById('adv-pool-type-filter').addEventListener('change', renderPools);
 
+    // Sequence Control Listeners
+    document.getElementById('add-encounter-button').addEventListener('click', addNewEncounterBlock);
+    document.getElementById('run-sequence-button').addEventListener('click', runFullEncounterSequence);
+    document.getElementById('export-log-button').addEventListener('click', exportLog);
+
+    // Add listener for the *first* toggle button
+    document.querySelector('.toggle-button').addEventListener('click', toggleEncounterBlock);
+
     // Hide old visualize checkbox
     const visualizeToggle = document.getElementById('visualize-checkbox');
     if(visualizeToggle) visualizeToggle.style.display = 'none';
@@ -77,29 +79,27 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAndPopulateDatabases();
     
     // Initial Renders
+    activeAdversaries['encounter-1'] = []; // Initialize encounter 1 list
     renderActiveScene();
-    renderActiveEnvironment(); // NEW
+    renderActiveEnvironment();
+    updateBPCounter(); // NEW
     initializeBattlemap();
 });
 
 // --- DATA & POOL MANAGEMENT ---
-
 async function loadAndPopulateDatabases() {
     await loadPCDatabase();
     await loadSRDDatabase();
-    await loadEnvironmentDatabase(); // NEW
+    await loadEnvironmentDatabase();
     
-    // After all are loaded, render pools
     renderPools();
-    renderEnvironmentPool(); // NEW
+    renderEnvironmentPool();
 }
 
 async function loadSRDDatabase() {
     try {
         const response = await fetch('data/srd_adversaries.json');
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        if (!response.ok) { throw new Error(`HTTP error! status: ${response.status}`); }
         const data = await response.json(); 
         if (Array.isArray(data)) {
             SRD_ADVERSARIES = data;
@@ -107,22 +107,17 @@ async function loadSRDDatabase() {
                 ...adv,
                 simId: `adv-master-${Date.now()}-${index}`
             }));
-        } else {
-            throw new Error("Invalid JSON structure. Expected a top-level array '[...]'");
-        }
+        } else { throw new Error("Invalid JSON structure. Expected a top-level array '[...]'"); }
         printToLog(`Successfully loaded and populated ${adversaryPool.length} adversaries.`);
     } catch (error) {
         printToLog(`--- FATAL ERROR --- Could not load SRD Adversary JSON: ${error.message}`);
-        console.error("Failed to fetch SRD data:", error);
     }
 }
 
 async function loadPCDatabase() {
     try {
         const response = await fetch('data/premade_characters.json'); 
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        if (!response.ok) { throw new Error(`HTTP error! status: ${response.status}`); }
         const data = await response.json(); 
         if (data && Array.isArray(data.players)) {
             PREMADE_CHARACTERS = data.players;
@@ -130,20 +125,14 @@ async function loadPCDatabase() {
                 ...pc,
                 simId: `player-${Date.now()}-${index}`
             }));
-        } else {
-            throw new Error("Invalid JSON structure. Expected an object with a 'players' array.");
-        }
+        } else { throw new Error("Invalid JSON structure. Expected an object with a 'players' array."); }
         printToLog(`Successfully loaded and populated ${playerPool.length} PCs.`);
     } catch (error) {
         printToLog(`--- FATAL ERROR --- Could not load Premade PC JSON: ${error.message}`);
-        console.error("Failed to fetch PC data:", error);
     }
 }
 
-// NEW: Load Environments
 async function loadEnvironmentDatabase() {
-    // TODO: Load from environments.json when it exists
-    // For now, create placeholders
     PLACEHOLDER_ENVIRONMENTS = [
         { name: "Placeholder: Tier 1", difficulty: 11, tier: 1, simId: `env-${Date.now()}-1` },
         { name: "Placeholder: Tier 2", difficulty: 14, tier: 2, simId: `env-${Date.now()}-2` },
@@ -154,8 +143,70 @@ async function loadEnvironmentDatabase() {
     printToLog(`Successfully loaded ${environmentPool.length} placeholder environments.`);
 }
 
+// --- NEW: Battle Point Functions ---
+function getAdversaryBattlePoints(advType) {
+    switch(advType) {
+        case 'Minion':
+        case 'Social':
+        case 'Support':
+            return 1;
+        case 'Horde':
+        case 'Ranged':
+        case 'Skulk':
+        case 'Standard':
+            return 2;
+        case 'Leader':
+            return 3;
+        case 'Bruiser':
+            return 4;
+        case 'Solo':
+            return 5;
+        default:
+            return 0;
+    }
+}
 
-// NEW: Helper function to calculate complexity
+function calculateTargetBP() {
+    if (activeParty.length === 0) return 0;
+    return (3 * activeParty.length) + 2;
+}
+
+function updateBPCounter() {
+    const targetBP = calculateTargetBP();
+    let spentBP = 0;
+
+    // Sum BP from ALL encounter blocks
+    Object.values(activeAdversaries).forEach(encounterList => {
+        encounterList.forEach(adv => {
+            spentBP += getAdversaryBattlePoints(adv.type);
+        });
+    });
+
+    document.getElementById('bp-target-display').textContent = `Target BP: ${targetBP} / Short Rest`;
+    const trackerDisplay = document.getElementById('bp-tracker-display');
+    trackerDisplay.textContent = `Spent BP: ${spentBP} / ${targetBP}`;
+
+    // Apply color coding
+    trackerDisplay.className = 'bp-tracker'; // Reset classes
+    if (spentBP > targetBP) {
+        trackerDisplay.classList.add('bp-red');
+    } else if (spentBP === targetBP || spentBP === targetBP - 1) {
+        trackerDisplay.classList.add('bp-green');
+        if (spentBP === targetBP) {
+            trackerDisplay.classList.add('bp-green-bold');
+        }
+    } else if (spentBP > 0) {
+        trackerDisplay.classList.add('bp-yellow');
+    }
+
+    // Enable/Disable sequence button
+    const seqButton = document.getElementById('run-sequence-button');
+    if (seqButton) {
+        seqButton.disabled = (activeParty.length === 0 || spentBP === 0 || !activeEnvironment);
+    }
+}
+
+// Helper function to calculate complexity
 function getAdversaryComplexity(adv) {
     if (!adv.features) return 0;
     const featureCount = adv.features.length;
@@ -164,7 +215,7 @@ function getAdversaryComplexity(adv) {
     return 3;
 }
 
-// NEW: Helper to render complexity stars
+// Helper to render complexity stars
 function renderComplexityStars(complexity) {
     let stars = '';
     for (let i = 1; i <= 3; i++) {
@@ -177,13 +228,11 @@ function renderComplexityStars(complexity) {
     return `<span class="complexity-stars">${stars}</span>`;
 }
 
-
 function addCharacterToPool() {
     const jsonTextBox = document.getElementById('character-json');
     try {
         const newCharacter = JSON.parse(jsonTextBox.value);
         if (!newCharacter.name || !newCharacter.traits) throw new Error('JSON missing "name" or "traits"');
-        
         newCharacter.simId = `player-manual-${Date.now()}`;
         playerPool.push(newCharacter); 
         printToLog(`Added ${newCharacter.name} to Player Pool.`);
@@ -197,7 +246,6 @@ function addAdversaryToPool() {
     try {
         const newAdversary = JSON.parse(jsonTextBox.value);
         if (!newAdversary.name || !newAdversary.difficulty) throw new Error('JSON missing "name" or "difficulty"');
-
         newAdversary.simId = `adv-manual-${Date.now()}`;
         adversaryPool.push(newAdversary); 
         printToLog(`Added ${newAdversary.name} to Adversary Pool.`);
@@ -206,13 +254,11 @@ function addAdversaryToPool() {
     } catch (e) { printToLog(`--- ERROR --- \nInvalid Adversary JSON. ${e.message}`); }
 }
 
-// NEW: Add Environment
 function addEnvironmentToPool() {
     const jsonTextBox = document.getElementById('environment-json');
     try {
         const newEnv = JSON.parse(jsonTextBox.value);
         if (!newEnv.name || !newEnv.difficulty) throw new Error('JSON missing "name" or "difficulty"');
-
         newEnv.simId = `env-manual-${Date.now()}`;
         environmentPool.push(newEnv); 
         printToLog(`Added ${newEnv.name} to Environment Pool.`);
@@ -221,7 +267,6 @@ function addEnvironmentToPool() {
     } catch (e) { printToLog(`--- ERROR --- \nInvalid Environment JSON. ${e.message}`); }
 }
 
-
 // --- DYNAMIC CLICK HANDLERS ---
 function handlePoolClick(event) {
     const target = event.target;
@@ -229,41 +274,46 @@ function handlePoolClick(event) {
     
     const agentItem = target.closest('.pool-item');
     if (!agentItem) return;
-    
+
     const agentId = agentItem.dataset.id;
     if (!agentId) return; 
 
-    // Player Pool
-    let player = playerPool.find(p => p.simId === agentId);
-    if (player) {
-        const newPlayerInstance = JSON.parse(JSON.stringify(player));
-        newPlayerInstance.simId = `player-instance-${Date.now()}-${Math.random()}`;
-        activeParty.push(newPlayerInstance);
-        printToLog(`Copied ${newPlayerInstance.name} to Active Scene.`);
-        renderActiveScene();
-        return;
-    }
+    const parentListId = agentItem.parentElement.id;
 
-    // Adversary Pool
-    let agentTemplate = adversaryPool.find(a => a.simId === agentId);
-    if (agentTemplate) {
-        const newAgentInstance = JSON.parse(JSON.stringify(agentTemplate));
-        newAgentInstance.simId = `adv-instance-${Date.now()}-${Math.random()}`; 
-        activeAdversaries.push(newAgentInstance);
-        printToLog(`Copied ${newAgentInstance.name} to Active Scene.`);
-        renderActiveScene();
-        return;
+    if (parentListId === 'player-pool-list') {
+        let player = playerPool.find(p => p.simId === agentId);
+        if (player) {
+            const newPlayerInstance = JSON.parse(JSON.stringify(player));
+            newPlayerInstance.simId = `player-instance-${Date.now()}-${Math.random()}`;
+            activeParty.push(newPlayerInstance);
+            printToLog(`Copied ${newPlayerInstance.name} to Active Scene.`);
+            renderActiveScene();
+        }
+    } else if (parentListId === 'adversary-pool-list') {
+        let agentTemplate = adversaryPool.find(a => a.simId === agentId);
+        if (agentTemplate) {
+            // Find the *last* available encounter list
+            const lastEncounterId = encounterCount;
+            const listKey = `encounter-${lastEncounterId}`;
+            
+            const newAgentInstance = JSON.parse(JSON.stringify(agentTemplate));
+            newAgentInstance.simId = `adv-instance-${Date.now()}-${Math.random()}`;
+            newAgentInstance.bp = getAdversaryBattlePoints(newAgentInstance.type); // Add BP cost
+            
+            activeAdversaries[listKey].push(newAgentInstance);
+            printToLog(`Copied ${newAgentInstance.name} to Encounter ${lastEncounterId}.`);
+            renderActiveScene();
+        }
+    } else if (parentListId === 'environment-pool-list') {
+        let envTemplate = environmentPool.find(e => e.simId === agentId);
+        if (envTemplate) {
+            activeEnvironment = JSON.parse(JSON.stringify(envTemplate));
+            activeEnvironment.simId = `env-instance-${Date.now()}-${Math.random()}`;
+            printToLog(`Set Active Environment to: ${activeEnvironment.name}.`);
+            renderActiveEnvironment();
+        }
     }
-
-    // Environment Pool
-    let envTemplate = environmentPool.find(e => e.simId === agentId);
-    if (envTemplate) {
-        activeEnvironment = JSON.parse(JSON.stringify(envTemplate)); // Set as active (singular)
-        activeEnvironment.simId = `env-instance-${Date.now()}-${Math.random()}`;
-        printToLog(`Set Active Environment to: ${activeEnvironment.name}.`);
-        renderActiveEnvironment();
-        return;
-    }
+    updateBPCounter(); // Update BP total
 }
 
 function handleSceneClick(event) {
@@ -275,70 +325,67 @@ function handleSceneClick(event) {
     const agentId = agentItem.dataset.id;
     if (!agentId) return;
 
+    const parentList = agentItem.parentElement;
+
     // Check Party
-    let playerIndex = activeParty.findIndex(p => p.simId === agentId);
-    if (playerIndex > -1) {
-        const agent = activeParty.splice(playerIndex, 1)[0];
-        printToLog(`Removed ${agent.name} instance from Active Scene.`);
-        renderActiveScene();
-        return;
+    if (parentList.id === 'active-party-list') {
+        let playerIndex = activeParty.findIndex(p => p.simId === agentId);
+        if (playerIndex > -1) {
+            const agent = activeParty.splice(playerIndex, 1)[0];
+            printToLog(`Removed ${agent.name} instance from Active Scene.`);
+            renderActiveScene();
+        }
     }
-
-    // Check Adversaries
-    let adversaryIndex = activeAdversaries.findIndex(a => a.simId === agentId);
-    if (adversaryIndex > -1) {
-        const agent = activeAdversaries.splice(adversaryIndex, 1)[0];
-        printToLog(`Removed ${agent.name} instance from Active Scene.`);
-        renderActiveScene();
-        return;
+    // Check Adversaries (now checks all possible lists)
+    else if (parentList.classList.contains('active-adversary-list')) {
+        const encounterId = parentList.id.split('-').pop();
+        const listKey = `encounter-${encounterId}`;
+        let adversaryIndex = activeAdversaries[listKey].findIndex(a => a.simId === agentId);
+        if (adversaryIndex > -1) {
+            const agent = activeAdversaries[listKey].splice(adversaryIndex, 1)[0];
+            printToLog(`Removed ${agent.name} from Encounter ${encounterId}.`);
+            renderActiveScene();
+        }
     }
-
     // Check Environment
-    if (activeEnvironment && activeEnvironment.simId === agentId) {
-        printToLog(`Removed ${activeEnvironment.name} from Active Scene.`);
-        activeEnvironment = null;
-        renderActiveEnvironment();
-        return;
+    else if (parentList.id === 'active-environment-list') {
+        if (activeEnvironment && activeEnvironment.simId === agentId) {
+            printToLog(`Removed ${activeEnvironment.name} from Active Scene.`);
+            activeEnvironment = null;
+            renderActiveEnvironment();
+        }
     }
+    updateBPCounter(); // Update BP total
 }
 
 // --- DYNAMIC UI RENDERING ---
-
 function renderPools() {
     const playerListDiv = document.getElementById('player-pool-list');
     const adversaryListDiv = document.getElementById('adversary-pool-list');
     playerListDiv.innerHTML = '';
     adversaryListDiv.innerHTML = '';
 
-    // 1. Get Filter Values
     const pcClassFilter = document.getElementById('pc-pool-class-filter').value;
     const pcLevelFilter = document.getElementById('pc-pool-level-filter').value;
     const advTierFilter = document.getElementById('adv-pool-tier-filter').value;
     const advTypeFilter = document.getElementById('adv-pool-type-filter').value;
 
-    // 2. Filter Player Pool
     const filteredPlayers = playerPool.filter(char => {
         const isManual = !char.class || !char.level;
-        if (isManual) {
-            return (pcClassFilter === 'all' && pcLevelFilter === 'all'); // Only show manual adds if no filter
-        }
+        if (isManual) return (pcClassFilter === 'all' && pcLevelFilter === 'all');
         const classMatch = (pcClassFilter === 'all' || char.class.name === pcClassFilter);
         const levelMatch = (pcLevelFilter === 'all' || char.level == pcLevelFilter);
         return classMatch && levelMatch;
     });
 
-    // 3. Filter Adversary Pool
     const filteredAdversaries = adversaryPool.filter(adv => {
         const isManual = !adv.tier || !adv.type;
-        if (isManual) {
-             return (advTierFilter === 'all' && advTypeFilter === 'all'); // Only show manual adds if no filter
-        }
+        if (isManual) return (advTierFilter === 'all' && advTypeFilter === 'all');
         const tierMatch = (advTierFilter === 'all' || adv.tier == advTierFilter);
         const typeMatch = (advTypeFilter === 'all' || adv.type === advTypeFilter);
         return tierMatch && typeMatch;
     });
 
-    // 4. Render Filtered Players
     filteredPlayers.forEach(char => {
         const level = char.level || 'Custom';
         const className = char.class?.name || 'JSON';
@@ -348,15 +395,14 @@ function renderPools() {
             <div class="pool-item-controls">
                 <button class="move-button" title="Add to Active Scene">&gt;</button>
             </div>
-        </div>
-        `;
+        </div>`;
     });
 
-    // 5. Render Filtered Adversaries
     filteredAdversaries.forEach(adv => {
         const difficulty = adv.difficulty || 'N/A';
         const complexity = getAdversaryComplexity(adv);
-        const complexityStars = renderComplexityStars(complexity); // Get stars
+        const complexityStars = renderComplexityStars(complexity);
+        const bp = getAdversaryBattlePoints(adv.type); // Get BP
         let features = "No features listed.";
         if (adv.features && adv.features.length > 0) {
              features = adv.features.map(f => `• ${f.name} (${f.type})`).join('\n');
@@ -364,12 +410,11 @@ function renderPools() {
 
         adversaryListDiv.innerHTML += `
         <div class="pool-item" data-id="${adv.simId}" title="${features}">
-            <span class="agent-name">${adv.name} (Diff ${difficulty}) ${complexityStars}</span>
+            <span class="agent-name">${adv.name} (Diff ${difficulty}) ${complexityStars} (BP: ${bp})</span>
             <div class="pool-item-controls">
                 <button class="move-button" title="Add to Active Scene">&gt;</button>
             </div>
-        </div>
-        `;
+        </div>`;
     });
 
     if (filteredPlayers.length === 0 && playerPool.length > 0) {
@@ -380,11 +425,9 @@ function renderPools() {
     }
 }
 
-// NEW: Render Environment Pool
 function renderEnvironmentPool() {
     const envListDiv = document.getElementById('environment-pool-list');
     envListDiv.innerHTML = '';
-
     environmentPool.forEach(env => {
         envListDiv.innerHTML += `
         <div class="pool-item" data-id="${env.simId}">
@@ -392,48 +435,106 @@ function renderEnvironmentPool() {
             <div class="pool-item-controls">
                 <button class="move-button" title="Set as Active Environment">&gt;</button>
             </div>
-        </div>
-        `;
+        </div>`;
     });
 }
 
 function renderActiveScene() {
+    // Render Party
     const partyListDiv = document.getElementById('active-party-list');
-    const adversaryListDiv = document.getElementById('active-adversary-list');
     partyListDiv.innerHTML = '';
-    adversaryListDiv.innerHTML = '';
-
     activeParty.forEach(char => {
         partyListDiv.innerHTML += `
         <div class="scene-item" data-id="${char.simId}">
             <button class="move-button" title="Remove from Scene">&lt;</button>
             <span class="agent-name">${char.name} (Lvl ${char.level})</span>
-        </div>
-        `;
+        </div>`;
     });
+    document.getElementById('pc-count').textContent = activeParty.length;
 
-    activeAdversaries.forEach(adv => {
-        adversaryListDiv.innerHTML += `
-        <div class="scene-item" data-id="${adv.simId}">
-            <button class="move-button" title="Remove from Scene">&lt;</button>
-            <span class="agent-name">${adv.name} (Diff ${adv.difficulty})</span>
-        </div>
-        `;
+    // Render All Adversary Encounters
+    Object.keys(activeAdversaries).forEach(encounterKey => {
+        const listId = `active-adversary-list-${encounterKey.split('-').pop()}`;
+        const adversaryListDiv = document.getElementById(listId);
+        
+        if (adversaryListDiv) {
+            adversaryListDiv.innerHTML = '';
+            activeAdversaries[encounterKey].forEach(adv => {
+                adversaryListDiv.innerHTML += `
+                <div class="scene-item" data-id="${adv.simId}">
+                    <button class="move-button" title="Remove from Scene">&lt;</button>
+                    <span class="agent-name">${adv.name} (Diff ${adv.difficulty}) (BP: ${adv.bp})</span>
+                </div>`;
+            });
+        }
     });
 }
 
-// NEW: Render Active Environment
 function renderActiveEnvironment() {
-    const activeEnvDiv = document.getElementById('active-environment');
+    const activeEnvDiv = document.getElementById('active-environment-list');
     activeEnvDiv.innerHTML = '';
-
     if (activeEnvironment) {
         activeEnvDiv.innerHTML += `
         <div class="scene-item" data-id="${activeEnvironment.simId}">
             <button class="move-button" title="Remove from Scene">&lt;</button>
             <span class="agent-name">${activeEnvironment.name} (Diff ${activeEnvironment.difficulty})</span>
+        </div>`;
+    }
+    updateBPCounter();
+}
+
+// --- NEW: Multi-Encounter Functions ---
+function addNewEncounterBlock() {
+    encounterCount++;
+    const plannerArea = document.getElementById('encounter-planner-area');
+
+    // Create the new block
+    const newBlock = document.createElement('div');
+    newBlock.className = 'encounter-block';
+    newBlock.id = `encounter-${encounterCount}`;
+
+    // Initialize the adversary list for this new encounter
+    activeAdversaries[`encounter-${encounterCount}`] = [];
+
+    newBlock.innerHTML = `
+        <button class="toggle-button" data-target="encounter-${encounterCount}-body">▼</button>
+        <h4>Encounter ${encounterCount}</h4>
+        <div class="encounter-body" id="encounter-${encounterCount}-body">
+            <div class="pool-container">
+                <div class="pool-header">
+                    <h4>Active Adversaries</h4>
+                </div>
+                <div id="active-adversary-list-${encounterCount}" class="agent-list active-adversary-list">
+                    </div>
+            </div>
         </div>
-        `;
+    `;
+    
+    plannerArea.appendChild(newBlock);
+    
+    // Add event listener to the new toggle button
+    newBlock.querySelector('.toggle-button').addEventListener('click', toggleEncounterBlock);
+
+    // Disable adding adversaries to previous lists
+    document.querySelectorAll('.active-adversary-list').forEach((list, index) => {
+        if (index < encounterCount - 1) { // -1 because index is 0-based
+            list.closest('.pool-container').style.opacity = '0.6';
+            // You could also disable clicks here if needed
+        }
+    });
+}
+
+function toggleEncounterBlock(event) {
+    const button = event.currentTarget;
+    const targetId = button.dataset.target;
+    const body = document.getElementById(targetId);
+
+    if (body.style.display === 'none') {
+        body.style.display = 'block';
+        button.textContent = '▼';
+    } else {
+        body.style.display = 'none';
+        button.textContent = '▶';
     }
 }
 
@@ -509,12 +610,13 @@ function instantiateAdversaryAgent(data) {
             ...data.attack,
             modifier: attackBonus
         },
-        // --- BUG FIX: Create the thresholds object ---
+        // --- BUG FIX: Create the thresholds object from root properties ---
         thresholds: {
             major: data.major,
             severe: data.severe
         },
         // --- END BUG FIX ---
+        bp: getAdversaryBattlePoints(data.type), // Add BP
         conditions: [],
         passives: {},
         position: {
@@ -567,107 +669,183 @@ function applyPassiveFeatures(agent) {
     }
 }
 
-// --- SPOTLIGHT SIMULATION ENGINE ---
+// --- *** SIMULATION RUNNER *** ---
+
+// This function runs a BATCH of standalone sims for Encounter 1
 async function runMultipleSimulations(count) {
-    printToLog(`\n===== STARTING BATCH OF ${count} SIMULATION(S) =====`);
+    const title = count === 1 ? "Run 1 Sim (Encounter 1)" : `Batch of ${count} Sims (Encounter 1 only)`;
+    printToLog(`\n===== STARTING: ${title} =====`);
     
     simHistory = [];
     const playbackBtn = document.getElementById('playback-button');
-    if (playbackBtn) {
-        playbackBtn.disabled = true;
-    }
+    if (playbackBtn) playbackBtn.disabled = true;
 
     for (let i = 1; i <= count; i++) {
         // Run the simulation synchronously.
-        runSimulation(count); 
+        runSingleEncounter(1, `Encounter 1 (Sim ${i}/${count})`, null, count > 1); // null = fresh state, true = isBatch
         
-        // "Breathe" to prevent freezing after a very fast synchronous run
-        if (count > 1) {
-            await new Promise(resolve => setTimeout(resolve, 0));
-        }
+        // "Breathe" to prevent freezing
+        await new Promise(resolve => setTimeout(resolve, 0));
     }
     printToLog(`\n===== BATCH COMPLETE =====`);
-    
+
     if (count === 1 && simHistory.length === 1 && simHistory[0].playbackLog) {
-        if (playbackBtn) {
-            playbackBtn.disabled = false;
-        }
+        if (playbackBtn) playbackBtn.disabled = false;
     }
 }
 
-function exportLog() {
-    const logOutput = document.getElementById('log-output');
-    const logContent = logOutput.innerText; // Use innerText to get formatted text
-    
-    const blob = new Blob([logContent], { type: 'text/plain' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `dhmc_simulation_log_${Date.now()}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    printToLog(`\n--- Log exported! ---`);
-}
+// This function runs the FULL SEQUENCE of encounters, 1 time
+async function runFullEncounterSequence() {
+    printToLog(`\n===== STARTING FULL ENCOUNTER SEQUENCE (1 Time) =====`);
+    simHistory = []; // Clear history for playback
+    const playbackBtn = document.getElementById('playback-button');
+    if (playbackBtn) playbackBtn.disabled = true;
 
-function runSimulation(count) {
-    const recordPlayback = (count === 1); 
-    BATCH_LOG = []; // Always reset the log for a new sim
-
-    simLog('======================================');
-    simLog('INITIALIZING NEW SIMULATION...');
-    simLog('======================================');
-
+    // --- 1. Create Initial Game State ---
     const mapSize = document.getElementById('map-size-select').value;
-    
-    CURRENT_BATTLEFIELD = {
-        ...DAGGERHEART_RANGES,
-        ...MAP_CONFIGS[mapSize] 
-    };
-
-    simLog(`Simulating on ${mapSize} map (${CURRENT_BATTLEFIELD.MAX_X}x${CURRENT_BATTLEFIELD.MAX_Y})...`);
-
-    // NEW: Get active environment difficulty
+    CURRENT_BATTLEFIELD = { ...DAGGERHEART_RANGES, ...MAP_CONFIGS[mapSize] };
     const sceneDifficulty = activeEnvironment ? activeEnvironment.difficulty : 10;
-    simLog(`Active Environment Difficulty set to: ${sceneDifficulty}`);
-
-
-    if (activeParty.length === 0) { 
-        simLog('--- ERROR --- \nAdd a player to the Active Scene.');
-        printToLog(BATCH_LOG.join('\n'));
-        BATCH_LOG = [];
-        return; 
-    }
-    if (activeAdversaries.length === 0) { 
-        simLog('--- ERROR --- \nAdd an adversary to the Active Scene.'); 
-        printToLog(BATCH_LOG.join('\n'));
-        BATCH_LOG = [];
-        return; 
-    }
-
-    let playerAgents, adversaryAgents;
+    
+    let playerAgents;
     try {
         playerAgents = activeParty.map(instantiatePlayerAgent);
-        adversaryAgents = activeAdversaries.map(instantiateAdversaryAgent);
     } catch (e) {
-        simLog(`--- ERROR --- \nFailed to parse agent JSON. \n${e.message}`);
-        console.error("Error during instantiation:", e);
-        printToLog(BATCH_LOG.join('\n'));
-        BATCH_LOG = [];
-        return; 
+        printToLog(`--- FATAL ERROR (PLAYERS) --- \n${e.message}`);
+        return;
+    }
+    
+    if (playerAgents.length === 0) {
+        printToLog(`--- FATAL ERROR --- \nAdd players to the Active Party to run a sequence.`);
+        return;
+    }
+    if (!activeEnvironment) {
+        printToLog(`--- FATAL ERROR --- \nAdd an Active Environment to run a sequence.`);
+        return;
     }
 
-    let currentPlaybackLog = [];
-    const startTime = Date.now();
-
-    const gameState = {
+    let sharedGameState = {
         players: playerAgents,
-        adversaries: adversaryAgents,
+        adversaries: [], // Will be loaded per encounter
         hope: 2 * playerAgents.length,
         fear: 1 * playerAgents.length,
         spotlight: 0,
         lastPlayerSpotlight: 0,
-        sceneDifficulty: sceneDifficulty // NEW
+        sceneDifficulty: sceneDifficulty
     };
+
+    // --- 2. Loop through each encounter block ---
+    for (let i = 1; i <= encounterCount; i++) {
+        const encounterKey = `encounter-${i}`;
+        const adversaryList = activeAdversaries[encounterKey];
+        
+        if (!adversaryList || adversaryList.length === 0) {
+            printToLog(`\n--- SKIPPING ENCOUNTER ${i} (No adversaries) ---`);
+            continue;
+        }
+
+        printToLog(`\n--- STARTING ENCOUNTER ${i} ---`);
+
+        // --- 3. Run the single encounter ---
+        // We pass the *shared* gameState to be modified in-place
+        runSingleEncounter(i, `Encounter ${i}`, sharedGameState, false); // false = not a batch
+
+        // --- 4. Check for TPK ---
+        const playersAlive = sharedGameState.players.some(p => p.current_hp > 0);
+        if (!playersAlive) {
+            printToLog(`\n--- PARTY DEFEATED! --- \nSequence halted after Encounter ${i}.`);
+            break; // Stop the sequence
+        }
+        
+        if (i < encounterCount) {
+            printToLog(`\n--- ENCOUNTER ${i} COMPLETE --- \nParty moves to the next encounter...`);
+            // Add a "breathe" here for UI update
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
+    }
+    printToLog(`\n===== FULL SEQUENCE COMPLETE =====`);
+    
+    // Enable playback for the *last* simulation run
+    if (simHistory.length > 0 && simHistory[simHistory.length-1].playbackLog) {
+        if (playbackBtn) playbackBtn.disabled = false;
+    }
+}
+
+
+// --- *** THE CORE SIMULATION FUNCTION *** ---
+// encounterIndex = The number of the encounter (1, 2, 3...)
+// title = A string for logging (e.g., "Encounter 1 (Sim 1/5)")
+// existingGameState = If provided, use this state instead of creating a new one
+// isBatch = Is this part of a "Run x Sims" batch? (affects logging)
+function runSingleEncounter(encounterIndex, title, existingGameState = null, isBatch = false) {
+    const recordPlayback = !isBatch; // Only record playback for single runs or sequences
+    BATCH_LOG = []; // Always reset the log for a new sim
+
+    simLog(`======================================`);
+    simLog(`INITIALIZING ${title}...`);
+    simLog('======================================');
+
+    let gameState;
+    let adversaryAgents;
+    const adversaryList = activeAdversaries[`encounter-${encounterIndex}`];
+
+    if (existingGameState) {
+        // --- CARRY-OVER LOGIC ---
+        simLog("...Carrying over Player/GM state...");
+        gameState = existingGameState;
+
+        // Instantiate *new* adversaries for this encounter
+        try {
+            adversaryAgents = adversaryList.map(instantiateAdversaryAgent);
+        } catch (e) {
+            simLog(`--- ERROR (Adversaries) --- \n${e.message}`);
+            printToLog(BATCH_LOG.join('\n')); BATCH_LOG = []; return;
+        }
+        gameState.adversaries = adversaryAgents; // Overwrite old adversaries
+        gameState.spotlight = 0; // Reset spotlight to PCs
+        gameState.lastPlayerSpotlight = 0;
+        
+    } else {
+        // --- FRESH SIM LOGIC (Encounter 1 only) ---
+        const mapSize = document.getElementById('map-size-select').value;
+        CURRENT_BATTLEFIELD = { ...DAGGERHEART_RANGES, ...MAP_CONFIGS[mapSize] };
+        const sceneDifficulty = activeEnvironment ? activeEnvironment.difficulty : 10;
+        
+        simLog(`Simulating on ${mapSize} map (${CURRENT_BATTLEFIELD.MAX_X}x${CURRENT_BATTLEFIELD.MAX_Y})...`);
+        simLog(`Active Environment Difficulty set to: ${sceneDifficulty}`);
+        
+        if (activeParty.length === 0) { 
+            simLog('--- ERROR --- \nAdd a player to the Active Scene.');
+            printToLog(BATCH_LOG.join('\n')); BATCH_LOG = []; return; 
+        }
+        if (!adversaryList || adversaryList.length === 0) { 
+            simLog(`--- ERROR --- \nAdd an adversary to Encounter ${encounterIndex}.`); 
+            printToLog(BATCH_LOG.join('\n')); BATCH_LOG = []; return; 
+        }
+        if (!activeEnvironment) {
+            simLog('--- ERROR --- \nAdd an environment to the Active Scene.');
+            printToLog(BATCH_LOG.join('\n')); BATCH_LOG = []; return; 
+        }
+
+        try {
+            let playerAgents = activeParty.map(instantiatePlayerAgent);
+            adversaryAgents = adversaryList.map(instantiateAdversaryAgent);
+            gameState = {
+                players: playerAgents,
+                adversaries: adversaryAgents,
+                hope: 2 * playerAgents.length,
+                fear: 1 * playerAgents.length,
+                spotlight: 0,
+                lastPlayerSpotlight: 0,
+                sceneDifficulty: sceneDifficulty
+            };
+        } catch (e) {
+            simLog(`--- ERROR --- \nFailed to parse agent JSON. \n${e.message}`);
+            printToLog(BATCH_LOG.join('\n')); BATCH_LOG = []; return; 
+        }
+    }
+
+    let currentPlaybackLog = [];
+    const startTime = Date.now();
 
     simLog(`Simulation Initialized. Hope: ${gameState.hope}, Fear: ${gameState.fear}`);
     
@@ -703,7 +881,7 @@ function runSimulation(count) {
     }
     
     if (roundCounter >= maxRounds) {
-         simLog(`--- SIMULATION HALTED --- \nReached max round limit (100). Combat may be in an infinite loop.`);
+         simLog(`--- SIMULATION HALTED --- \nReached max round limit (100).`);
     }
 
     const endTime = Date.now();
@@ -724,61 +902,41 @@ function runSimulation(count) {
     
     simHistory.push({
         id: simHistory.length + 1,
+        title: title, // Add title for playback context
         winner: winner,
         rounds: roundCounter,
         duration: duration,
-        players: gameState.players.map(p => ({ name: p.name, hp: p.current_hp, stress: p.current_stress })),
-        adversaries: gameState.adversaries.map(a => ({ name: a.name, hp: a.current_hp, stress: a.current_stress })),
         playbackLog: currentPlaybackLog.length > 0 ? currentPlaybackLog : null
     });
     
     const finalLogText = BATCH_LOG.join('\n');
     BATCH_LOG = []; // Clear log for next run
     
-    printToLog(finalLogText); // Print the full play-by-play
-    printToLog(scoreboard, winnerClass); // Print the color-coded scoreboard
+    // For batch sims, just print a summary. For single sims, print all.
+    if (isBatch) { 
+        printToLog(`--- ${title} Summary: Winner: ${winner} in ${roundCounter} rounds.`);
+    } else { // This is a single run or a sequence run
+        printToLog(finalLogText);
+        printToLog(scoreboard, winnerClass);
+    }
 }
-
-// --- NEW: SCOREBOARD GENERATOR (Condensed) ---
-function generateScoreboard(gameState, winner) {
-    let board = [];
-    board.push(`\n--- PLAYER CHARACTERS (Hope: ${gameState.hope}) ---`);
-    
-    gameState.players.forEach(p => {
-        const status = p.current_hp > 0 ? "ALIVE" : "DEFEATED";
-        const line = `  ${p.name} (${p.class}):`.padEnd(30) + `${status.padEnd(10)} HP: ${String(p.current_hp).padStart(2)} / ${p.max_hp} | Stress: ${p.current_stress} / ${p.max_stress}`;
-        board.push(line);
-    });
-
-    board.push(`\n--- ADVERSARIES (Fear: ${gameState.fear}) ---`);
-    gameState.adversaries.forEach(a => {
-        const status = a.current_hp > 0 ? "ALIVE" : "DEFEATED";
-        const line = `  ${a.name} (${a.type}):`.padEnd(30) + `${status.padEnd(10)} HP: ${String(a.current_hp).padStart(2)} / ${a.max_hp}`;
-        board.push(line);
-    });
-    board.push(`\n========== FINAL SCOREBOARD (Winner: ${winner}) ==========`);
-    return board.join('\n');
-}
+// --- *** END OF CORE SIMULATION FUNCTION *** ---
 
 
+// --- MODIFIED: Uses simLog ---
 function recordSnapshot(gameState, playbackLog) {
     const snapshot = {
         players: gameState.players.map(p => ({
-            id: p.id,
-            name: p.name,
-            current_hp: p.current_hp,
-            position: { ...p.position }
+            id: p.id, name: p.name, current_hp: p.current_hp, position: { ...p.position }
         })),
         adversaries: gameState.adversaries.map(a => ({
-            id: a.id,
-            name: a.name,
-            current_hp: a.current_hp,
-            position: { ...a.position }
+            id: a.id, name: a.name, current_hp: a.current_hp, position: { ...a.position }
         }))
     };
     playbackLog.push(snapshot);
 }
 
+// --- MODIFIED: Uses printToLog ---
 async function playBackSimulation(historyIndex) {
     const simData = simHistory[historyIndex];
     if (!simData || !simData.playbackLog) {
@@ -792,14 +950,13 @@ async function playBackSimulation(historyIndex) {
     mapContainer.classList.remove('hidden');
     logContainer.classList.remove('full-width');
     
-    printToLog(`\n\n=== STARTING REPLAY OF SIMULATION #${simData.id} ===`);
+    printToLog(`\n\n=== STARTING REPLAY OF SIMULATION #${simData.id} (${simData.title}) ===`);
 
     const map = document.getElementById('battlemap-grid');
     map.innerHTML = '';
     tokenCache = {}; 
     
     const initialState = simData.playbackLog[0];
-
     map.style.gridTemplateColumns = `repeat(${CURRENT_BATTLEFIELD.MAX_X}, 1fr)`;
     map.style.gridTemplateRows = `repeat(${CURRENT_BATTLEFIELD.MAX_Y}, 1fr)`;
 
@@ -821,11 +978,9 @@ async function playBackSimulation(historyIndex) {
     
     for (let i = 0; i < simData.playbackLog.length; i++) {
         const snapshot = simData.playbackLog[i];
-        
         for (const agent of [...snapshot.players, ...snapshot.adversaries]) {
             const token = tokenCache[agent.id];
             if (!token) continue;
-            
             if (agent.current_hp <= 0) {
                 token.style.display = 'none';
             } else {
@@ -835,46 +990,41 @@ async function playBackSimulation(historyIndex) {
                 token.style.gridRow = agent.position.y;
             }
         }
-        
         await new Promise(resolve => setTimeout(resolve, 100));
     }
     
     printToLog(`=== REPLAY COMPLETE. Duration: ${simData.duration.toFixed(2)}s ===`);
 }
 
-
+// --- MODIFIED: Uses simLog ---
 function findNextLivingPC(gameState) {
     const { players, lastPlayerSpotlight } = gameState;
     let nextIndex = (lastPlayerSpotlight + 1) % players.length;
-    
     for (let i = 0; i < players.length; i++) {
         if (players[nextIndex].current_hp > 0) {
             return nextIndex; 
         }
         nextIndex = (nextIndex + 1) % players.length;
     }
-    
     return -1;
 }
 
+// --- MODIFIED: Uses simLog ---
 function determineNextSpotlight(lastOutcome, gameState) {
     simLog(` Control Flow: Last outcome was [${lastOutcome}]`);
-    
     if (isCombatOver(gameState)) {
         simLog(` --- Combat is Over ---`);
         return; 
     }
-
     let nextPCIndex;
     switch (lastOutcome) {
         case 'CRITICAL_SUCCESS':
         case 'PC_DOWN':
             nextPCIndex = findNextLivingPC(gameState);
-            if (nextPCIndex === -1) return; 
+            if (nextPCIndex === -1) return;
             gameState.spotlight = nextPCIndex;
             simLog(` Spotlight passes to PC: ${gameState.players[nextPCIndex].name}`);
             break;
-            
         case 'SUCCESS_WITH_HOPE':
             if (gameState.fear > 0 && Math.random() < 0.5) { 
                 simLog(`PC succeeded with Hope, but GM spends 1 Fear to seize the spotlight!`);
@@ -888,26 +1038,24 @@ function determineNextSpotlight(lastOutcome, gameState) {
                 simLog(` Spotlight passes to PC: ${gameState.players[nextPCIndex].name}`);
             }
             break;
-
         case 'SUCCESS_WITH_FEAR':
         case 'FAILURE_WITH_HOPE': 
         case 'FAILURE_WITH_FEAR':
             gameState.spotlight = 'GM';
             simLog(` Spotlight seized by GM!`);
             break;
-
         case 'GM_TURN_COMPLETE':
             nextPCIndex = findNextLivingPC(gameState);
-            if (nextPCIndex === -1) return; 
+            if (nextPCIndex === -1) return;
             gameState.spotlight = nextPCIndex;
             simLog(` Spotlight returns to PC: ${gameState.players[nextPCIndex].name}`);
             break;
-            
         case 'COMBAT_OVER':
             break;
     }
 }
 
+// --- MODIFIED: Uses simLog & checks range *before* moving ---
 function executePCTurn(player, gameState) {
     let targets = gameState.adversaries.filter(a => a.current_hp > 0);
     if (targets.length === 0) return 'COMBAT_OVER';
@@ -924,6 +1072,14 @@ function executePCTurn(player, gameState) {
     let result;
 
     if (chosenAction) {
+        // --- PC MOVE & ACTION (Close Range) ---
+        // Per SRD, "you can move to a location within Close range as part of that action." [cite: 20646]
+        // We assume the PC moves into range for their chosen action if they aren't already.
+        if (!isTargetInRange(player, target, chosenAction.range)) {
+            simLog(` -> Moving to ${chosenAction.range} range...`);
+            moveAgentTowards(player, target, gameState, false); // Standard Close move
+        }
+        
         switch (chosenAction.type) {
             case 'SPELL':
                 result = executePCSpell(player, chosenAction.card, target, gameState);
@@ -936,8 +1092,9 @@ function executePCTurn(player, gameState) {
                 result = { outcome: 'FAILURE_WITH_FEAR' }; // Failsafe
         }
     } else {
-        simLog(` -> ${target.name} is out of range of all options. Moving closer (Agility Roll).`);
-        // NEW: This is a "Sprint" action and must use scene difficulty
+        // --- PC SPRINT (Far/Very Far Range) ---
+        // Per SRD, "you need to succeed on an Agility Roll to safely reposition yourself." [cite: 20647]
+        simLog(` -> ${target.name} is out of range of all options. Sprinting closer (Agility Roll).`);
         moveAgentTowards(player, target, gameState, true); // true = isSprint
         
         simLog(` -> Making Agility roll to move...`);
@@ -949,38 +1106,38 @@ function executePCTurn(player, gameState) {
     return result.outcome;
 }
 
+// --- MODIFIED: Uses simLog & adds .range to actions ---
 function choosePCAction(player, target, gameState) {
     let possibleActions = [];
-
+    // 1. Check Domain Cards
     for (const card of player.domainCards) {
         switch (card.name) {
-            case "Vicious Entangle":
+            case "Vicious Entangle": // Ranger
                 if (isTargetInRange(player, target, "Far")) {
-                    possibleActions.push({ type: 'SPELL', card: card, priority: 1, name: "Vicious Entangle" });
+                    possibleActions.push({ type: 'SPELL', card: card, priority: 1, name: "Vicious Entangle", range: "Far" });
                 }
                 break;
-            case "Bolt Beacon":
+            case "Bolt Beacon": // Wizard
                 if (player.current_hope >= 1 && isTargetInRange(player, target, "Far")) {
-                    possibleActions.push({ type: 'SPELL', card: card, priority: 1, name: "Bolt Beacon" });
+                    possibleActions.push({ type: 'SPELL', card: card, priority: 1, name: "Bolt Beacon", range: "Far" });
                 }
                 break;
-            case "Book Of Illiat":
+            case "Book Of Illiat": // Bard / Wizard
                 if (isTargetInRange(player, target, "Very Close")) {
-                    possibleActions.push({ type: 'SPELL', card: card, priority: 2, name: "Slumber" });
+                    possibleActions.push({ type: 'SPELL', card: card, priority: 2, name: "Slumber", range: "Very Close" });
                 }
                 break;
         }
     }
-
+    // 2. Check Basic Attack
     const weaponRange = player.primary_weapon.range;
     if (isTargetInRange(player, target, weaponRange)) {
-        possibleActions.push({ type: 'ATTACK', priority: 0, name: `Basic Attack (${player.primary_weapon.name})` });
+        possibleActions.push({ type: 'ATTACK', priority: 0, name: `Basic Attack (${player.primary_weapon.name})`, range: weaponRange });
     }
-
+    // 3. Decide which action to take
     if (possibleActions.length === 0) {
-        return null;
+        return null; // No actions possible, must move
     }
-
     possibleActions.sort((a, b) => b.priority - a.priority);
     
     simLog(` -> ${player.name} considered: [${possibleActions.map(a => a.name).join(', ')}]`);
@@ -990,6 +1147,7 @@ function choosePCAction(player, target, gameState) {
     return bestAction;
 }
 
+// --- MODIFIED: Uses simLog ---
 function executePCBasicAttack(player, target, gameState) {
     simLog(` -> Attacking with ${player.primary_weapon.name}!`);
     const traitName = player.primary_weapon.trait.toLowerCase();
@@ -1007,9 +1165,7 @@ function executePCBasicAttack(player, target, gameState) {
             simLog(' CRITICAL HIT!');
             critBonus = parseDiceString(damageString).maxDie; 
         }
-
         const damageTotal = rollDamage(damageString, proficiency, critBonus); 
-        
         const damageInfo = { 
             amount: damageTotal, 
             isDirect: false, 
@@ -1021,6 +1177,7 @@ function executePCBasicAttack(player, target, gameState) {
     return result;
 }
 
+// --- MODIFIED: Uses simLog ---
 function executePCSpell(player, card, target, gameState) {
     const traitMod = player.traits[player.spellcastTrait];
     let result;
@@ -1038,7 +1195,6 @@ function executePCSpell(player, card, target, gameState) {
                 applyCondition(target, "Restrained");
             }
             break;
-
         case "Bolt Beacon":
             simLog(` -> Casting "Bolt Beacon" on ${target.name}!`);
             if (player.current_hope < 1) {
@@ -1047,7 +1203,6 @@ function executePCSpell(player, card, target, gameState) {
             }
             player.current_hope--;
             simLog(` -> Spent 1 Hope (Total: ${player.current_hope})`);
-            
             result = executeActionRoll(target.difficulty, traitMod, 0);
             simLog(` Roll: ${player.spellcastTrait} (${traitMod}) | Total ${result.total} vs Diff ${target.difficulty} (${result.outcome})`);
             
@@ -1058,17 +1213,14 @@ function executePCSpell(player, card, target, gameState) {
                 applyCondition(target, "Vulnerable");
             }
             break;
-
         case "Book Of Illiat":
             simLog(` -> Casting "Slumber" (from Book of Illiat) on ${target.name}!`);
             result = executeActionRoll(target.difficulty, traitMod, 0);
             simLog(` Roll: ${player.spellcastTrait} (${traitMod}) | Total ${result.total} vs Diff ${target.difficulty} (${result.outcome})`);
-
             if (result.outcome === 'CRITICAL_SUCCESS' || result.outcome === 'SUCCESS_WITH_HOPE' || result.outcome === 'SUCCESS_WITH_FEAR') {
                 applyCondition(target, "Asleep");
             }
             break;
-        
         default:
             simLog(`(ERROR: AI does not know how to cast spell: ${card.name})`);
             return { outcome: 'FAILURE_WITH_FEAR' };
@@ -1076,38 +1228,32 @@ function executePCSpell(player, card, target, gameState) {
     return result;
 }
 
-
+// --- MODIFIED: Uses simLog & new GM Movement ---
 function executeGMTurn(gameState) {
     simLog(`> GM SPOTLIGHT:`);
-    
     let adversaryToAct = getAdversaryToAct(gameState);
     if (adversaryToAct) {
         performAdversaryAction(adversaryToAct.adversary, adversaryToAct.target, gameState);
     } else {
         simLog(` (No living adversaries or players left.)`);
-        return 'COMBAT_OVER'; 
+        return 'COMBAT_OVER';
     }
-
     let spotlightedAdversaries = [adversaryToAct.adversary.id]; 
     while (gameState.fear > 0 && !isCombatOver(gameState)) {
         if (Math.random() < 0.5) { 
             simLog(` GM decides to spend Fear for an *additional* spotlight...`);
-
             let spotlightCost = 1;
             const potentialNextAdversary = getAdversaryToAct(gameState, spotlightedAdversaries);
             if (potentialNextAdversary && potentialNextAdversary.adversary.passives.spotlightCost) {
                 spotlightCost = potentialNextAdversary.adversary.passives.spotlightCost;
                 simLog(` (${potentialNextAdversary.adversary.name}'s 'Ramp Up' makes this cost ${spotlightCost} Fear!)`);
             }
-
             if (gameState.fear < spotlightCost) {
                 simLog(` (GM lacks the ${spotlightCost} Fear to continue.)`);
                 break;
             }
-            
             gameState.fear -= spotlightCost;
             simLog(` GM Fear: ${gameState.fear}`);
-            
             let additionalAdversary = getAdversaryToAct(gameState, spotlightedAdversaries);
             if (additionalAdversary) {
                 spotlightedAdversaries.push(additionalAdversary.adversary.id);
@@ -1121,17 +1267,15 @@ function executeGMTurn(gameState) {
             break; 
         }
     }
-    
     return 'GM_TURN_COMPLETE'; 
 }
 
+// --- MODIFIED: Uses simLog ---
 function getAdversaryToAct(gameState, actedThisTurn = []) {
     const livingPlayers = gameState.players.filter(p => p.current_hp > 0);
     if (livingPlayers.length === 0) return null; 
-
     let livingAdversaries = gameState.adversaries.filter(a => a.current_hp > 0);
     if (livingAdversaries.length === 0) return null; 
-
     let availableAdversaries = livingAdversaries.filter(a => {
         if (actedThisTurn.includes(a.id)) {
             const max = a.maxSpotlights || 1;
@@ -1140,12 +1284,10 @@ function getAdversaryToAct(gameState, actedThisTurn = []) {
         }
         return true;
     });
-
     if (availableAdversaries.length === 0) {
         simLog(` (All available adversaries have acted their max times this turn.)`);
         return null;
     }
-
     let adversary;
     let whoHaventActed = availableAdversaries.filter(a => !actedThisTurn.includes(a.id));
     if (whoHaventActed.length > 0) {
@@ -1153,51 +1295,46 @@ function getAdversaryToAct(gameState, actedThisTurn = []) {
     } else {
         adversary = availableAdversaries[Math.floor(Math.random() * availableAdversaries.length)];
     }
-
     const target = livingPlayers.sort((a, b) => {
         let distA = getAgentDistance(adversary, a);
         let distB = getAgentDistance(adversary, b);
         return distA - distB;
     })[0];
-
     return { adversary, target };
 }
 
+// --- MODIFIED: Uses simLog & new GM Movement ---
 function performAdversaryAction(adversary, target, gameState) {
     simLog(` Spotlight is on: ${adversary.name} (targeting ${target.name} at (${target.position.x}, ${target.position.y}))...`);
+    
+    // Standard move is "Close" range [cite: 20648]
+    moveAgentTowards(adversary, target, gameState, false); // false = not a sprint
 
     const allActions = adversary.features.filter(f => f.type === 'action' && f.parsed_effect);
-
     const affordableAndInRangeActions = allActions.filter(f => {
         if (f.cost) {
             if (f.cost.type === 'stress' && (adversary.current_stress + f.cost.value > adversary.max_stress)) return false; 
             if (f.cost.type === 'fear' && (gameState.fear < f.cost.value)) return false; 
         }
-        
         const firstEffect = f.parsed_effect.actions[0];
         const range = (firstEffect && firstEffect.range) ? firstEffect.range : 'Melee';
-
         if (range.toLowerCase() === "self") return true; 
-
         if (!isTargetInRange(adversary, target, range)) {
             simLog(` (Skipping ${f.name}: Target is out of ${range} range.)`);
             return false; 
         }
-        
         if (firstEffect.details) {
             if (firstEffect.details.target_condition && !target.conditions.includes(firstEffect.details.target_condition)) {
                 simLog(` (Skipping ${f.name}: Target is not ${firstEffect.details.target_condition})`);
-                return false; 
+                return false;
             }
         }
         return true; 
     });
-
     let chosenAction = null;
     if (affordableAndInRangeActions.length > 0) {
         affordableAndInRangeActions.sort((a, b) => {
-            let priorityA = 0;
-            let priorityB = 0;
+            let priorityA = 0, priorityB = 0;
             if (a.cost?.type === 'fear') priorityA = 3;
             else if (a.cost?.type === 'stress') priorityA = 2;
             else priorityA = 1;
@@ -1220,28 +1357,26 @@ function performAdversaryAction(adversary, target, gameState) {
                 simLog(` GM spends ${chosenAction.cost.value} Fear for the feature (Total: ${gameState.fear})`);
             }
         }
-        
         for (const action of chosenAction.parsed_effect.actions) {
             executeParsedEffect(action, adversary, target, gameState);
         }
     } else {
         const weaponRange = adversary.attack.range || 'Melee';
         if (isTargetInRange(adversary, target, weaponRange)) {
-            simLog(` -> No features available. Target is in ${weaponRange} range. Defaulting to basic attack.`);
+            simLog(` -> No features in range. Defaulting to basic attack.`);
             executeGMBasicAttack(adversary, target, gameState);
         } else {
-            // NEW: This is now a "Sprint" action
-            simLog(` -> No features available. Target is out of ${weaponRange} range. Sprinting closer.`);
-            moveAgentTowards(adversary, target, gameState, true); // true = isSprint
+            simLog(` -> Target is out of range for all actions. Turn ends.`);
+            // Per SRD, if an adversary is out of range, they can use their action to "Sprint" [cite: 20648]
+            // We already did a "Close" move. We'll assume for now this turn is just movement.
         }
     }
 }
 
-// --- ADVERSARY BRAIN LEXICON ---
+// --- MODIFIED: Uses simLog ---
 function executeParsedEffect(action, adversary, target, gameState) {
     let primaryTarget = target; 
     let targets = [target]; 
-
     if (action.target === "ALL_IN_RANGE" || action.target === "ALL_IN_RANGE_FRONT" || action.target === "ALL_AFFECTED") {
         const actionRange = action.range || 'Very Close';
         targets = gameState.players.filter(p => p.current_hp > 0 && isTargetInRange(adversary, p, actionRange));
@@ -1252,7 +1387,6 @@ function executeParsedEffect(action, adversary, target, gameState) {
         }
         primaryTarget = targets[0];
     }
-
     switch (action.action_type) {
         case 'ATTACK_ROLL':
             if (action.details.cost) {
@@ -1266,46 +1400,30 @@ function executeParsedEffect(action, adversary, target, gameState) {
                     }
                 }
             }
-
             let hitCount = 0; 
             for (const t of targets) {
                 simLog(` Making an attack roll against ${t.name}...`);
-                
                 let damageBonus = 0;
                 let takeSpotlight = false;
                 const reactionResult = checkAdversaryReactions("BEFORE_DEALING_DAMAGE", adversary, t, gameState);
-                if (reactionResult.damageBonus) {
-                    damageBonus = reactionResult.damageBonus;
-                }
-                if (reactionResult.takeSpotlight) {
-                    takeSpotlight = true;
-                }
-                
+                if (reactionResult.damageBonus) damageBonus = reactionResult.damageBonus;
+                if (reactionResult.takeSpotlight) takeSpotlight = true;
                 const roll = rollD20();
                 const modifier = adversary.attack.modifier || 0;
                 const totalAttack = roll + modifier;
                 simLog(` Roll: 1d20(${roll}) + ${modifier} = ${totalAttack} vs Evasion ${t.evasion}`);
-                
                 if (totalAttack >= t.evasion) {
                     simLog(' HIT!');
                     hitCount++; 
-
                     if (action.details.attack_type === 'standard') {
                         simLog(` -> This is a STANDARD attack type.`);
                         const damageString = adversary.attack.damage;
                         const damageTotal = rollDamage(damageString, 1, 0) + damageBonus;
                         const isDirect = adversary.passives.allAttacksAreDirect || false;
-                        const damageInfo = { 
-                            amount: damageTotal, 
-                            isDirect: isDirect, 
-                            isPhysical: (adversary.attack.damage.includes('phy')),
-                            isStandardAttack: true
-                        };
+                        const damageInfo = { amount: damageTotal, isDirect, isPhysical: (adversary.attack.damage.includes('phy')), isStandardAttack: true };
                         applyDamage(damageInfo, adversary, t, gameState);
-                        
                         checkAdversaryReactions("ON_SUCCESSFUL_ATTACK", adversary, t, gameState, damageInfo);
                     }
-
                     if (action.details.on_success) {
                         for (const successAction of action.details.on_success) {
                             if (successAction.action_type === 'DEAL_DAMAGE' && damageBonus > 0) {
@@ -1323,12 +1441,10 @@ function executeParsedEffect(action, adversary, target, gameState) {
                         }
                     }
                 }
-
                 if (takeSpotlight) {
                     simLog(` -> ${adversary.name} takes the spotlight again! (Logic not implemented)`);
                 }
             }
-            
             if (action.details.on_success_multi_target && hitCount >= 2) {
                 if (adversary.name === "Acid Burrower" && action.details.on_success[1]?.action_type === "FORCE_MARK_ARMOR_SLOT") {
                     simLog(` -> (Ignoring flawed JSON multi-target 'Fear' gain)`);
@@ -1338,15 +1454,12 @@ function executeParsedEffect(action, adversary, target, gameState) {
                 }
             }
             break;
-
         case 'FORCE_REACTION_ROLL':
             for (const t of targets) {
                 const details = action.details;
                 const difficulty = details.difficulty || 12; 
                 simLog(` ${t.name} must make a ${details.roll_type.toUpperCase()} Reaction Roll (Diff ${difficulty})...`);
-                
                 const reactionSuccess = executeReactionRoll(t, details.roll_type, difficulty);
-                
                 if (reactionSuccess) {
                     simLog(` ${t.name} succeeds the Reaction Roll!`);
                     if (details.on_success) {
@@ -1366,7 +1479,6 @@ function executeParsedEffect(action, adversary, target, gameState) {
                 }
             }
             break;
-
         case 'DEAL_DAMAGE':
             if (action.cost) {
                 if (action.cost.type === 'fear' && gameState.fear >= action.cost.value) {
@@ -1377,10 +1489,8 @@ function executeParsedEffect(action, adversary, target, gameState) {
                     return;
                 }
             }
-
             let critBonus = 0; 
             let damageTotal;
-
             if (action.damage_string === 'half') {
                 simLog(` (Logic Error: 'half' damage is not yet implemented. Dealing 1 damage.)`);
                 damageTotal = 1; 
@@ -1398,28 +1508,19 @@ function executeParsedEffect(action, adversary, target, gameState) {
             } else {
                 damageTotal = rollDamage(action.damage_string, 1, critBonus);
             }
-            
             if (action.bonus) {
                 simLog(` -> Adding ${action.bonus} damage from Overload!`);
                 damageTotal += action.bonus;
             }
-
             const isDirect = (action.is_direct && action.damage_string !== "1d10 phy" && action.damage_string !== "1d6 phy") || adversary.passives.allAttacksAreDirect || false;
-            
             if (damageTotal > 0) {
                 simLog(` Dealing ${damageTotal} ${isDirect ? 'DIRECT' : ''} damage!`);
-                const damageInfo = {
-                    amount: damageTotal,
-                    isDirect: isDirect,
-                    isPhysical: (action.damage_string.includes('phy')),
-                    isStandardAttack: false
-                };
+                const damageInfo = { amount: damageTotal, isDirect, isPhysical: (action.damage_string.includes('phy')), isStandardAttack: false };
                 applyDamage(damageInfo, adversary, primaryTarget, gameState); 
             } else {
                 simLog(` Damage roll was 0, no damage dealt.`);
             }
             break;
-
         case 'DEAL_STRESS': 
             const stressVal = action.value || 0;
             if (stressVal > 0) {
@@ -1428,7 +1529,6 @@ function executeParsedEffect(action, adversary, target, gameState) {
                 simLog(` ${target.name} Stress: ${target.current_stress} / ${target.max_stress}`);
             }
             break;
-
         case 'APPLY_CONDITION':
             if (action.cost) {
                 if (action.cost.type === 'stress' && adversary.current_stress + action.cost.value <= adversary.max_stress) {
@@ -1442,12 +1542,10 @@ function executeParsedEffect(action, adversary, target, gameState) {
                 applyCondition(primaryTarget, action.condition);
             }
             break;
-            
         case 'MOVE':
             simLog(` -> ${adversary.name} is moving as part of an action...`);
             moveAgentTowards(adversary, primaryTarget, gameState);
             break;
-        
         case 'FORCE_MARK_ARMOR_SLOT':
             if (primaryTarget.current_armor_slots > 0) {
                 primaryTarget.current_armor_slots--;
@@ -1463,7 +1561,7 @@ function executeParsedEffect(action, adversary, target, gameState) {
                         simLog(` -> GM gains 1 Fear!`);
                         gameState.fear = Math.min(12, gameState.fear + 1);
                         simLog(` GM Fear: ${gameState.fear}`);
-                    } else {
+                    } else if (action.on_fail.actions && Array.isArray(action.on_fail.actions)) {
                         for (const failAction of action.on_fail.actions) {
                             executeParsedEffect(failAction, adversary, primaryTarget, gameState);
                         }
@@ -1471,29 +1569,24 @@ function executeParsedEffect(action, adversary, target, gameState) {
                 }
             }
             break;
-
         case 'CREATE_HAZARD':
             simLog(` -> ${adversary.name} creates a Hazard in ${action.range} range!`);
             simLog(` -> ${action.details.hazard_effect}`);
             simLog(` -> (Simulation logic for Hazards not yet implemented.)`);
             break;
-
         case 'NARRATIVE_EFFECT':
             simLog(` -> ${adversary.name} uses ${action.details.description}`);
             simLog(` -> (This is a narrative effect, no mechanical change in sim.)`);
             break;
-
         case 'TAKE_SPOTLIGHT':
             simLog(` -> ${adversary.name} takes the spotlight! (Effect not fully implemented)`);
             break;
-
         case 'GAIN_FEAR':
             const fearValue = action.value || 1;
             simLog(` -> GM gains ${fearValue} Fear!`);
             gameState.fear = Math.min(12, gameState.fear + fearValue);
             simLog(` GM Fear: ${gameState.fear}`);
             break;
-        
         case 'KNOCKBACK':
             const kbRange = action.range || 'Very Close';
             simLog(` -> ${primaryTarget.name} is knocked back to ${kbRange} range!`);
@@ -1504,7 +1597,6 @@ function executeParsedEffect(action, adversary, target, gameState) {
             }
             simLog(` -> ${primaryTarget.name} lands at (${primaryTarget.position.x}, ${primaryTarget.position.y})`);
             break;
-
         case 'PULL':
             const pullRange = action.range || 'Melee';
             simLog(` -> ${primaryTarget.name} is pulled into ${pullRange} range!`);
@@ -1512,16 +1604,15 @@ function executeParsedEffect(action, adversary, target, gameState) {
             primaryTarget.position.y = adversary.position.y;
             simLog(` -> ${primaryTarget.name} lands at (${primaryTarget.position.x}, ${primaryTarget.position.y})`);
             break;
-
         case 'MODIFY_DAMAGE':
             simLog(` -> (MODIFY_DAMAGE action noted, but logic is handled by reaction.)`);
             break;
-        
         default:
             simLog(` (Logic for action_type '${action.action_type}' not yet implemented.)`);
     }
 }
 
+// --- MODIFIED: Uses simLog ---
 function applyCondition(target, condition) {
     if (!target.conditions.includes(condition)) {
         target.conditions.push(condition);
@@ -1529,59 +1620,40 @@ function applyCondition(target, condition) {
     }
 }
 
+// --- MODIFIED: Uses simLog ---
 function executeGMBasicAttack(adversary, target, gameState) {
     let targets = [target];
-    
     if (adversary.passives.attackAllInRange) {
         simLog(` -> ${adversary.name}'s 'Ramp Up' targets all players in range!`);
         const weaponRange = adversary.attack.range || 'Melee';
         targets = gameState.players.filter(p => p.current_hp > 0 && isTargetInRange(adversary, p, weaponRange));
     }
-
     for (const currentTarget of targets) {
         let damageBonus = 0;
         let takeSpotlight = false;
         const reactionResult = checkAdversaryReactions("BEFORE_DEALING_DAMAGE", adversary, currentTarget, gameState);
-        if (reactionResult.damageBonus) {
-            damageBonus = reactionResult.damageBonus;
-        }
-        if (reactionResult.takeSpotlight) {
-            takeSpotlight = true;
-        }
-
+        if (reactionResult.damageBonus) damageBonus = reactionResult.damageBonus;
+        if (reactionResult.takeSpotlight) takeSpotlight = true;
         const roll = rollD20();
         const modifier = adversary.attack.modifier || 0;
         const totalAttack = roll + modifier; 
-        
         simLog(` Roll vs ${currentTarget.name}: 1d20(${roll}) + ${modifier} = ${totalAttack} vs Evasion ${currentTarget.evasion}`);
-        
         if (totalAttack >= currentTarget.evasion) {
             simLog('  HIT!');
             let damageString = adversary.attack.damage;
             let critBonus = 0;
-            
             if (roll === 20) { 
                 simLog('  CRITICAL HIT!');
                 critBonus = parseDiceString(damageString).maxDie;
             }
             const damageTotal = rollDamage(damageString, 1, critBonus) + damageBonus; 
-            
             const isDirect = adversary.passives.allAttacksAreDirect || false;
-            
-            const damageInfo = { 
-                amount: damageTotal, 
-                isDirect: isDirect, 
-                isPhysical: (adversary.attack.damage.includes('phy')),
-                isStandardAttack: true
-            };
+            const damageInfo = { amount: damageTotal, isDirect, isPhysical: (adversary.attack.damage.includes('phy')), isStandardAttack: true };
             applyDamage(damageInfo, adversary, currentTarget, gameState); 
-
             checkAdversaryReactions("ON_SUCCESSFUL_ATTACK", adversary, currentTarget, gameState, damageInfo);
-
         } else {
             simLog('  MISS!');
         }
-
         if (takeSpotlight) {
             simLog(` -> ${adversary.name} takes the spotlight again! (Logic not implemented)`);
         }
@@ -1592,7 +1664,6 @@ function executeGMBasicAttack(adversary, target, gameState) {
 function isCombatOver(gameState) {
     const playersAlive = gameState.players.some(p => p.current_hp > 0);
     const adversariesAlive = gameState.adversaries.some(a => a.current_hp > 0);
-    
     if (!playersAlive) { 
         simLog('--- All players are defeated! ---'); 
         return true; 
@@ -1604,441 +1675,380 @@ function isCombatOver(gameState) {
     return false;
 }
 
+// --- MODIFIED: Uses simLog ---
 function checkForPCDamageReactions(player, hpToMark, gameState) {
-    if (player.class === "Guardian" && hpToMark === 3) {
-        const getBackUpCard = player.domainCards.find(c => c.name === "Get Back Up");
-        if (getBackUpCard && player.current_stress < player.max_stress) {
-            player.current_stress++;
-            simLog(` -> ${player.name} uses "Get Back Up"!`);
-            simLog(` -> ${player.name} marks 1 Stress (Total: ${player.current_stress})`);
-            return true;
+    if (player.class === "Guardian" && hpToMark === 3) { // [cite: 14541]
+        const getBackUpCard = player.domainCards.find(c => c.name === "Get Back Up"); // [cite: 14543]
+        if (getBackUpCard && player.current_stress < player.max_stress) { // [cite: 14544]
+            player.current_stress++; // [cite: 14545]
+            simLog(` -> ${player.name} uses "Get Back Up"!`); // [cite: 14546]
+            simLog(` -> ${player.name} marks 1 Stress (Total: ${player.current_stress})`); // [cite: 14547]
+            return true; // [cite: 14549]
         }
     }
-    
-    return false;
+    return false; // [cite: 14553]
 }
 
+// --- MODIFIED: Uses simLog ---
 function checkAdversaryReactions(trigger, agent, target, gameState, damageInfo = {}) {
-    if (!agent.features) return { damageBonus: 0, takeSpotlight: false };
-    if (agent.current_hp <= 0 && trigger !== "ON_DEFEAT") return { damageBonus: 0, takeSpotlight: false }; 
-
-    let reactionBonus = 0;
-    let reactionSpotlight = false;
-
+    if (!agent.features) return { damageBonus: 0, takeSpotlight: false }; // [cite: 14556]
+    if (agent.current_hp <= 0 && trigger !== "ON_DEFEAT") return { damageBonus: 0, takeSpotlight: false };  // [cite: 14557]
+    let reactionBonus = 0; // [cite: 14558]
+    let reactionSpotlight = false; // [cite: 14559]
     for (const feature of agent.features) {
-        if (feature.type !== 'reaction' || !feature.parsed_effect) continue;
-
-        for (const action of feature.parsed_effect.actions) {
-            if (action.trigger === trigger) {
-                
-                if (trigger === "ON_TAKE_DAMAGE") {
-                    const hpThreshold = (action.trigger_details?.match(/(\d+)_HP_OR_MORE/) || [])[1];
-                    if (hpThreshold && damageInfo.hpMarked < parseInt(hpThreshold)) {
-                        continue;
+        if (feature.type !== 'reaction' || !feature.parsed_effect) continue; // [cite: 14562]
+        for (const action of feature.parsed_effect.actions) { // [cite: 14563]
+            if (action.trigger === trigger) { // [cite: 14564]
+                if (trigger === "ON_TAKE_DAMAGE") { // [cite: 14566]
+                    const hpThreshold = (action.trigger_details?.match(/(\d+)_HP_OR_MORE/) || [])[1]; // [cite: 14567]
+                    if (hpThreshold && damageInfo.hpMarked < parseInt(hpThreshold)) { // [cite: 14568]
+                        continue; // [cite: 14569]
                     }
                 }
-
-                if (action.cost) {
-                    if (action.cost.type === 'stress') {
-                        if (agent.current_stress < agent.max_stress) {
-                            agent.current_stress += action.cost.value;
-                            simLog(` -> ${agent.name} marks ${action.cost.value} Stress for ${feature.name} (Total: ${agent.current_stress})`);
+                if (action.cost) { // [cite: 14576]
+                    if (action.cost.type === 'stress') { // [cite: 14577]
+                        if (agent.current_stress < agent.max_stress) { // [cite: 14578]
+                            agent.current_stress += action.cost.value; // [cite: 14579]
+                            simLog(` -> ${agent.name} marks ${action.cost.value} Stress for ${feature.name} (Total: ${agent.current_stress})`); // [cite: 14580, 14583]
                         } else {
-                            simLog(` -> ${agent.name} cannot afford Stress for ${feature.name}.`);
-                            continue;
+                            simLog(` -> ${agent.name} cannot afford Stress for ${feature.name}.`); // [cite: 14582, 14584]
+                            continue; // [cite: 14586]
                         }
                     }
                 }
-                
-                simLog(` -> ${agent.name}'s REACTION triggers: ${feature.name}!`);
-
-                if (trigger === "BEFORE_DEALING_DAMAGE") {
-                    if (action.action_type === 'MODIFY_DAMAGE') {
-                        reactionBonus += action.details.bonus || 0;
+                simLog(` -> ${agent.name}'s REACTION triggers: ${feature.name}!`); // [cite: 14589]
+                if (trigger === "BEFORE_DEALING_DAMAGE") { // [cite: 14591]
+                    if (action.action_type === 'MODIFY_DAMAGE') { // [cite: 14592]
+                        reactionBonus += action.details.bonus || 0; // [cite: 14594]
                     }
-                    if (action.action_type === 'TAKE_SPOTLIGHT') {
-                        reactionSpotlight = true;
+                    if (action.action_type === 'TAKE_SPOTLIGHT') { // [cite: 14595]
+                        reactionSpotlight = true; // [cite: 14596]
                     }
                 } else {
-                    executeParsedEffect(action, agent, target, gameState);
+                    executeParsedEffect(action, agent, target, gameState); // [cite: 14599]
                 }
             }
         }
     }
-    
-    return { damageBonus: reactionBonus, takeSpotlight: reactionSpotlight };
+    return { damageBonus: reactionBonus, takeSpotlight: reactionSpotlight }; // [cite: 14601]
 }
 
-
+// --- MODIFIED: Uses simLog ---
 function processRollResources(result, gameState, player) {
     switch (result.outcome) {
         case 'CRITICAL_SUCCESS':
-            gameState.hope = Math.min(player.max_hope, gameState.hope + 1);
-            player.current_stress = Math.max(0, player.current_stress - 1); 
-            simLog(` Resource: +1 Hope (Total: ${gameState.hope}), ${player.name} clears 1 Stress.`);
+            gameState.hope = Math.min(player.max_hope, gameState.hope + 1); // [cite: 14605]
+            player.current_stress = Math.max(0, player.current_stress - 1);  // [cite: 14606]
+            simLog(` Resource: +1 Hope (Total: ${gameState.hope}), ${player.name} clears 1 Stress.`); // [cite: 14607]
             break;
         case 'SUCCESS_WITH_HOPE':
-            gameState.hope = Math.min(player.max_hope, gameState.hope + 1);
-            simLog(` Resource: +1 Hope (Total: ${gameState.hope})`);
+            gameState.hope = Math.min(player.max_hope, gameState.hope + 1); // [cite: 14609]
+            simLog(` Resource: +1 Hope (Total: ${gameState.hope})`); // [cite: 14611]
             break;
         case 'FAILURE_WITH_HOPE':
-            gameState.hope = Math.min(player.max_hope, gameState.hope + 1);
-            simLog(` Resource: +1 Hope (Total: ${gameState.hope})`);
+            gameState.hope = Math.min(player.max_hope, gameState.hope + 1); // [cite: 14615]
+            simLog(` Resource: +1 Hope (Total: ${gameState.hope})`); // [cite: 14615]
             break;
         case 'SUCCESS_WITH_FEAR':
-            gameState.fear = Math.min(12, gameState.fear + 1);
-            simLog(` Resource: +1 Fear (Total: ${gameState.fear})`);
+            gameState.fear = Math.min(12, gameState.fear + 1); // [cite: 14617]
+            simLog(` Resource: +1 Fear (Total: ${gameState.fear})`); // [cite: 14617]
             break;
         case 'FAILURE_WITH_FEAR':
-            gameState.fear = Math.min(12, gameState.fear + 1);
-            simLog(` Resource: +1 Fear (Total: ${gameState.fear})`);
+            gameState.fear = Math.min(12, gameState.fear + 1); // [cite: 14620]
+            simLog(` Resource: +1 Fear (Total: ${gameState.fear})`); // [cite: 14620]
             break;
     }
 }
 
+// --- MODIFIED: Uses simLog & Threshold Bug Fix ---
 function applyDamage(damageInfo, attacker, target, gameState) {
-    
-    let finalTarget = target;
-    let isIntercepted = false;
-    let { amount, isDirect, isPhysical, isStandardAttack } = damageInfo;
-
-    if (gameState && target.type === 'player') { 
-        const interceptingPlayer = checkForPCReactions(amount, attacker, target, isDirect, gameState);
-        if (interceptingPlayer) {
-            finalTarget = interceptingPlayer; 
-            isIntercepted = true;
+    let finalTarget = target; // [cite: 14625]
+    let isIntercepted = false; // [cite: 14629]
+    let { amount, isDirect, isPhysical, isStandardAttack } = damageInfo; // [cite: 14631]
+    if (gameState && target.type === 'player') {  // [cite: 14635]
+        const interceptingPlayer = checkForPCReactions(amount, attacker, target, isDirect, gameState); // [cite: 14636]
+        if (interceptingPlayer) { // [cite: 14637]
+            finalTarget = interceptingPlayer;  // [cite: 14638]
+            isIntercepted = true; // [cite: 14640]
         }
     }
-
-    let hpToMark = 0;
-    let isMajor = false;
-    let isSevere = false;
+    let hpToMark = 0; // [cite: 14642]
+    let isMajor = false; // [cite: 14643]
+    let isSevere = false; // [cite: 14644]
     
     // --- BUG FIX: Check if thresholds object and properties exist ---
-    const majorThreshold = finalTarget.thresholds?.major;
-    const severeThreshold = finalTarget.thresholds?.severe;
+    const majorThreshold = finalTarget.thresholds?.major; // [cite: 14649]
+    const severeThreshold = finalTarget.thresholds?.severe; // [cite: 14649]
 
     if (!majorThreshold || !severeThreshold) {
-        simLog(` (WARNING: Target ${finalTarget.name} has N/A thresholds! Defaulting to 1 HP.)`);
-        if (amount > 0) hpToMark = 1; 
+        simLog(` (WARNING: Target ${finalTarget.name} has N/A thresholds! Defaulting to 1 HP.)`); // [cite: 14646]
+        if (amount > 0) hpToMark = 1;  // [cite: 14647]
     } else {
-        if (amount >= severeThreshold) {
-            hpToMark = 3;
-            isSevere = true;
-            isMajor = true;
-        } else if (amount >= majorThreshold) {
-            hpToMark = 2;
-            isMajor = true;
-        } else if (amount > 0) {
-            hpToMark = 1;
+        if (amount >= severeThreshold) { // [cite: 14650]
+            hpToMark = 3; // [cite: 14651]
+            isSevere = true; // [cite: 14653]
+            isMajor = true; // [cite: 14654]
+        } else if (amount >= majorThreshold) { // [cite: 14656]
+            hpToMark = 2; // [cite: 14657]
+            isMajor = true; // [cite: 14658]
+        } else if (amount > 0) { // [cite: 14659]
+            hpToMark = 1; // [cite: 14660]
         }
     }
     
-    if (finalTarget.type === 'adversary' && finalTarget.passives.takeExtraPhysicalHP && isPhysical && hpToMark > 0) {
-        simLog(` -> ${finalTarget.name}'s 'Weak Structure' passive applies!`);
-        hpToMark += finalTarget.passives.takeExtraPhysicalHP;
+    if (finalTarget.type === 'adversary' && finalTarget.passives.takeExtraPhysicalHP && isPhysical && hpToMark > 0) { // [cite: 14662]
+        simLog(` -> ${finalTarget.name}'s 'Weak Structure' passive applies!`); // [cite: 14664]
+        hpToMark += finalTarget.passives.takeExtraPhysicalHP; // [cite: 14665]
     }
-
-    let originalHPMark = hpToMark;
-    simLog(` Damage: ${amount} (dealt by ${attacker.name}) vs ${finalTarget.name}'s Thresholds (${majorThreshold || 'N/A'}/${severeThreshold || 'N/A'})`);
-    simLog(` Calculated Severity: ${originalHPMark} HP`);
+    let originalHPMark = hpToMark; // [cite: 14666]
+    simLog(` Damage: ${amount} (dealt by ${attacker.name}) vs ${finalTarget.name}'s Thresholds (${majorThreshold || 'N/A'}/${severeThreshold || 'N/A'})`); // [cite: 14667]
+    simLog(` Calculated Severity: ${originalHPMark} HP`); // [cite: 14667]
     
-    if (finalTarget.type === 'player' && hpToMark > 0) {
-        const severityReduced = checkForPCDamageReactions(finalTarget, hpToMark, gameState);
-        if (severityReduced) {
-            hpToMark--;
-            simLog(` -> Severity reduced by reaction! New HP to mark: ${hpToMark}`);
-            if (originalHPMark === 3) isSevere = false;
-            if (originalHPMark === 2 && hpToMark < 2) isMajor = false;
+    if (finalTarget.type === 'player' && hpToMark > 0) { // [cite: 14669]
+        const severityReduced = checkForPCDamageReactions(finalTarget, hpToMark, gameState); // [cite: 14670]
+        if (severityReduced) { // [cite: 14670]
+            hpToMark--; // [cite: 14671]
+            simLog(` -> Severity reduced by reaction! New HP to mark: ${hpToMark}`); // [cite: 14672]
+            if (originalHPMark === 3) isSevere = false; // [cite: 14672]
+            if (originalHPMark === 2 && hpToMark < 2) isMajor = false; // [cite: 14673]
         }
     }
-
-    if (isIntercepted && finalTarget.class === "Guardian") {
-        simLog(` -> Guardian "I Am Your Shield" applies!`);
-        while (hpToMark > 0 && finalTarget.current_armor_slots > 0) {
-            finalTarget.current_armor_slots--;
-            hpToMark--;
-            simLog(` ${finalTarget.name} marks 1 Armor Slot! (Slots left: ${finalTarget.current_armor_slots})`);
+    if (isIntercepted && finalTarget.class === "Guardian") { // [cite: 14676]
+        simLog(` -> Guardian "I Am Your Shield" applies!`); // [cite: 14677]
+        while (hpToMark > 0 && finalTarget.current_armor_slots > 0) { // [cite: 14678]
+            finalTarget.current_armor_slots--; // [cite: 14679]
+            hpToMark--; // [cite: 14680]
+            simLog(` ${finalTarget.name} marks 1 Armor Slot! (Slots left: ${finalTarget.current_armor_slots})`); // [cite: 14681]
         }
     } 
-    else if (finalTarget.type === 'player' && finalTarget.current_armor_slots > 0 && hpToMark > 0 && !isDirect) {
-        finalTarget.current_armor_slots--;
-        hpToMark--;
-        simLog(` ${finalTarget.name} marks 1 Armor Slot! (Slots left: ${finalTarget.current_armor_slots})`);
-    } else if (isDirect && finalTarget.type === 'player') {
-        simLog(` This is DIRECT damage and cannot be mitigated by armor!`);
+    else if (finalTarget.type === 'player' && finalTarget.current_armor_slots > 0 && hpToMark > 0 && !isDirect) { // [cite: 14684]
+        finalTarget.current_armor_slots--; // [cite: 14685]
+        hpToMark--; // [cite: 14686]
+        simLog(` ${finalTarget.name} marks 1 Armor Slot! (Slots left: ${finalTarget.current_armor_slots})`); // [cite: 14694]
+    } else if (isDirect && finalTarget.type === 'player') { // [cite: 14694]
+        simLog(` This is DIRECT damage and cannot be mitigated by armor!`); // [cite: 14695]
     }
-
-    finalTarget.current_hp -= hpToMark;
-    
-    if (originalHPMark > hpToMark) {
-        simLog(` Final HP marked: ${hpToMark}.`);
-    } else if (originalHPMark > 0) {
-        simLog(` Final HP marked: ${hpToMark}.`);
+    finalTarget.current_hp -= hpToMark; // [cite: 14697]
+    if (originalHPMark > hpToMark) { // [cite: 14699]
+        simLog(` Final HP marked: ${hpToMark}.`); // [cite: 14700]
+    } else if (originalHPMark > 0) { // [cite: 14701]
+        simLog(` Final HP marked: ${hpToMark}.`); // [cite: 14702]
     }
-    
-    simLog(` ${finalTarget.name} HP: ${finalTarget.current_hp} / ${finalTarget.max_hp}`);
-    
-    const damageEventInfo = {
-        amount: amount,
-        hpMarked: hpToMark,
-        isMajor: isMajor,
-        isSevere: isSevere,
-        isPhysical: isPhysical,
-        isStandardAttack: isStandardAttack
+    simLog(` ${finalTarget.name} HP: ${finalTarget.current_hp} / ${finalTarget.max_hp}`); // [cite: 14704]
+    const damageEventInfo = { // [cite: 14706]
+        amount, hpMarked: hpToMark, isMajor, isSevere, isPhysical, isStandardAttack // [cite: 14707-14712]
     };
-
-    if (finalTarget.type === 'adversary') {
-        checkAdversaryReactions("ON_TAKE_DAMAGE", finalTarget, attacker, gameState, damageEventInfo);
-        
-        if (damageEventInfo.isSevere) {
-            checkAdversaryReactions("ON_TAKE_SEVERE_DAMAGE", finalTarget, attacker, gameState, damageEventInfo);
+    if (finalTarget.type === 'adversary') { // [cite: 14714]
+        checkAdversaryReactions("ON_TAKE_DAMAGE", finalTarget, attacker, gameState, damageEventInfo); // [cite: 14716]
+        if (damageEventInfo.isSevere) { // [cite: 14717]
+            checkAdversaryReactions("ON_TAKE_SEVERE_DAMAGE", finalTarget, attacker, gameState, damageEventInfo); // [cite: 14718]
         }
     }
-
-    if (attacker.type === 'adversary' && hpToMark > 0) {
-        checkAdversaryReactions("ON_DEAL_HP", attacker, finalTarget, gameState, damageEventInfo);
+    if (attacker.type === 'adversary' && hpToMark > 0) { // [cite: 14721]
+        checkAdversaryReactions("ON_DEAL_HP", attacker, finalTarget, gameState, damageEventInfo); // [cite: 14723]
     }
-    
-    if (attacker.type === 'adversary' && hpToMark > 0) {
-        if (damageInfo.isStandardAttack && attacker.passives.knockbackOnHP) {
-             simLog(` -> ${attacker.name}'s PASSIVE triggers: Overwhelming Force!`);
-             const knockbackEffect = {
-                action_type: 'KNOCKBACK',
-                range: attacker.passives.knockbackOnHP.range,
-                is_direct: false
-             };
-             executeParsedEffect(knockbackEffect, attacker, finalTarget, gameState);
+    if (attacker.type === 'adversary' && hpToMark > 0) { // [cite: 14726]
+        if (damageInfo.isStandardAttack && attacker.passives.knockbackOnHP) { // [cite: 14729]
+             simLog(` -> ${attacker.name}'s PASSIVE triggers: Overwhelming Force!`); // [cite: 14730]
+             const knockbackEffect = { action_type: 'KNOCKBACK', range: attacker.passives.knockbackOnHP.range, is_direct: false }; // [cite: 14732-14737]
+             executeParsedEffect(knockbackEffect, attacker, finalTarget, gameState); // [cite: 14738]
         }
     }
-
-    if (finalTarget.current_hp <= 0) {
-        simLog(` *** ${finalTarget.name} has been defeated! ***`);
-        if (finalTarget.type === 'adversary') {
-            checkAdversaryReactions("ON_DEFEAT", finalTarget, attacker, gameState, damageEventInfo);
+    if (finalTarget.current_hp <= 0) { // [cite: 14740]
+        simLog(` *** ${finalTarget.name} has been defeated! ***`); // [cite: 14741]
+        if (finalTarget.type === 'adversary') { // [cite: 14742]
+            checkAdversaryReactions("ON_DEFEAT", finalTarget, attacker, gameState, damageEventInfo); // [cite: 14743]
         }
     }
 }
 
+// --- MODIFIED: Uses simLog ---
 function checkForPCReactions(damageTotal, attacker, target, isDirectDamage, gameState) {
-    for (const potentialProtector of gameState.players) {
-        if (potentialProtector.current_hp <= 0 || potentialProtector.id === target.id) {
-            continue; 
+    for (const potentialProtector of gameState.players) { // [cite: 14745]
+        if (potentialProtector.current_hp <= 0 || potentialProtector.id === target.id) { // [cite: 14746]
+            continue; // [cite: 14747]
         }
-
-        if (potentialProtector.class === "Guardian") {
-            const shieldCard = potentialProtector.domainCards.find(c => c.name === "I Am Your Shield");
-            if (shieldCard) {
-                if (potentialProtector.current_stress < potentialProtector.max_stress) {
-                    if (isTargetInRange(potentialProtector, target, "Very Close")) {
-                        potentialProtector.current_stress += 1; 
-                        simLog(` -> ${potentialProtector.name} uses "I Am Your Shield"!`);
-                        simLog(` -> ${potentialProtector.name} marks 1 Stress (Total: ${potentialProtector.current_stress})`);
-                        return potentialProtector; 
+        if (potentialProtector.class === "Guardian") { // [cite: 14751]
+            const shieldCard = potentialProtector.domainCards.find(c => c.name === "I Am Your Shield"); // [cite: 14752]
+            if (shieldCard) { // [cite: 14753]
+                if (potentialProtector.current_stress < potentialProtector.max_stress) { // [cite: 14755]
+                    if (isTargetInRange(potentialProtector, target, "Very Close")) { // [cite: 14756]
+                        potentialProtector.current_stress += 1;  // [cite: 14756]
+                        simLog(` -> ${potentialProtector.name} uses "I Am Your Shield"!`); // [cite: 14757]
+                        simLog(` -> ${potentialProtector.name} marks 1 Stress (Total: ${potentialProtector.current_stress})`); // [cite: 14758]
+                        return potentialProtector;  // [cite: 14759]
                     }
                 }
             }
         }
     }
-
-    return null;
+    return null; // [cite: 14762]
 }
 
-
-// --- CORE DICE & PARSING UTILITIES ---
-function rollD20() { return Math.floor(Math.random() * 20) + 1; }
-function rollD12() { return Math.floor(Math.random() * 12) + 1; }
-
+// --- CORE DICE & PARSING UTILITIES (MODIFIED: Use simLog) ---
+function rollD20() { return Math.floor(Math.random() * 20) + 1; } // [cite: 14765]
+function rollD12() { return Math.floor(Math.random() * 12) + 1; } // [cite: 14767]
 function executeReactionRoll(target, trait, difficulty) {
-    const roll = rollD20();
-    const traitMod = target.traits[trait.toLowerCase()] || 0;
-    const total = roll + traitMod;
-    simLog(` ${target.name} makes a ${trait.toUpperCase()} Reaction Roll (Diff ${difficulty})`);
-    simLog(` Roll: 1d20(${roll}) + ${trait}(${traitMod}) = ${total}`);
-    return total >= difficulty;
+    const roll = rollD20(); // [cite: 14771]
+    const traitMod = target.traits[trait.toLowerCase()] || 0; // [cite: 14772]
+    const total = roll + traitMod; // [cite: 14774]
+    simLog(` ${target.name} makes a ${trait.toUpperCase()} Reaction Roll (Diff ${difficulty})`); // [cite: 14776]
+    simLog(` Roll: 1d20(${roll}) + ${trait}(${traitMod}) = ${total}`); // [cite: 14776]
+    return total >= difficulty; // [cite: 14776]
 }
-
 function executeActionRoll(difficulty, traitModifier, otherModifiers) {
-    const hopeRoll = rollD12();
-    const fearRoll = rollD12();
-    const safeTraitModifier = typeof traitModifier === 'number' ? traitModifier : 0;
-    const safeOtherModifiers = typeof otherModifiers === 'number' ? otherModifiers : 0;
-    const baseSum = hopeRoll + fearRoll;
-    const total = baseSum + safeTraitModifier + safeOtherModifiers;
+    const hopeRoll = rollD12(); // [cite: 14778]
+    const fearRoll = rollD12(); // [cite: 14779]
+    const safeTraitModifier = typeof traitModifier === 'number' ? traitModifier : 0; // [cite: 14781]
+    const safeOtherModifiers = typeof otherModifiers === 'number' ? otherModifiers : 0; // [cite: 14782]
+    const baseSum = hopeRoll + fearRoll; // [cite: 14783]
+    const total = baseSum + safeTraitModifier + safeOtherModifiers; // [cite: 14787]
     let outcome = '';
-
-    if (hopeRoll === fearRoll) { outcome = 'CRITICAL_SUCCESS'; } 
-    else if (total >= difficulty) { outcome = (hopeRoll > fearRoll) ? 'SUCCESS_WITH_HOPE' : 'SUCCESS_WITH_FEAR'; } 
-    else { outcome = (hopeRoll > fearRoll) ? 'FAILURE_WITH_HOPE' : 'FAILURE_WITH_FEAR'; }
-    
-    return {
-        hopeRoll, fearRoll, total, difficulty, outcome
-    };
+    if (hopeRoll === fearRoll) { outcome = 'CRITICAL_SUCCESS'; }  // [cite: 14793]
+    else if (total >= difficulty) { outcome = (hopeRoll > fearRoll) ? 'SUCCESS_WITH_HOPE' : 'SUCCESS_WITH_FEAR'; }  // [cite: 14794]
+    else { outcome = (hopeRoll > fearRoll) ? 'FAILURE_WITH_HOPE' : 'FAILURE_WITH_FEAR'; } // [cite: 14795]
+    return { hopeRoll, fearRoll, total, difficulty, outcome }; // [cite: 14796]
 }
-
 function rollDamage(damageString, proficiency, critBonus = 0) {
-    const { numDice, dieType, modifier, maxDie } = parseDiceString(damageString);
-    let totalDamage = 0;
-    
-    let diceToRoll = (proficiency > 1) ? (numDice * proficiency) : numDice;
-    
-    if (dieType > 0) {
-        for (let i = 0; i < diceToRoll; i++) {
-            totalDamage += Math.floor(Math.random() * dieType) + 1;
+    const { numDice, dieType, modifier, maxDie } = parseDiceString(damageString); // [cite: 14804]
+    let totalDamage = 0; // [cite: 14805]
+    let diceToRoll = (proficiency > 1) ? (numDice * proficiency) : numDice; // [cite: 14807]
+    if (dieType > 0) { // [cite: 14808]
+        for (let i = 0; i < diceToRoll; i++) { // [cite: 14809]
+            totalDamage += Math.floor(Math.random() * dieType) + 1; // [cite: 14810]
         }
     }
-    
-    totalDamage += modifier;
-    totalDamage += critBonus; 
-    
-    return totalDamage;
+    totalDamage += modifier; // [cite: 14813]
+    totalDamage += critBonus;  // [cite: 14814]
+    return totalDamage; // [cite: 14815]
 }
-
 function parseDiceString(damageString = "1d4") {
-    if (typeof damageString !== 'string') {
-        simLog(`(ERROR: Invalid damage string: ${damageString})`);
-        return { numDice: 0, dieType: 0, modifier: 0, maxDie: 0 };
+    if (typeof damageString !== 'string') { // [cite: 14820]
+        simLog(`(ERROR: Invalid damage string: ${damageString})`); // [cite: 14823]
+        return { numDice: 0, dieType: 0, modifier: 0, maxDie: 0 }; // [cite: 14824]
     }
-    damageString = damageString.split(' ')[0]; 
-    let numDice = 1, dieType = 4, modifier = 0;
-    
-    const modSplit = damageString.split('+');
-    if (modSplit.length > 1) modifier = parseInt(modSplit[1]) || 0;
-    
-    const dicePart = modSplit[0];
-    const dieSplit = dicePart.split('d');
-    
-    if (dieSplit[0] === '') { 
-        numDice = 1;
-        dieType = parseInt(dieSplit[1]) || 4;
-    } else if (dieSplit.length > 1) { 
-        numDice = parseInt(dieSplit[0]) || 1;
-        dieType = parseInt(dieSplit[1]) || 4;
-    } else if (!damageString.includes('d')) { 
-        numDice = 0; dieType = 0;
-        modifier = parseInt(dieSplit[0]) || 0;
+    damageString = damageString.split(' ')[0]; // [cite: 14825]
+    let numDice = 1, dieType = 4, modifier = 0; // [cite: 14827]
+    const modSplit = damageString.split('+'); // [cite: 14828]
+    if (modSplit.length > 1) modifier = parseInt(modSplit[1]) || 0; // [cite: 14829]
+    const dicePart = modSplit[0]; // [cite: 14830]
+    const dieSplit = dicePart.split('d'); // [cite: 14831]
+    if (dieSplit[0] === '') {  // [cite: 14833]
+        numDice = 1; // [cite: 14834]
+        dieType = parseInt(dieSplit[1]) || 4; // [cite: 14835]
+    } else if (dieSplit.length > 1) {  // [cite: 14836]
+        numDice = parseInt(dieSplit[0]) || 1; // [cite: 14837]
+        dieType = parseInt(dieSplit[1]) || 4; // [cite: 14839]
+    } else if (!damageString.includes('d')) {  // [cite: 14842]
+        numDice = 0; dieType = 0; // [cite: 14843]
+        modifier = parseInt(dieSplit[0]) || 0; // [cite: 14844]
     }
-    
-    return { numDice, dieType, modifier, maxDie: dieType };
+    return { numDice, dieType, modifier, maxDie: dieType }; // [cite: 14846]
 }
 
-// --- MOVEMENT & RANGE HELPER FUNCTIONS ---
-
+// --- MOVEMENT & RANGE HELPER FUNCTIONS (MODIFIED: Use simLog) ---
 function isCellOccupied(x, y, gameState, selfId) {
-    const allAgents = [...gameState.players, ...gameState.adversaries];
-    for (const agent of allAgents) {
-        if (agent.id === selfId || agent.current_hp <= 0) {
-            continue; 
+    const allAgents = [...gameState.players, ...gameState.adversaries]; // [cite: 14849]
+    for (const agent of allAgents) { // [cite: 14850]
+        if (agent.id === selfId || agent.current_hp <= 0) { // [cite: 14851]
+            continue;  // [cite: 14852]
         }
-        if (agent.position.x === x && agent.position.y === y) {
-            return true; 
+        if (agent.position.x === x && agent.position.y === y) { // [cite: 14853]
+            return true; // [cite: 14854]
         }
     }
-    return false;
+    return false; // [cite: 14856]
 }
-
 function getAgentDistance(agentA, agentB) {
-    if (!agentA.position || !agentB.position) return 0;
-    const dx = Math.abs(agentA.position.x - agentB.position.x);
-    const dy = Math.abs(agentA.position.y - agentB.position.y);
-    return dx + dy;
+    if (!agentA.position || !agentB.position) return 0; // [cite: 14858]
+    const dx = Math.abs(agentA.position.x - agentB.position.x); // [cite: 14859]
+    const dy = Math.abs(agentA.position.y - agentB.position.y); // [cite: 14860]
+    return dx + dy; // [cite: 14860]
 }
-
 function isTargetInRange(attacker, target, weaponRangeName) {
-    const distance = getAgentDistance(attacker, target);
-    const range = (weaponRangeName || 'Melee').trim().toLowerCase();
-
-    switch (range) {
-        case 'self':
-            return true;
-        case 'melee':
-            return distance <= CURRENT_BATTLEFIELD.RANGE_MELEE;
-        case 'very close':
-            return distance <= CURRENT_BATTLEFIELD.RANGE_VERY_CLOSE;
-        case 'close':
-            return distance <= CURRENT_BATTLEFIELD.RANGE_CLOSE;
-        case 'far':
-            return distance <= CURRENT_BATTLEFIELD.RANGE_FAR;
-        case 'very far':
-             return distance <= CURRENT_BATTLEFIELD.RANGE_VERY_FAR;
+    const distance = getAgentDistance(attacker, target); // [cite: 14863]
+    const range = (weaponRangeName || 'Melee').trim().toLowerCase(); // [cite: 14864]
+    switch (range) { // [cite: 14865]
+        case 'self': return true; // [cite: 14867]
+        case 'melee': return distance <= CURRENT_BATTLEFIELD.RANGE_MELEE; // [cite: 14869]
+        case 'very close': return distance <= CURRENT_BATTLEFIELD.RANGE_VERY_CLOSE; // [cite: 14871]
+        case 'close': return distance <= CURRENT_BATTLEFIELD.RANGE_CLOSE; // [cite: 14873]
+        case 'far': return distance <= CURRENT_BATTLEFIELD.RANGE_FAR; // [cite: 14874]
+        case 'very far': return distance <= CURRENT_BATTLEFIELD.RANGE_VERY_FAR;
         default:
-            simLog(`(Warning: Unknown range name '${weaponRangeName}')`);
-            return false;
+            simLog(`(Warning: Unknown range name '${weaponRangeName}')`); // [cite: 14876]
+            return false; // [cite: 14876]
     }
 }
-
 // --- MODIFIED: Added 'isSprint' flag ---
 function moveAgentTowards(agent, target, gameState, isSprint = false) {
-    // Sprints are a full Far range move, otherwise use agent's speed (Close)
-    let budget = isSprint ? DAGGERHEART_RANGES.RANGE_FAR : agent.speed; 
+    // SRD: "a character can move to a location within Close range as part of that action." [cite: 20646]
+    // SRD: "An adversary can move within Close range for free as part of an action, or within Very Far range as a separate action." [cite: 20648]
+    let budget;
+    if (agent.type === 'player') {
+        budget = isSprint ? DAGGERHEART_RANGES.RANGE_FAR : DAGGERHEART_RANGES.RANGE_CLOSE; // [cite: 20646, 20647]
+    } else { // Adversary
+        budget = isSprint ? DAGGERHEART_RANGES.RANGE_VERY_FAR : DAGGERHEART_RANGES.RANGE_CLOSE; // [cite: 20648]
+    }
     
-    let currentX = agent.position.x;
-    let currentY = agent.position.y;
-    let moved = false;
-
-    while (budget > 0) {
-        let movedThisStep = false;
-        const dx = target.position.x - currentX;
-        const dy = target.position.y - currentY;
-
-        if (getAgentDistance({position: {x: currentX, y: currentY}}, target) <= 1) {
-            break; // Already in Melee
+    let currentX = agent.position.x; // [cite: 14883]
+    let currentY = agent.position.y; // [cite: 14886]
+    let moved = false; // [cite: 14887]
+    while (budget > 0) { // [cite: 14888]
+        let movedThisStep = false; // [cite: 14889]
+        const dx = target.position.x - currentX; // [cite: 14890]
+        const dy = target.position.y - currentY; // [cite: 14891]
+        if (getAgentDistance({position: {x: currentX, y: currentY}}, target) <= 1) { // [cite: 14894]
+            break; // [cite: 14895]
         }
-
-        if (Math.abs(dx) > Math.abs(dy)) {
-            let nextX = currentX + Math.sign(dx);
-            if (!isCellOccupied(nextX, currentY, gameState, agent.id)) {
-                currentX = nextX;
-                movedThisStep = true;
+        if (Math.abs(dx) > Math.abs(dy)) { // [cite: 14896]
+            let nextX = currentX + Math.sign(dx); // [cite: 14897]
+            if (!isCellOccupied(nextX, currentY, gameState, agent.id)) { // [cite: 14898]
+                currentX = nextX; // [cite: 14900]
+                movedThisStep = true; // [cite: 14901]
             }
         } else {
-            let nextY = currentY + Math.sign(dy);
-            if (!isCellOccupied(currentX, nextY, gameState, agent.id)) {
-                currentY = nextY;
-                movedThisStep = true;
+            let nextY = currentY + Math.sign(dy); // [cite: 14902]
+            if (!isCellOccupied(currentX, nextY, gameState, agent.id)) { // [cite: 14903]
+                currentY = nextY; // [cite: 14904]
+                movedThisStep = true; // [cite: 14905]
             }
         }
-
-        if (!movedThisStep) { // Try diagonal/secondary axis if blocked
-            if (Math.abs(dx) > Math.abs(dy)) { 
-                let nextY = currentY + Math.sign(dy);
-                if (dy !== 0 && !isCellOccupied(currentX, nextY, gameState, agent.id)) {
-                    currentY = nextY;
-                    movedThisStep = true;
+        if (!movedThisStep) { // [cite: 14906]
+            if (Math.abs(dx) > Math.abs(dy)) {  // [cite: 14907]
+                let nextY = currentY + Math.sign(dy); // [cite: 14908]
+                if (dy !== 0 && !isCellOccupied(currentX, nextY, gameState, agent.id)) { // [cite: 14909]
+                    currentY = nextY; // [cite: 14911]
+                    movedThisStep = true; // [cite: 14912]
                 }
             } else { 
-                let nextX = currentX + Math.sign(dx);
-                if (dx !== 0 && !isCellOccupied(nextX, currentY, gameState, agent.id)) {
-                    currentX = nextX;
-                    movedThisStep = true;
+                let nextX = currentX + Math.sign(dx); // [cite: 14913]
+                if (dx !== 0 && !isCellOccupied(nextX, currentY, gameState, agent.id)) { // [cite: 14915]
+                    currentX = nextX; // [cite: 14916]
+                    movedThisStep = true; // [cite: 14917]
                 }
             }
         }
-
-        if (!movedThisStep) {
-            simLog(` -> ${agent.name} is blocked and cannot move further.`);
-            break;
+        if (!movedThisStep) { // [cite: 14919]
+            simLog(` -> ${agent.name} is blocked and cannot move further.`); // [cite: 14920]
+            break; // [cite: 14921]
         }
-
-        budget--;
-        moved = true;
+        budget--; // [cite: 14922]
+        moved = true; // [cite: 14923]
     }
-
-    if (moved) {
-        agent.position.x = currentX;
-        agent.position.y = currentY;
-        simLog(` -> ${agent.name} moves to (${currentX}, ${currentY})`);
+    if (moved) { // [cite: 14925]
+        agent.position.x = currentX; // [cite: 14926]
+        agent.position.y = currentY; // [cite: 14927]
+        simLog(` -> ${agent.name} moves to (${currentX}, ${currentY})`); // [cite: 14928]
     }
 }
 // --- END OF HELPER FUNCTIONS ---
 
 // --- *** NEW LOGGING SYSTEM *** ---
-
 // simLog(message) captures text *during* a simulation run
 function simLog(message) {
     BATCH_LOG.push(message);
 }
-
 // printToLog(message, className) prints text to the *actual* UI
 function printToLog(message, className = null) {
     const logOutput = document.getElementById('log-output');
@@ -2047,13 +2057,13 @@ function printToLog(message, className = null) {
         if (className) {
             el.className = className;
         }
-        el.innerText = message; // Use innerText to preserve line breaks from scoreboard
+        // Use innerText to preserve whitespace for scoreboard
+        el.innerText = message; 
         logOutput.appendChild(el);
         logOutput.scrollTop = logOutput.scrollHeight; 
     }
 }
 // --- *** END NEW LOGGING SYSTEM *** ---
-
 
 // --- VISUALIZER RENDER FUNCTION ---
 function initializeBattlemap(gameState) {
@@ -2061,23 +2071,19 @@ function initializeBattlemap(gameState) {
     if (!map) return;
     map.innerHTML = '';
     tokenCache = {};
-
     const mapSize = document.getElementById('map-size-select').value;
     CURRENT_BATTLEFIELD = {
         ...DAGGERHEART_RANGES,
         ...MAP_CONFIGS[mapSize] 
     };
-
     map.style.gridTemplateColumns = `repeat(${CURRENT_BATTLEFIELD.MAX_X}, 1fr)`;
     map.style.gridTemplateRows = `repeat(${CURRENT_BATTLEFIELD.MAX_Y}, 1fr)`;
-    
     let gridHtml = '';
     const totalCells = CURRENT_BATTLEFIELD.MAX_X * CURRENT_BATTLEFIELD.MAX_Y;
     for (let i = 0; i < totalCells; i++) {
         gridHtml += '<div class="empty-cell"></div>';
     }
     map.innerHTML = gridHtml;
-
     if (gameState) {
         initializeTokens(gameState);
     }
@@ -2086,12 +2092,10 @@ function initializeBattlemap(gameState) {
 function initializeTokens(gameState) {
     const map = document.getElementById('battlemap-grid');
     if (!map) return;
-
     for (const tokenId in tokenCache) {
         tokenCache[tokenId].remove();
     }
     tokenCache = {};
-
     for (const player of gameState.players) {
         const token = document.createElement('div');
         token.className = 'token player-token';
@@ -2099,7 +2103,6 @@ function initializeTokens(gameState) {
         map.appendChild(token);
         tokenCache[player.id] = token;
     }
-
     for (const adv of gameState.adversaries) {
         const token = document.createElement('div');
         token.className = 'token adversary-token';
@@ -2107,7 +2110,6 @@ function initializeTokens(gameState) {
         map.appendChild(token);
         tokenCache[adv.id] = token;
     }
-    
     renderBattlemap(gameState);
 }
 
@@ -2115,7 +2117,6 @@ function renderBattlemap(gameState) {
     for (const player of gameState.players) {
         const token = tokenCache[player.id];
         if (!token) continue;
-
         if (player.current_hp <= 0) {
             token.style.display = 'none';
         } else {
@@ -2125,11 +2126,9 @@ function renderBattlemap(gameState) {
             token.style.gridRow = player.position.y;
         }
     }
-
     for (const adv of gameState.adversaries) {
         const token = tokenCache[adv.id];
         if (!token) continue;
-        
         if (adv.current_hp <= 0) {
             token.style.display = 'none';
         } else {

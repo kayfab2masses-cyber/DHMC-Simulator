@@ -9,12 +9,6 @@
 <body>
     <header>
         <h1>Daggerheart Monte Carlo Simulator</h1>
-        <div class="sim-controls">
-            <label for="visualize-checkbox">
-                <input type="checkbox" id="visualize-checkbox">
-                Visualize Sim?
-            </label>
-        </div>
     </header>
     
     <div class="simulator-layout">
@@ -115,20 +109,48 @@
         </div>
 
         <div class="layout-column" id="scene-column">
-            <h3><span class="col-number">3</span> Active Scene (for Sim)</h3>
-            <div class="pool-container">
-                <h4>Active Party</h4>
-                <div id="active-party-list" class="agent-list"></div>
-            </div>
-            <div class="pool-container">
-                <h4>Active Adversaries</h4>
-                <div id="active-adversary-list" class="agent-list"></div>
-            </div>
-            <div class="pool-container">
-                <div class="pool-header">
-                    <h4>Active Environment</h4>
+            <h3><span class="col-number">3</span> Encounter Planner</h3>
+            
+            <div id="encounter-planner-area">
+                <div class="encounter-block" id="encounter-1">
+                    <button class="toggle-button" data-target="encounter-1-body">▼</button>
+                    <h4>Encounter 1</h4>
+                    <div class="encounter-body" id="encounter-1-body">
+                        <div class="pool-container">
+                            <div class="pool-header">
+                                <h4>Active Party (<span id="pc-count">0</span> PCs)</h4>
+                                <span class="bp-target" id="bp-target-display">Target BP: 0 / Short Rest</span>
+                            </div>
+                           <div id="active-party-list" class="agent-list"></div>
+                        </div>
+                        
+                        <div class="pool-container">
+                            <div class="pool-header">
+                                <h4>Active Adversaries</h4>
+                                <span class="bp-tracker" id="bp-tracker-display">Spent BP: 0</span>
+                            </div>
+                           <div id="active-adversary-list-1" class="agent-list active-adversary-list"></div>
+                        </div>
+                        
+                        <div class="pool-container">
+                            <div class="pool-header">
+                                <h4>Active Environment</h4>
+                            </div>
+                           <div id="active-environment-list" class="agent-list active-environment-list"></div>
+                        </div>
+
+                        <div class="controls-main">
+                            <button id="run-button" class="action-button">Run Sim (x1)</button>
+                            <button id="run-multiple-button" class="action-button">Run Sim (x5)</button>
+                            <button id="playback-button" class="action-button" disabled>Play Back</button>
+                        </div>
+                    </div>
                 </div>
-                <div id="active-environment" class="agent-list"></div>
+                </div>
+            
+            <div class="sequence-controls">
+                <button id="add-encounter-button" class="add-button">Add New Encounter</button>
+                <button id="run-sequence-button" class="action-button sequence-run-button" disabled>Run Full Sequence</button>
             </div>
         </div>
     </div>
@@ -138,10 +160,6 @@
             <div class="log-header">
                 <h3>Simulation Log:</h3>
                 <div class="controls-main">
-                    <button id="run-button" class="action-button">Run Simulation</button>
-                    <button id="run-multiple-button" class="action-button">Run 5 Sims</button>
-                    <button id="run-ten-button" class="action-button">Run 10 Sims</button>
-                    <button id="playback-button" class="action-button" disabled>Play Back Last Sim</button>
                     <button id="export-log-button" class="action-button">Export Log</button>
                 </div>
             </div>
@@ -161,7 +179,7 @@
                 </div>
             </div>
             <div id="battlemap-grid">
-                </div>
+            </div>
         </div>
     </div>
 
