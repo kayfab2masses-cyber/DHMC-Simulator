@@ -47,28 +47,15 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- NEW: Playback Button Listener ---
     const playbackButton = document.getElementById('playback-button');
-    if (!playbackButton) {
-        // If the element doesn't exist yet (e.g., first load), create it
-        const controlsSection = document.querySelector('.controls-section:nth-child(2)');
-        if (controlsSection) {
-            const newPlaybackButton = document.createElement('button');
-            newPlaybackButton.id = 'playback-button';
-            newPlaybackButton.textContent = 'Play Back Last Sim';
-            newPlaybackButton.disabled = true;
-            newPlaybackButton.style.marginTop = '10px';
-            controlsSection.appendChild(newPlaybackButton);
-            newPlaybackButton.addEventListener('click', () => {
-                if (simHistory.length > 0) {
-                    playBackSimulation(simHistory.length - 1);
-                }
-            });
-        }
-    } else {
+    if (playbackButton) {
         playbackButton.addEventListener('click', () => {
             if (simHistory.length > 0) {
+                // We'll use the most recent simulation from the history
                 playBackSimulation(simHistory.length - 1);
             }
         });
+    } else {
+        console.error("CRITICAL: Playback button not found in index.html");
     }
     // --- END NEW ---
 
