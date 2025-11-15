@@ -84,7 +84,7 @@ header h1 {
     margin-top: 10px;
 }
 .add-button, .remove-button {
-    flex-basis: 48%;
+    flex-basis: 100%; /* --- MODIFIED --- */
     padding: 8px;
     border: none;
     border-radius: 4px;
@@ -96,11 +96,7 @@ header h1 {
     color: #fff;
 }
 .add-button:hover { background-color: #5b7; }
-.remove-button {
-    background-color: #744;
-    color: #fff;
-}
-.remove-button:hover { background-color: #855; }
+/* --- REMOVED .remove-button styles --- */
 
 
 /* --- Column 2: Staging Pool --- */
@@ -126,7 +122,7 @@ header h1 {
 /* --- NEW: Pool Filter Styles --- */
 .pool-filters {
     display: flex;
-    gap: 10px;
+    gap: 5px;
 }
 .pool-filters select {
     background-color: #333;
@@ -135,6 +131,7 @@ header h1 {
     border-radius: 4px;
     padding: 5px;
     font-size: 0.9em;
+    max-width: 100px; /* Prevent filters from being too wide */
 }
 
 .agent-list {
@@ -146,19 +143,24 @@ header h1 {
     border-radius: 4px;
 }
 
-.pool-item, .scene-item, .srd-item, .pc-item {
+.pool-item, .scene-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 8px 10px;
     border-bottom: 1px solid #333;
 }
-.pool-item:last-child, .scene-item:last-child, .srd-item:last-child, .pc-item:last-child {
+.pool-item:last-child, .scene-item:last-child {
     border-bottom: none;
 }
 .agent-name {
     font-weight: 600;
     color: #cde;
+    font-size: 0.95em; /* Slightly smaller to fit more text */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-right: 5px;
 }
 
 .pool-item-controls {
@@ -166,10 +168,11 @@ header h1 {
     gap: 5px;
 }
 
-.move-button, .flush-button {
+/* --- MODIFIED: Removed .flush-button --- */
+.move-button {
     background: none;
-    border: 1px solid #666;
-    color: #ccc;
+    border: 1px solid #46a;
+    color: #46a;
     cursor: pointer;
     border-radius: 4px;
     width: 24px;
@@ -178,17 +181,9 @@ header h1 {
     text-align: center;
     font-weight: bold;
     padding: 0;
-}
-.move-button {
-    border-color: #46a;
-    color: #46a;
+    flex-shrink: 0; /* Prevent button from shrinking */
 }
 .move-button:hover { background-color: #46a; color: #fff; }
-.flush-button {
-    border-color: #a44;
-    color: #a44;
-}
-.flush-button:hover { background-color: #a44; color: #fff; }
 
 
 /* --- Column 3: Active Scene --- */
@@ -253,7 +248,7 @@ header h1 {
     cursor: not-allowed;
 }
 
-/* --- NEW: Playback Button Style Fix --- */
+/* Playback Button Style Fix */
 #playback-button {
     background-color: #4a4a8c;
     color: #ffffff;
@@ -270,12 +265,13 @@ header h1 {
 }
 
 
+/* --- MODIFIED: Log Output --- */
 #log-output {
     flex-grow: 1;
     background-color: #111;
-    color: #0f0;
+    color: #f0f0f0; /* Changed from green to white */
     font-family: "Courier New", Courier, monospace;
-    font-size: 0.9em;
+    font-size: 1em; /* Increased from 0.9em */
     padding: 15px;
     border-radius: 4px;
     overflow-y: scroll;
@@ -283,6 +279,25 @@ header h1 {
     white-space: pre-wrap;
     word-wrap: break-word;
 }
+
+/* --- NEW: Scoreboard Styles --- */
+.scoreboard-win {
+    color: #4CAF50; /* Green */
+    font-weight: bold;
+    border-top: 1px dashed #4a804c;
+    border-bottom: 1px dashed #4a804c;
+    padding: 10px 0;
+    margin: 10px 0;
+}
+.scoreboard-loss {
+    color: #f44336; /* Red */
+    font-weight: bold;
+    border-top: 1px dashed #804a4a;
+    border-bottom: 1px dashed #804a4a;
+    padding: 10px 0;
+    margin: 10px 0;
+}
+
 
 .log-container.full-width {
     flex-basis: 100%;
@@ -357,7 +372,7 @@ header h1 {
     border: 2px solid #fff;
 }
 
-/* --- Modals (Hidden) --- */
+/* --- REMOVED All modal styles --- */
 .modal-overlay {
-    display: none; /* We are hiding modals as requested */
+    display: none; 
 }
