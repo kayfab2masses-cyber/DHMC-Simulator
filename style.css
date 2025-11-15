@@ -245,6 +245,11 @@ header h1 {
     margin: 0 0 10px 10px;
 }
 
+/* --- THIS BLOCK IS NOW GONE ---
+.encounter-body {
+}
+*/
+
 .toggle-button {
     background: none;
     border: 1px solid #777;
