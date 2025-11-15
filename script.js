@@ -7,6 +7,7 @@ let SRD_ADVERSARIES = []; // This will hold our loaded SRD database
 let PREMADE_CHARACTERS = []; // NEW: This will hold our loaded PC database
 
 let BATCH_LOG = null; 
+let tokenCache = {}; // --- NEW: For high-speed visualizer
 
 // --- BATTLEFIELD & RANGE CONFIGS ---
 const DAGGERHEART_RANGES = {
@@ -584,7 +585,7 @@ async function runMultipleSimulations(count) {
         await runSimulation(isBlastMode); 
         
         if (isVisualizing && count > 1) {
-            await new Promise(resolve => setTimeout(resolve, 500)); 
+            await new Promise(resolve => setTimeout(resolve, 100)); // --- REDUCED DELAY ---
         } else if (isBlastMode) {
             // "Breathe" to prevent freezing
             await new Promise(resolve => setTimeout(resolve, 0));
@@ -625,9 +626,6 @@ async function runSimulation(isBlastMode = false) {
     };
 
     if (isVisualizing) {
-        const grid = document.getElementById('battlemap-grid');
-        grid.style.gridTemplateColumns = `repeat(${CURRENT_BATTLEFIELD.MAX_X}, 1fr)`;
-        grid.style.gridTemplateRows = `repeat(${CURRENT_BATTLEFIELD.MAX_Y}, 1fr)`;
         logToScreen(`Visualizing on ${mapSize} map (${CURRENT_BATTLEFIELD.MAX_X}x${CURRENT_BATTLEFIELD.MAX_Y})...`);
     } else if (!isBlastMode) { 
         logToScreen(`Simulating on ${mapSize} map (${CURRENT_BATTLEFIELD.MAX_X}x${CURRENT_BATTLEFIELD.MAX_Y}) (Visuals disabled)...`);
@@ -678,12 +676,14 @@ async function runSimulation(isBlastMode = false) {
     logToScreen('--- COMBAT BEGINS ---');
     logToScreen(`Spotlight starts on: ${gameState.players[0].name}`);
 
+    // --- NEW: Initialize battlemap once ---
     if (isVisualizing) {
-        renderBattlemap(gameState);
+        initializeBattlemap(gameState);
     }
+    // --- END NEW ---
 
-    let simulationSteps = 0;
-    while (!isCombatOver(gameState) && simulationSteps < 50) {
+    // --- PATCH: REMOVED 50 STEP LIMIT ---
+    while (!isCombatOver(gameState)) {
         let lastOutcome = '';
         if (gameState.spotlight === 'GM') {
             lastOutcome = executeGMTurn(gameState);
@@ -700,16 +700,15 @@ async function runSimulation(isBlastMode = false) {
         determineNextSpotlight(lastOutcome, gameState);
         
         if (isVisualizing) {
-            renderBattlemap(gameState);
-            await new Promise(resolve => setTimeout(resolve, 100)); 
+            renderBattlemap(gameState); // This just moves tokens now
+            await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay per turn
         }
 
         if (isCombatOver(gameState)) {
             break;
         }
-        
-        simulationSteps++;
     }
+    // --- END PATCH ---
 
     if (isVisualizing) {
         renderBattlemap(gameState); // Final render
@@ -922,11 +921,8 @@ function executePCBasicAttack(player, target, gameState) {
             critBonus = parseDiceString(damageString).maxDie; 
         }
 
-        // --- NEW: Check for "Before Damage" reactions (e.g., Construct's Overload) ---
-        // We pass 'player' as attacker, 'target' as agent
-        checkAdversaryReactions("BEFORE_DEALING_DAMAGE", target, player, gameState);
-        // --- END NEW ---
-
+        // --- BUGFIX: Removed call to checkAdversaryReactions. ---
+        // This was incorrectly triggering enemy "Overload" on the PC's turn.
         const damageTotal = rollDamage(damageString, proficiency, critBonus); 
         
         const damageInfo = { 
@@ -1223,7 +1219,6 @@ function executeParsedEffect(action, adversary, target, gameState) {
                 logToScreen(` Making an attack roll against ${t.name}...`);
                 
                 // --- NEW: Check for "Before Damage" reactions (e.g., Construct's Overload) ---
-                // We pass 'adversary' as attacker, 't' as agent
                 let damageBonus = 0;
                 let takeSpotlight = false;
                 const reactionResult = checkAdversaryReactions("BEFORE_DEALING_DAMAGE", adversary, t, gameState);
@@ -1419,7 +1414,7 @@ function executeParsedEffect(action, adversary, target, gameState) {
                     if (adversary.name === "Acid Burrower") {
                         // "mark an additional HP"
                         logToScreen(` -> ${primaryTarget.name} marks an additional HP!`);
-                        const damageInfo = { amount: 1, isDirect: false, isPhysical: false, isStandardAttack: false };
+                        const damageInfo = { amount: 1, isDirect: true, isPhysical: false, isStandardAttack: false };
                         applyDamage(damageInfo, adversary, primaryTarget, gameState);
                         // "and you gain a Fear"
                         logToScreen(` -> GM gains 1 Fear!`);
@@ -1511,6 +1506,7 @@ function executeGMBasicAttack(adversary, target, gameState) {
         // --- NEW: Check for "Before Damage" reactions (e.g., Construct's Overload) ---
         let damageBonus = 0;
         let takeSpotlight = false;
+        // NOTE: 'agent' is the one with the reaction (adversary), 'target' is who it's reacting to (currentTarget)
         const reactionResult = checkAdversaryReactions("BEFORE_DEALING_DAMAGE", adversary, currentTarget, gameState);
         if (reactionResult.damageBonus) {
             damageBonus = reactionResult.damageBonus;
@@ -1597,8 +1593,8 @@ function checkForPCDamageReactions(player, hpToMark, gameState) {
 
 // --- NEW FUNCTION: ADVERSARY REACTION LEXICON ---
 function checkAdversaryReactions(trigger, agent, target, gameState, damageInfo = {}) {
-    if (!agent.features) return { damageBonus: 0 }; // Failsafe
-    if (agent.current_hp <= 0 && trigger !== "ON_DEFEAT") return { damageBonus: 0 }; 
+    if (!agent.features) return { damageBonus: 0, takeSpotlight: false }; // Failsafe
+    if (agent.current_hp <= 0 && trigger !== "ON_DEFEAT") return { damageBonus: 0, takeSpotlight: false }; 
 
     let reactionBonus = 0;
     let reactionSpotlight = false;
@@ -1611,7 +1607,7 @@ function checkAdversaryReactions(trigger, agent, target, gameState, damageInfo =
                 
                 // Condition checks
                 if (trigger === "ON_TAKE_DAMAGE") {
-                    const hpThreshold = (action.trigger_details?.match(/(\d+)_HP_OR_MORE/) || [])[1];
+                    const hpThreshold = (action.trigger_details?.match(/(\d+)_HP_OR_MORE/) || [])[1]; // e.g. "ON_TAKE_DAMAGE_2_HP_OR_MORE"
                     if (hpThreshold && damageInfo.hpMarked < parseInt(hpThreshold)) {
                         continue; // Did not meet HP threshold
                     }
@@ -1633,7 +1629,7 @@ function checkAdversaryReactions(trigger, agent, target, gameState, damageInfo =
                 
                 logToScreen(` -> ${agent.name}'s REACTION triggers: ${feature.name}!`);
 
-                // Handle special cases for BEFORE_DEALING_DAMAGE
+                // Handle special cases for BEFORE_DEALING_DAMAGE (Construct's Overload)
                 if (trigger === "BEFORE_DEALING_DAMAGE") {
                     if (action.action_type === 'MODIFY_DAMAGE') {
                         reactionBonus += action.details.bonus || 0;
@@ -1704,8 +1700,8 @@ function applyDamage(damageInfo, attacker, target, gameState) {
         logToScreen(` (ERROR: Target ${finalTarget.name} has no thresholds defined!)`);
         if (amount > 0) hpToMark = 1; 
     } else {
-        const severe = finalTarget.thresholds.severe || 999;
-        const major = finalTarget.thresholds.major || 998;
+        const severe = finalTarget.thresholds.severe || (finalTarget.thresholds.major ? finalTarget.thresholds.major * 2 : 999);
+        const major = finalTarget.thresholds.major || (finalTarget.thresholds.severe ? finalTarget.thresholds.severe / 2 : 998);
         
         if (amount >= severe) {
             hpToMark = 3;
@@ -2040,45 +2036,73 @@ function logToScreen(message) {
     }
 }
 
-// --- VISUALIZER RENDER FUNCTION ---
-function renderBattlemap(gameState) {
+// --- VISUALIZER RENDER FUNCTION (NEW OPTIMIZED VERSION) ---
+function initializeBattlemap(gameState) {
     const map = document.getElementById('battlemap-grid');
-    if (!map) return; 
-    
-    map.innerHTML = ''; 
+    if (!map) return;
+    map.innerHTML = '';
+    tokenCache = {}; // Clear cache
 
-    const totalCells = CURRENT_BATTLEFIELD.MAX_X * CURRENT_BATTLEFIELD.MAX_Y;
+    // 1. Draw the grid cells ONCE
+    map.style.gridTemplateColumns = `repeat(${CURRENT_BATTLEFIELD.MAX_X}, 1fr)`;
+    map.style.gridTemplateRows = `repeat(${CURRENT_BATTLEFIELD.MAX_Y}, 1fr)`;
+    
     let gridHtml = '';
+    const totalCells = CURRENT_BATTLEFIELD.MAX_X * CURRENT_BATTLEFIELD.MAX_Y;
     for (let i = 0; i < totalCells; i++) {
         gridHtml += '<div class="empty-cell"></div>';
     }
     map.innerHTML = gridHtml;
 
-    // Render players
+    // 2. Create tokens ONCE and add to cache
     for (const player of gameState.players) {
-        if (player.current_hp <= 0) continue; 
-        
         const token = document.createElement('div');
         token.className = 'token player-token';
-        token.title = `${player.name} (HP: ${player.current_hp})`;
-        
-        token.style.gridColumn = player.position.x;
-        token.style.gridRow = player.position.y;
-        
+        token.id = player.id;
         map.appendChild(token);
+        tokenCache[player.id] = token;
     }
 
-    // Render adversaries
     for (const adv of gameState.adversaries) {
-        if (adv.current_hp <= 0) continue; 
-        
         const token = document.createElement('div');
         token.className = 'token adversary-token';
-        token.title = `${adv.name} (HP: ${adv.current_hp})`;
-        
-        token.style.gridColumn = adv.position.x;
-        token.style.gridRow = adv.position.y;
-        
+        token.id = adv.id;
         map.appendChild(token);
+        tokenCache[adv.id] = token;
+    }
+
+    // 3. Do initial render
+    renderBattlemap(gameState);
+}
+
+function renderBattlemap(gameState) {
+    // This function NOW ONLY moves tokens
+    
+    for (const player of gameState.players) {
+        const token = tokenCache[player.id];
+        if (!token) continue;
+
+        if (player.current_hp <= 0) {
+            token.style.display = 'none';
+        } else {
+            token.style.display = 'block';
+            token.title = `${player.name} (HP: ${player.current_hp})`;
+            token.style.gridColumn = player.position.x;
+            token.style.gridRow = player.position.y;
+        }
+    }
+
+    for (const adv of gameState.adversaries) {
+        const token = tokenCache[adv.id];
+        if (!token) continue;
+        
+        if (adv.current_hp <= 0) {
+            token.style.display = 'none';
+        } else {
+            token.style.display = 'block';
+            token.title = `${adv.name} (HP: ${adv.current_hp})`;
+            token.style.gridColumn = adv.position.x;
+            token.style.gridRow = adv.position.y;
+        }
     }
 }
