@@ -780,7 +780,22 @@ async function runFullEncounterSequence() {
         if (playbackBtn) playbackBtn.disabled = false;
     }
 }
-
+// *** ADD THIS FUNCTION BACK IN ***
+function exportLog() {
+    const logOutput = document.getElementById('log-output');
+    // Use innerText to capture all text content, including line breaks
+    const logContent = logOutput.innerText; 
+    
+    const blob = new Blob([logContent], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `dhmc_simulation_log_${Date.now()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    printToLog(`\n--- Log exported! ---`);
+}
+// *** END OF NEW FUNCTION ***
 
 // --- *** THE CORE SIMULATION FUNCTION *** ---
 // encounterIndex = The number of the encounter (1, 2, 3...)

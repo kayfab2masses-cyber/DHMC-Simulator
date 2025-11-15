@@ -245,10 +245,6 @@ header h1 {
     margin: 0 0 10px 10px;
 }
 
-.encounter-body {
-    /* Toggled by JS */
-}
-
 .toggle-button {
     background: none;
     border: 1px solid #777;
