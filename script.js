@@ -771,7 +771,7 @@ function determineNextSpotlight(lastOutcome, gameState) {
         case 'SUCCESS_WITH_HOPE':
             if (gameState.fear > 0 && Math.random() < 0.5) { 
                 logToScreen(`PC succeeded with Hope, but GM spends 1 Fear to seize the spotlight!`);
-                gameState.fear--;
+                gameState.fear = Math.max(0, gameState.fear - 1);
                 logToScreen(` GM Fear: ${gameState.fear}`);
                 gameState.spotlight = 'GM';
             } else {
@@ -1424,7 +1424,7 @@ function executeParsedEffect(action, adversary, target, gameState) {
                         applyDamage(damageInfo, adversary, primaryTarget, gameState);
                         // "and you gain a Fear"
                         logToScreen(` -> GM gains 1 Fear!`);
-                        gameState.fear++;
+                        gameState.fear = Math.min(12, gameState.fear + 1); // --- FEAR CAP ---
                         logToScreen(` GM Fear: ${gameState.fear}`);
                     } else {
                         // Fallback for other monsters (uses the JSON as-is)
@@ -1454,7 +1454,7 @@ function executeParsedEffect(action, adversary, target, gameState) {
         case 'GAIN_FEAR':
             const fearValue = action.value || 1;
             logToScreen(` -> GM gains ${fearValue} Fear!`);
-            gameState.fear += fearValue;
+            gameState.fear = Math.min(12, gameState.fear + fearValue); // --- FEAR CAP ---
             logToScreen(` GM Fear: ${gameState.fear}`);
             break;
         
@@ -1671,11 +1671,11 @@ function processRollResources(result, gameState, player) {
             logToScreen(` Resource: +1 Hope (Total: ${gameState.hope})`);
             break;
         case 'SUCCESS_WITH_FEAR':
-            gameState.fear++;
+            gameState.fear = Math.min(12, gameState.fear + 1); // --- FEAR CAP ---
             logToScreen(` Resource: +1 Fear (Total: ${gameState.fear})`);
             break;
         case 'FAILURE_WITH_FEAR':
-            gameState.fear++;
+            gameState.fear = Math.min(12, gameState.fear + 1); // --- FEAR CAP ---
             logToScreen(` Resource: +1 Fear (Total: ${gameState.fear})`);
             break;
     }
