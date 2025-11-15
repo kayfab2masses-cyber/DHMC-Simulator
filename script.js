@@ -511,7 +511,7 @@ function instantiateAdversaryAgent(data) {
             modifier: attackBonus
         },
         conditions: [],
-        passives: {},
+        passives: {}, // --- NEW: Initialize passives object ---
         position: {
             x: CURRENT_BATTLEFIELD.MAX_X - Math.floor(Math.random() * 3),
             y: Math.floor(Math.random() * CURRENT_BATTLEFIELD.MAX_Y) + 1
@@ -527,14 +527,44 @@ function applyPassiveFeatures(agent) {
     for (const feature of agent.features) {
         if (feature.type === 'passive' && feature.parsed_effect) {
             for (const action of feature.parsed_effect.actions) {
+                // Generic "All Attacks are Direct" (e.g., Cave Ogre)
                 if (action.action_type === 'MODIFY_DAMAGE' && action.target === 'ALL_ATTACKS' && action.details.is_direct) {
                     logToScreen(` (Passive Applied: ${agent.name} has ${feature.name}. All attacks are DIRECT.)`);
                     agent.passives.allAttacksAreDirect = true;
                 }
+                // Generic "Resistance"
                 if (action.action_type === 'MODIFY_STAT' && action.details.stat === 'resistance') {
                     logToScreen(` (Passive Applied: ${agent.name} has ${feature.name}.)`);
                     agent.passives.resistance = action.details.value;
                 }
+                // --- NEW LOGIC FOR OUR 6 ADVERSARIES ---
+                // "Relentless" (Acid Burrower, Construct)
+                if (action.action_type === 'MODIFY_STAT' && action.details.stat === 'max_spotlights_per_turn') {
+                    logToScreen(` (Passive Applied: ${agent.name} has ${feature.name}. Can be spotlighted ${action.details.value} times.)`);
+                    agent.maxSpotlights = action.details.value;
+                }
+                // "Ramp Up" (Cave Ogre)
+                if (action.action_type === 'MODIFY_ACTION' && action.details.action === 'SPOTLIGHT') {
+                    logToScreen(` (Passive Applied: ${agent.name} has ${feature.name}. Spotlight cost modified.)`);
+                    agent.passives.spotlightCost = action.details.cost.value;
+                }
+                if (action.action_type === 'MODIFY_ATTACK' && action.target === 'STANDARD_ATTACK') {
+                    logToScreen(` (Passive Applied: ${agent.name} has ${feature.name}. Standard attack is modified.)`);
+                    agent.passives.attackAllInRange = (action.details.new_target === 'ALL_IN_RANGE');
+                }
+                // "Weak Structure" (Construct)
+                if (action.action_type === 'MODIFY_DAMAGE_TAKEN' && action.trigger === 'ON_TAKE_HP_PHY') {
+                     logToScreen(` (Passive Applied: ${agent.name} has ${feature.name}. Takes extra HP from Physical.)`);
+                     agent.passives.takeExtraPhysicalHP = action.details.increase_hp_marked;
+                }
+                // "Overwhelming Force" (Bear)
+                if (action.action_type === 'KNOCKBACK' && action.trigger === 'ON_DEAL_HP_STANDARD_ATTACK') {
+                    logToScreen(` (Passive Applied: ${agent.name} has ${feature.name}.)`);
+                    agent.passives.knockbackOnHP = {
+                        range: action.range // Store the knockback range
+                    };
+                }
+                // --- END NEW LOGIC ---
             }
         }
     }
@@ -838,7 +868,7 @@ function choosePCAction(player, target, gameState) {
                     possibleActions.push({ type: 'SPELL', card: card, priority: 1, name: "Bolt Beacon" });
                 }
                 break;
-            case "Book of Illiat": // Bard / Wizard
+            case "Book Of Illiat": // Bard / Wizard
                 // AI will try to use "Slumber"
                 if (isTargetInRange(player, target, "Very Close")) {
                     possibleActions.push({ type: 'SPELL', card: card, priority: 2, name: "Slumber" });
@@ -891,8 +921,21 @@ function executePCBasicAttack(player, target, gameState) {
             logToScreen(' CRITICAL HIT!');
             critBonus = parseDiceString(damageString).maxDie; 
         }
+
+        // --- NEW: Check for "Before Damage" reactions (e.g., Construct's Overload) ---
+        // We pass 'player' as attacker, 'target' as agent
+        checkAdversaryReactions("BEFORE_DEALING_DAMAGE", target, player, gameState);
+        // --- END NEW ---
+
         const damageTotal = rollDamage(damageString, proficiency, critBonus); 
-        applyDamage(damageTotal, player, target, false, gameState);
+        
+        const damageInfo = { 
+            amount: damageTotal, 
+            isDirect: false, 
+            isPhysical: (damageString.includes('phy')),
+            isStandardAttack: true
+        };
+        applyDamage(damageInfo, player, target, gameState);
     }
     return result;
 }
@@ -913,7 +956,8 @@ function executePCSpell(player, card, target, gameState) {
             
             if (result.outcome === 'CRITICAL_SUCCESS' || result.outcome === 'SUCCESS_WITH_HOPE' || result.outcome === 'SUCCESS_WITH_FEAR') {
                 const damageTotal = rollDamage("1d8+1", 1, 0); // 1d8+1 phy
-                applyDamage(damageTotal, player, target, false, gameState);
+                const damageInfo = { amount: damageTotal, isDirect: false, isPhysical: true, isStandardAttack: false };
+                applyDamage(damageInfo, player, target, gameState);
                 applyCondition(target, "Restrained");
             }
             break;
@@ -932,12 +976,13 @@ function executePCSpell(player, card, target, gameState) {
             
             if (result.outcome === 'CRITICAL_SUCCESS' || result.outcome === 'SUCCESS_WITH_HOPE' || result.outcome === 'SUCCESS_WITH_FEAR') {
                 const damageTotal = rollDamage("1d8+2", player.proficiency, 0); // d8+2 magic, uses proficiency
-                applyDamage(damageTotal, player, target, false, gameState);
+                const damageInfo = { amount: damageTotal, isDirect: false, isPhysical: false, isStandardAttack: false };
+                applyDamage(damageInfo, player, target, gameState);
                 applyCondition(target, "Vulnerable");
             }
             break;
 
-        case "Book of Illiat":
+        case "Book Of Illiat":
             // AI is using "Slumber"
             logToScreen(` -> Casting "Slumber" (from Book of Illiat) on ${target.name}!`);
             result = executeActionRoll(target.difficulty, traitMod, 0);
@@ -972,8 +1017,23 @@ function executeGMTurn(gameState) {
     while (gameState.fear > 0 && !isCombatOver(gameState)) {
         // TODO: This is the "dumb" coin-flip logic we need to upgrade
         if (Math.random() < 0.5) { 
-            logToScreen(` GM decides to spend 1 Fear for an *additional* spotlight...`);
-            gameState.fear--;
+            logToScreen(` GM decides to spend Fear for an *additional* spotlight...`);
+
+            // --- NEW PATCH: Check for Spotlight Cost (Cave Ogre) ---
+            let spotlightCost = 1; // Default cost
+            const potentialNextAdversary = getAdversaryToAct(gameState, spotlightedAdversaries);
+            if (potentialNextAdversary && potentialNextAdversary.adversary.passives.spotlightCost) {
+                spotlightCost = potentialNextAdversary.adversary.passives.spotlightCost;
+                logToScreen(` (${potentialNextAdversary.adversary.name}'s 'Ramp Up' makes this cost ${spotlightCost} Fear!)`);
+            }
+
+            if (gameState.fear < spotlightCost) {
+                logToScreen(` (GM lacks the ${spotlightCost} Fear to continue.)`);
+                break; // Break the loop
+            }
+            // --- END PATCH ---
+            
+            gameState.fear -= spotlightCost; // Use the variable cost
             logToScreen(` GM Fear: ${gameState.fear}`);
             
             let additionalAdversary = getAdversaryToAct(gameState, spotlightedAdversaries);
@@ -981,8 +1041,8 @@ function executeGMTurn(gameState) {
                 spotlightedAdversaries.push(additionalAdversary.adversary.id);
                 performAdversaryAction(additionalAdversary.adversary, additionalAdversary.target, gameState);
             } else {
-                logToScreen(` (No living adversaries or players left.)`);
-                return 'COMBAT_OVER';
+                logToScreen(` (No more available adversaries to act.)`);
+                break; // Break the loop
             }
         } else {
             logToScreen(` GM chooses to hold their Fear and pass the spotlight.`);
@@ -1000,15 +1060,32 @@ function getAdversaryToAct(gameState, actedThisTurn = []) {
     let livingAdversaries = gameState.adversaries.filter(a => a.current_hp > 0);
     if (livingAdversaries.length === 0) return null; 
 
-    let availableAdversaries = livingAdversaries.filter(a => !actedThisTurn.includes(a.id));
-    
-    let adversary;
-    if (availableAdversaries.length > 0) {
-        adversary = availableAdversaries[Math.floor(Math.random() * availableAdversaries.length)];
-    } else {
-        logToScreen(` (All adversaries have acted, picking one at random to act again...)`);
-        adversary = livingAdversaries[Math.floor(Math.random() * livingAdversaries.length)];
+    // --- NEW PATCH: Respect "Relentless" ---
+    let availableAdversaries = livingAdversaries.filter(a => {
+        if (actedThisTurn.includes(a.id)) {
+            const max = a.maxSpotlights || 1;
+            const acted = actedThisTurn.filter(id => id === a.id).length;
+            return acted < max; // Can act again if not at max
+        }
+        return true; // Hasn't acted, is available
+    });
+
+    if (availableAdversaries.length === 0) {
+        logToScreen(` (All available adversaries have acted their max times this turn.)`);
+        return null; // This will gracefully end the GM turn
     }
+    // --- END PATCH ---
+
+    let adversary;
+    // --- NEW: Prioritize agents who haven't acted ---
+    let whoHaventActed = availableAdversaries.filter(a => !actedThisTurn.includes(a.id));
+    if (whoHaventActed.length > 0) {
+        adversary = whoHaventActed[Math.floor(Math.random() * whoHaventActed.length)];
+    } else {
+        // This means we're picking for a Relentless action
+        adversary = availableAdversaries[Math.floor(Math.random() * availableAdversaries.length)];
+    }
+    // --- END NEW ---
 
     const target = livingPlayers.sort((a, b) => {
         let distA = getAgentDistance(adversary, a);
@@ -1053,10 +1130,32 @@ function performAdversaryAction(adversary, target, gameState) {
         return true; 
     });
 
+    // --- NEW PRIORITY LOGIC ---
     let chosenAction = null;
     if (affordableAndInRangeActions.length > 0) {
-        chosenAction = affordableAndInRangeActions[Math.floor(Math.random() * affordableAndInRangeActions.length)];
+        // Simple AI: Prioritize actions that cost Fear, then Stress, then free ones
+        affordableAndInRangeActions.sort((a, b) => {
+            let priorityA = 0;
+            let priorityB = 0;
+
+            if (a.cost?.type === 'fear') priorityA = 3;
+            else if (a.cost?.type === 'stress') priorityA = 2;
+            else priorityA = 1;
+
+            if (b.cost?.type === 'fear') priorityB = 3;
+            else if (b.cost?.type === 'stress') priorityB = 2;
+            else priorityB = 1;
+            
+            // TODO: Add more priority, e.g., for multi-target actions
+            // const firstActionA = a.parsed_effect.actions[0];
+            // if (firstActionA.target === "ALL_IN_RANGE") priorityA += 2;
+
+            return priorityB - priorityA; // Sort high-to-low
+        });
+
+        chosenAction = affordableAndInRangeActions[0]; // Pick the highest priority action
     }
+    // --- END OF NEW LOGIC ---
 
     if (chosenAction) {
         logToScreen(` -> Using Feature: ${chosenAction.name}!`);
@@ -1086,20 +1185,56 @@ function performAdversaryAction(adversary, target, gameState) {
     }
 }
 
+// --- NEW: ADVERSARY BRAIN LEXICON ---
 function executeParsedEffect(action, adversary, target, gameState) {
     let primaryTarget = target; 
     let targets = [target]; 
 
-    if (action.target === "ALL_IN_RANGE" || action.target === "ALL_IN_RANGE_FRONT") {
+    // Target validation
+    if (action.target === "ALL_IN_RANGE" || action.target === "ALL_IN_RANGE_FRONT" || action.target === "ALL_AFFECTED") {
         const actionRange = action.range || 'Very Close';
         targets = gameState.players.filter(p => p.current_hp > 0 && isTargetInRange(adversary, p, actionRange));
         logToScreen(` -> Action targets ${targets.length} players in ${actionRange} range!`);
+        if (targets.length === 0) {
+            logToScreen(` -> No players in range. Action fails.`);
+            return;
+        }
+        primaryTarget = targets[0]; // Set a default primary target for simplicity
     }
 
     switch (action.action_type) {
         case 'ATTACK_ROLL':
+            // --- NEW: Handle top-level Fear Cost (Deeproot Defender) ---
+            if (action.details.cost) {
+                if (action.details.cost.type === 'fear') {
+                    if (gameState.fear >= action.details.cost.value) {
+                        gameState.fear -= action.details.cost.value;
+                        logToScreen(` -> GM spends ${action.details.cost.value} Fear for the action (Total: ${gameState.fear})`);
+                    } else {
+                        logToScreen(` -> GM cannot afford Fear cost for ${action.name}. Action fails.`);
+                        return; // Abort the entire action
+                    }
+                }
+            }
+            // --- END NEW ---
+
+            let hitCount = 0; 
             for (const t of targets) {
                 logToScreen(` Making an attack roll against ${t.name}...`);
+                
+                // --- NEW: Check for "Before Damage" reactions (e.g., Construct's Overload) ---
+                // We pass 'adversary' as attacker, 't' as agent
+                let damageBonus = 0;
+                let takeSpotlight = false;
+                const reactionResult = checkAdversaryReactions("BEFORE_DEALING_DAMAGE", adversary, t, gameState);
+                if (reactionResult.damageBonus) {
+                    damageBonus = reactionResult.damageBonus;
+                }
+                if (reactionResult.takeSpotlight) {
+                    takeSpotlight = true;
+                }
+                // --- END NEW ---
+                
                 const roll = rollD20();
                 const modifier = adversary.attack.modifier || 0;
                 const totalAttack = roll + modifier;
@@ -1107,8 +1242,32 @@ function executeParsedEffect(action, adversary, target, gameState) {
                 
                 if (totalAttack >= t.evasion) {
                     logToScreen(' HIT!');
+                    hitCount++; 
+
+                    // --- NEW: Handle "attack_type": "standard" (Bear's Bite) ---
+                    if (action.details.attack_type === 'standard') {
+                        logToScreen(` -> This is a STANDARD attack type.`);
+                        const damageString = adversary.attack.damage;
+                        const damageTotal = rollDamage(damageString, 1, 0) + damageBonus;
+                        const isDirect = adversary.passives.allAttacksAreDirect || false;
+                        const damageInfo = { 
+                            amount: damageTotal, 
+                            isDirect: isDirect, 
+                            isPhysical: (adversary.attack.damage.includes('phy')),
+                            isStandardAttack: true
+                        };
+                        applyDamage(damageInfo, adversary, t, gameState);
+                        
+                        checkAdversaryReactions("ON_SUCCESSFUL_ATTACK", adversary, t, gameState, damageInfo);
+                    }
+                    // --- END NEW ---
+
                     if (action.details.on_success) {
                         for (const successAction of action.details.on_success) {
+                            // Apply damage bonus if it exists
+                            if (successAction.action_type === 'DEAL_DAMAGE' && damageBonus > 0) {
+                                successAction.bonus = damageBonus; // Add bonus to the action
+                            }
                             executeParsedEffect(successAction, adversary, t, gameState);
                         }
                     }
@@ -1121,6 +1280,15 @@ function executeParsedEffect(action, adversary, target, gameState) {
                         }
                     }
                 }
+
+                if (takeSpotlight) {
+                    logToScreen(` -> ${adversary.name} takes the spotlight again! (Logic not implemented)`);
+                }
+            }
+            // Handle multi-target success (Acid Burrower's Spit Acid)
+            if (action.details.on_success_multi_target && hitCount >= 2) {
+                logToScreen(` -> Hit ${hitCount} targets, triggering multi-target effect!`);
+                executeParsedEffect(action.details.on_success_multi_target, adversary, target, gameState);
             }
             break;
 
@@ -1153,6 +1321,17 @@ function executeParsedEffect(action, adversary, target, gameState) {
             break;
 
         case 'DEAL_DAMAGE':
+            // Check for costs (like from Bear's "Bite")
+            if (action.cost) {
+                if (action.cost.type === 'fear' && gameState.fear >= action.cost.value) {
+                    gameState.fear -= action.cost.value;
+                    logToScreen(` -> GM spends ${action.cost.value} Fear for the effect (Total: ${gameState.fear})`);
+                } else if (action.cost.type === 'fear') {
+                    logToScreen(` -> GM cannot afford Fear cost for damage. Aborting effect.`);
+                    return; // Stop this effect
+                }
+            }
+
             let critBonus = 0; 
             let damageTotal;
 
@@ -1174,11 +1353,24 @@ function executeParsedEffect(action, adversary, target, gameState) {
                 damageTotal = rollDamage(action.damage_string, 1, critBonus);
             }
             
-            const isDirect = action.is_direct || adversary.passives.allAttacksAreDirect || false;
+            // Add bonus from reactions (Construct's Overload)
+            if (action.bonus) {
+                logToScreen(` -> Adding ${action.bonus} damage from Overload!`);
+                damageTotal += action.bonus;
+            }
+
+            // Fix for Acid Bath (is NOT direct)
+            const isDirect = (action.is_direct && action.damage_string !== "1d10 phy" && action.damage_string !== "1d6 phy") || adversary.passives.allAttacksAreDirect || false;
             
             if (damageTotal > 0) {
                 logToScreen(` Dealing ${damageTotal} ${isDirect ? 'DIRECT' : ''} damage!`);
-                applyDamage(damageTotal, adversary, primaryTarget, isDirect, gameState); // Pass gameState
+                const damageInfo = {
+                    amount: damageTotal,
+                    isDirect: isDirect,
+                    isPhysical: (action.damage_string.includes('phy')),
+                    isStandardAttack: false
+                };
+                applyDamage(damageInfo, adversary, primaryTarget, gameState); 
             } else {
                 logToScreen(` Damage roll was 0, no damage dealt.`);
             }
@@ -1211,26 +1403,87 @@ function executeParsedEffect(action, adversary, target, gameState) {
             logToScreen(` -> ${adversary.name} is moving as part of an action...`);
             moveAgentTowards(adversary, primaryTarget, gameState); // Pass gameState
             break;
-
+        
+        // --- NEW CASE BLOCKS ---
         case 'FORCE_MARK_ARMOR_SLOT':
             if (primaryTarget.current_armor_slots > 0) {
                 primaryTarget.current_armor_slots--;
-                logToScreen(` ${primaryTarget.name} is forced to mark 1 Armor Slot! (Slots left: ${primaryTarget.current_armor_slots})`);
+                logToScreen(` -> ${primaryTarget.name} is forced to mark 1 Armor Slot! (Slots left: ${primaryTarget.current_armor_slots})`);
             } else {
-                logToScreen(` ${primaryTarget.name} has no Armor Slots to mark!`);
+                logToScreen(` -> ${primaryTarget.name} has no Armor Slots to mark!`);
+                // This is the FIX for Spit Acid's "on_fail"
                 if (action.on_fail) {
-                    for (const failAction of action.on_fail.actions) {
-                        executeParsedEffect(failAction, adversary, primaryTarget, gameState);
+                    logToScreen(` -> Triggering 'on_fail' logic for failing to mark armor...`);
+                    // We must manually code the "additional HP" and "Gain Fear" from your text,
+                    // as the JSON's `on_fail` is wrong.
+                    if (adversary.name === "Acid Burrower") {
+                        // "mark an additional HP"
+                        logToScreen(` -> ${primaryTarget.name} marks an additional HP!`);
+                        const damageInfo = { amount: 1, isDirect: false, isPhysical: false, isStandardAttack: false };
+                        applyDamage(damageInfo, adversary, primaryTarget, gameState);
+                        // "and you gain a Fear"
+                        logToScreen(` -> GM gains 1 Fear!`);
+                        gameState.fear++;
+                        logToScreen(` GM Fear: ${gameState.fear}`);
+                    } else {
+                        // Fallback for other monsters (uses the JSON as-is)
+                        for (const failAction of action.on_fail.actions) {
+                            executeParsedEffect(failAction, adversary, primaryTarget, gameState);
+                        }
                     }
                 }
             }
             break;
 
-        case 'GAIN_FEAR':
-            gameState.fear += action.value || 1;
-            logToScreen(`GM gains ${action.value || 1} Fear (Total: ${gameState.fear})`);
+        case 'CREATE_HAZARD':
+            logToScreen(` -> ${adversary.name} creates a Hazard in ${action.range} range!`);
+            logToScreen(` -> ${action.details.hazard_effect}`);
+            logToScreen(` -> (Simulation logic for Hazards not yet implemented.)`);
             break;
 
+        case 'NARRATIVE_EFFECT':
+            logToScreen(` -> ${adversary.name} uses ${action.details.description}`);
+            logToScreen(` -> (This is a narrative effect, no mechanical change in sim.)`);
+            break;
+
+        case 'TAKE_SPOTLIGHT':
+            logToScreen(` -> ${adversary.name} takes the spotlight! (Effect not fully implemented)`);
+            break;
+
+        case 'GAIN_FEAR':
+            const fearValue = action.value || 1;
+            logToScreen(` -> GM gains ${fearValue} Fear!`);
+            gameState.fear += fearValue;
+            logToScreen(` GM Fear: ${gameState.fear}`);
+            break;
+        
+        case 'KNOCKBACK':
+            const kbRange = action.range || 'Very Close';
+            logToScreen(` -> ${primaryTarget.name} is knocked back to ${kbRange} range!`);
+            // Simple simulation: move them 2 squares away from the agent
+            if (primaryTarget.position.x < adversary.position.x) {
+                primaryTarget.position.x = Math.max(1, primaryTarget.position.x - 2);
+            } else {
+                primaryTarget.position.x = Math.min(CURRENT_BATTLEFIELD.MAX_X, primaryTarget.position.x + 2);
+            }
+            logToScreen(` -> ${primaryTarget.name} lands at (${primaryTarget.position.x}, ${primaryTarget.position.y})`);
+            break;
+
+        case 'PULL':
+            const pullRange = action.range || 'Melee';
+            logToScreen(` -> ${primaryTarget.name} is pulled into ${pullRange} range!`);
+            // Simple simulation: move them to be adjacent to the agent
+            primaryTarget.position.x = Math.max(1, adversary.position.x - 1);
+            primaryTarget.position.y = adversary.position.y;
+            logToScreen(` -> ${primaryTarget.name} lands at (${primaryTarget.position.x}, ${primaryTarget.position.y})`);
+            break;
+
+        case 'MODIFY_DAMAGE':
+            // This is handled by the checkAdversaryReactions("BEFORE_DEALING_DAMAGE")
+            // This case is a failsafe for other contexts
+            logToScreen(` -> (MODIFY_DAMAGE action noted, but logic is handled by reaction.)`);
+            break;
+        
         default:
             logToScreen(` (Logic for action_type '${action.action_type}' not yet implemented.)`);
     }
@@ -1244,28 +1497,67 @@ function applyCondition(target, condition) {
 }
 
 function executeGMBasicAttack(adversary, target, gameState) {
-    const roll = rollD20();
-    const modifier = adversary.attack.modifier || 0;
-    const totalAttack = roll + modifier; 
+    // --- NEW PATCH: Check for "attackAllInRange" passive (Cave Ogre) ---
+    let targets = [target]; // Default to single target
     
-    logToScreen(` Roll: 1d20(${roll}) + ${modifier} = ${totalAttack} vs Evasion ${target.evasion}`);
-    
-    if (totalAttack >= target.evasion) {
-        logToScreen(' HIT!');
-        let damageString = adversary.attack.damage;
-        let critBonus = 0;
-        
-        if (roll === 20) { 
-            logToScreen(' CRITICAL HIT!');
-            critBonus = parseDiceString(damageString).maxDie;
+    if (adversary.passives.attackAllInRange) {
+        logToScreen(` -> ${adversary.name}'s 'Ramp Up' targets all players in range!`);
+        const weaponRange = adversary.attack.range || 'Melee';
+        targets = gameState.players.filter(p => p.current_hp > 0 && isTargetInRange(adversary, p, weaponRange));
+    }
+    // --- END PATCH ---
+
+    for (const currentTarget of targets) {
+        // --- NEW: Check for "Before Damage" reactions (e.g., Construct's Overload) ---
+        let damageBonus = 0;
+        let takeSpotlight = false;
+        const reactionResult = checkAdversaryReactions("BEFORE_DEALING_DAMAGE", adversary, currentTarget, gameState);
+        if (reactionResult.damageBonus) {
+            damageBonus = reactionResult.damageBonus;
         }
-        const damageTotal = rollDamage(damageString, 1, critBonus); 
+        if (reactionResult.takeSpotlight) {
+            takeSpotlight = true;
+        }
+        // --- END NEW ---
+
+        const roll = rollD20();
+        const modifier = adversary.attack.modifier || 0;
+        const totalAttack = roll + modifier; 
         
-        const isDirect = adversary.passives.allAttacksAreDirect || false;
+        logToScreen(` Roll vs ${currentTarget.name}: 1d20(${roll}) + ${modifier} = ${totalAttack} vs Evasion ${currentTarget.evasion}`);
         
-        applyDamage(damageTotal, adversary, target, isDirect, gameState); // Pass gameState
-    } else {
-        logToScreen(' MISS!');
+        if (totalAttack >= currentTarget.evasion) {
+            logToScreen('  HIT!');
+            let damageString = adversary.attack.damage;
+            let critBonus = 0;
+            
+            if (roll === 20) { 
+                logToScreen('  CRITICAL HIT!');
+                critBonus = parseDiceString(damageString).maxDie;
+            }
+            const damageTotal = rollDamage(damageString, 1, critBonus) + damageBonus; 
+            
+            const isDirect = adversary.passives.allAttacksAreDirect || false;
+            
+            const damageInfo = { 
+                amount: damageTotal, 
+                isDirect: isDirect, 
+                isPhysical: (adversary.attack.damage.includes('phy')),
+                isStandardAttack: true
+            };
+            applyDamage(damageInfo, adversary, currentTarget, gameState); 
+
+            // --- NEW PATCH: Trigger "On Success" Reactions (Bear's Momentum) ---
+            checkAdversaryReactions("ON_SUCCESSFUL_ATTACK", adversary, currentTarget, gameState, damageInfo);
+            // --- END PATCH ---
+
+        } else {
+            logToScreen('  MISS!');
+        }
+
+        if (takeSpotlight) {
+            logToScreen(` -> ${adversary.name} takes the spotlight again! (Logic not implemented)`);
+        }
     }
 }
 
@@ -1284,6 +1576,82 @@ function isCombatOver(gameState) {
     }
     return false;
 }
+
+// --- NEW FUNCTION: PC DAMAGE REACTION ---
+function checkForPCDamageReactions(player, hpToMark, gameState) {
+    // Check for Guardian's "Get Back Up"
+    if (player.class === "Guardian" && hpToMark === 3) { // 3 HP = Severe Damage
+        const getBackUpCard = player.domainCards.find(c => c.name === "Get Back Up");
+        if (getBackUpCard && player.current_stress < player.max_stress) {
+            player.current_stress++;
+            logToScreen(` -> ${player.name} uses "Get Back Up"!`);
+            logToScreen(` -> ${player.name} marks 1 Stress (Total: ${player.current_stress})`);
+            return true; // Damage severity was successfully reduced
+        }
+    }
+
+    // TODO: Add other damage reactions here (e.g., Dwarf's "Thick Skin")
+    
+    return false; // No reaction taken
+}
+
+// --- NEW FUNCTION: ADVERSARY REACTION LEXICON ---
+function checkAdversaryReactions(trigger, agent, target, gameState, damageInfo = {}) {
+    if (!agent.features) return { damageBonus: 0 }; // Failsafe
+    if (agent.current_hp <= 0 && trigger !== "ON_DEFEAT") return { damageBonus: 0 }; 
+
+    let reactionBonus = 0;
+    let reactionSpotlight = false;
+
+    for (const feature of agent.features) {
+        if (feature.type !== 'reaction' || !feature.parsed_effect) continue;
+
+        for (const action of feature.parsed_effect.actions) {
+            if (action.trigger === trigger) {
+                
+                // Condition checks
+                if (trigger === "ON_TAKE_DAMAGE") {
+                    const hpThreshold = (action.trigger_details?.match(/(\d+)_HP_OR_MORE/) || [])[1];
+                    if (hpThreshold && damageInfo.hpMarked < parseInt(hpThreshold)) {
+                        continue; // Did not meet HP threshold
+                    }
+                }
+
+                // Cost checks
+                if (action.cost) {
+                    if (action.cost.type === 'stress') {
+                        if (agent.current_stress < agent.max_stress) {
+                            agent.current_stress += action.cost.value;
+                            logToScreen(` -> ${agent.name} marks ${action.cost.value} Stress for ${feature.name} (Total: ${agent.current_stress})`);
+                        } else {
+                            logToScreen(` -> ${agent.name} cannot afford Stress for ${feature.name}.`);
+                            continue; // Can't pay cost
+                        }
+                    }
+                    // TODO: Add Fear cost check
+                }
+                
+                logToScreen(` -> ${agent.name}'s REACTION triggers: ${feature.name}!`);
+
+                // Handle special cases for BEFORE_DEALING_DAMAGE
+                if (trigger === "BEFORE_DEALING_DAMAGE") {
+                    if (action.action_type === 'MODIFY_DAMAGE') {
+                        reactionBonus += action.details.bonus || 0;
+                    }
+                    if (action.action_type === 'TAKE_SPOTLIGHT') {
+                        reactionSpotlight = true;
+                    }
+                } else {
+                    // Execute the reaction's effect
+                    executeParsedEffect(action, agent, target, gameState);
+                }
+            }
+        }
+    }
+    
+    return { damageBonus: reactionBonus, takeSpotlight: reactionSpotlight };
+}
+
 
 function processRollResources(result, gameState, player) {
     switch (result.outcome) {
@@ -1311,37 +1679,68 @@ function processRollResources(result, gameState, player) {
     }
 }
 
-function applyDamage(damageTotal, attacker, target, isDirectDamage = false, gameState) {
+// --- FULLY REPLACED applyDamage FUNCTION ---
+function applyDamage(damageInfo, attacker, target, gameState) {
     
     let finalTarget = target;
     let isIntercepted = false;
+    let { amount, isDirect, isPhysical, isStandardAttack } = damageInfo;
 
+    // 1. Check for PC "take damage" reactions (e.g., I Am Your Shield)
     if (gameState && target.type === 'player') { 
-        const interceptingPlayer = checkForPCReactions(damageTotal, attacker, target, isDirectDamage, gameState);
+        const interceptingPlayer = checkForPCReactions(amount, attacker, target, isDirect, gameState);
         if (interceptingPlayer) {
             finalTarget = interceptingPlayer; 
             isIntercepted = true;
         }
     }
 
+    // 2. Calculate Severity
     let hpToMark = 0;
+    let isMajor = false;
+    let isSevere = false;
     
     if (!finalTarget.thresholds) {
         logToScreen(` (ERROR: Target ${finalTarget.name} has no thresholds defined!)`);
-        if (damageTotal > 0) hpToMark = 1; 
+        if (amount > 0) hpToMark = 1; 
     } else {
         const severe = finalTarget.thresholds.severe || 999;
         const major = finalTarget.thresholds.major || 998;
         
-        if (damageTotal >= severe) hpToMark = 3;
-        else if (damageTotal >= major) hpToMark = 2;
-        else if (damageTotal > 0) hpToMark = 1;
+        if (amount >= severe) {
+            hpToMark = 3;
+            isSevere = true;
+            isMajor = true;
+        } else if (amount >= major) {
+            hpToMark = 2;
+            isMajor = true;
+        } else if (amount > 0) {
+            hpToMark = 1;
+        }
     }
     
+    // 3. Apply Adversary Passives (e.g., Construct's Weak Structure)
+    if (finalTarget.type === 'adversary' && finalTarget.passives.takeExtraPhysicalHP && isPhysical && hpToMark > 0) {
+        logToScreen(` -> ${finalTarget.name}'s 'Weak Structure' passive applies!`);
+        hpToMark += finalTarget.passives.takeExtraPhysicalHP;
+    }
+
     let originalHPMark = hpToMark;
-    logToScreen(` Damage: ${damageTotal} (dealt by ${attacker.name}) vs ${finalTarget.name}'s Thresholds (${finalTarget.thresholds.major || 'N/A'}/${finalTarget.thresholds.severe || 'N/A'})`);
+    logToScreen(` Damage: ${amount} (dealt by ${attacker.name}) vs ${finalTarget.name}'s Thresholds (${finalTarget.thresholds.major || 'N/A'}/${finalTarget.thresholds.severe || 'N/A'})`);
     logToScreen(` Calculated Severity: ${originalHPMark} HP`);
     
+    // 4. Check for PC Damage *Mitigation* Reactions (e.g., Get Back Up)
+    if (finalTarget.type === 'player' && hpToMark > 0) {
+        const severityReduced = checkForPCDamageReactions(finalTarget, hpToMark, gameState);
+        if (severityReduced) {
+            hpToMark--;
+            logToScreen(` -> Severity reduced by reaction! New HP to mark: ${hpToMark}`);
+            if (originalHPMark === 3) isSevere = false; // No longer Severe
+            if (originalHPMark === 2 && hpToMark < 2) isMajor = false; // No longer Major
+        }
+    }
+
+    // 5. Apply Armor
     if (isIntercepted && finalTarget.class === "Guardian") {
         logToScreen(` -> Guardian "I Am Your Shield" applies!`);
         while (hpToMark > 0 && finalTarget.current_armor_slots > 0) {
@@ -1350,14 +1749,15 @@ function applyDamage(damageTotal, attacker, target, isDirectDamage = false, game
             logToScreen(` ${finalTarget.name} marks 1 Armor Slot! (Slots left: ${finalTarget.current_armor_slots})`);
         }
     } 
-    else if (finalTarget.type === 'player' && finalTarget.current_armor_slots > 0 && hpToMark > 0 && !isDirectDamage) {
+    else if (finalTarget.type === 'player' && finalTarget.current_armor_slots > 0 && hpToMark > 0 && !isDirect) {
         finalTarget.current_armor_slots--;
         hpToMark--;
         logToScreen(` ${finalTarget.name} marks 1 Armor Slot! (Slots left: ${finalTarget.current_armor_slots})`);
-    } else if (isDirectDamage && finalTarget.type === 'player') {
+    } else if (isDirect && finalTarget.type === 'player') {
         logToScreen(` This is DIRECT damage and cannot be mitigated by armor!`);
     }
 
+    // 6. Apply Final Damage
     finalTarget.current_hp -= hpToMark;
     
     if (originalHPMark > hpToMark) {
@@ -1368,10 +1768,54 @@ function applyDamage(damageTotal, attacker, target, isDirectDamage = false, game
     
     logToScreen(` ${finalTarget.name} HP: ${finalTarget.current_hp} / ${finalTarget.max_hp}`);
     
+    // 7. Trigger Reactions based on this event
+    const damageEventInfo = {
+        amount: amount,
+        hpMarked: hpToMark,
+        isMajor: isMajor,
+        isSevere: isSevere,
+        isPhysical: isPhysical,
+        isStandardAttack: isStandardAttack
+    };
+
+    if (finalTarget.type === 'adversary') {
+        // Trigger "On Take Damage" reactions (e.g., Cave Ogre's Rampaging Fury)
+        checkAdversaryReactions("ON_TAKE_DAMAGE", finalTarget, attacker, gameState, damageEventInfo);
+        
+        if (damageEventInfo.isSevere) {
+            checkAdversaryReactions("ON_TAKE_SEVERE_DAMAGE", finalTarget, attacker, gameState, damageEventInfo);
+        }
+    }
+
+    if (attacker.type === 'adversary' && hpToMark > 0) {
+        // Trigger "On Deal HP" reactions
+        checkAdversaryReactions("ON_DEAL_HP", attacker, finalTarget, gameState, damageEventInfo);
+    }
+    
+    // 7.5. Check for "On Deal HP" PASSIVES
+    if (attacker.type === 'adversary' && hpToMark > 0) {
+        // Bear's "Overwhelming Force"
+        if (damageInfo.isStandardAttack && attacker.passives.knockbackOnHP) {
+             logToScreen(` -> ${attacker.name}'s PASSIVE triggers: Overwhelming Force!`);
+             // Manually create and execute the knockback effect
+             const knockbackEffect = {
+                action_type: 'KNOCKBACK',
+                range: attacker.passives.knockbackOnHP.range,
+                is_direct: false // Not damage
+             };
+             executeParsedEffect(knockbackEffect, attacker, finalTarget, gameState);
+        }
+    }
+
+    // 8. Check for Defeat
     if (finalTarget.current_hp <= 0) {
         logToScreen(` *** ${finalTarget.name} has been defeated! ***`);
+        if (finalTarget.type === 'adversary') {
+            checkAdversaryReactions("ON_DEFEAT", finalTarget, attacker, gameState, damageEventInfo);
+        }
     }
 }
+// --- END FULL REPLACEMENT ---
 
 function checkForPCReactions(damageTotal, attacker, target, isDirectDamage, gameState) {
     for (const potentialProtector of gameState.players) {

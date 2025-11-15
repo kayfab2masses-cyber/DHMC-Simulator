@@ -1,141 +1,147 @@
 [
   {
-    "name": "Acid Burrower",
-    "tier": 1,
-    "type": "Solo",
-    "difficulty": 14,
-    "thresholds": {},
-    "major": 8,
-    "severe": 15,
-    "hp": 8,
-    "stress": 3,
-    "attack": {
-      "name": "Claws",
-      "range": "Very Close",
-      "damage": "1d12+2 phy",
-      "modifier": "+3"
-    },
-    "features": [
-      {
-        "name": "Relentless (3)",
-        "type": "passive",
-        "cost": null,
-        "value": 3,
-        "effect": "The Burrower can be spotlighted up to three times per GM turn",
-        "parsed_effect": {
-          "actions": [
-            {
-              "action_type": "MODIFY_STAT",
-              "target": "SELF",
-              "range": null,
-              "details": {
-                "stat": "max_spotlights_per_turn",
-                "value": 3
-              }
+  "name": "Acid Burrower",
+  "tier": 1,
+  "type": "Solo",
+  "difficulty": 14,
+  "thresholds": {},
+  "major": 8,
+  "severe": 15,
+  "hp": 8,
+  "stress": 3,
+  "attack": {
+    "name": "Claws",
+    "range": "Very Close",
+    "damage": "1d12+2 phy",
+    "modifier": "+3"
+  },
+  "features": [
+    {
+      "name": "Relentless (3)",
+      "type": "passive",
+      "cost": null,
+      "value": 3,
+      "effect": "The Burrower can be spotlighted up to three times per GM turn",
+      "parsed_effect": {
+        "actions": [
+          {
+            "action_type": "MODIFY_STAT",
+            "target": "SELF",
+            "range": null,
+            "details": {
+              "stat": "max_spotlights_per_turn",
+              "value": 3
             }
-          ]
-        }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Earth Eruption",
+      "type": "action",
+      "cost": {
+        "type": "stress",
+        "value": 1
       },
-      {
-        "name": "Earth Eruption",
-        "type": "action",
-        "cost": {
-          "type": "stress",
-          "value": 1
-        },
-        "value": null,
-        "effect": "Mark a Stress to have the Burrower burst out of the ground",
-        "parsed_effect": {
-          "actions": [
-            {
-              "action_type": "FORCE_REACTION_ROLL",
-              "target": "ALL_IN_RANGE",
-              "range": "Very Close",
-              "details": {
-                "roll_type": "agility",
-                "difficulty_text": "succeed on",
-                "on_fail": {
-                  "apply_condition": "Vulnerable",
+      "value": null,
+      "effect": "Mark a Stress to have the Burrower burst out of the ground",
+      "parsed_effect": {
+        "actions": [
+          {
+            "action_type": "FORCE_REACTION_ROLL",
+            "target": "ALL_IN_RANGE",
+            "range": "Very Close",
+            "details": {
+              "roll_type": "agility",
+              "difficulty_text": "succeed on",
+              "on_fail": [
+                {
+                  "action_type": "APPLY_CONDITION",
+                  "condition": "Vulnerable",
                   "duration_text": "until they next act"
                 }
-              }
+              ]
             }
-          ]
-        }
-      },
-      {
-        "name": "Spit Acid",
-        "type": "action",
-        "cost": null,
-        "value": null,
-        "effect": "Make an attack against all targets in front of the Burrower within Close range",
-        "parsed_effect": {
-          "actions": [
-            {
-              "action_type": "ATTACK_ROLL",
-              "target": "ALL_IN_RANGE_FRONT",
-              "range": "Close",
-              "details": {
-                "on_success": [
-                  {
-                    "action_type": "DEAL_DAMAGE",
-                    "damage_string": "2d6 phy"
-                  },
-                  {
-                    "action_type": "FORCE_MARK_ARMOR_SLOT",
-                    "details": "without receiving its benefits",
-                    "on_fail": {
-                      "actions": [
-                        {
-                          "action_type": "DEAL_DAMAGE",
-                          "damage_string": "1 HP",
-                          "is_direct": true
-                        }
-                      ]
-                    }
-                  }
-                ],
-                "on_success_multi_target": {
-                  "action_type": "GAIN_FEAR",
-                  "value": 1
-                }
-              }
-            }
-          ]
-        }
-      },
-      {
-        "name": "Acid Bath",
-        "type": "reaction",
-        "cost": null,
-        "value": null,
-        "effect": "When the Burrower takes Severe damage, all creatures within Close range take 1d10 direct physical damage. The area within Very Close range of the Burrower becomes a hazardous acid bath: all creatures other than the Burrower who move through it take 1d6 direct physical damage.",
-        "parsed_effect": {
-          "actions": [
-            {
-              "action_type": "DEAL_DAMAGE",
-              "trigger": "ON_TAKE_SEVERE_DAMAGE",
-              "target": "ALL_IN_RANGE",
-              "range": "Close",
-              "details": {
-                "damage_string": "1d10 phy",
-                "is_direct": true
-              }
-            },
-            {
-              "action_type": "CREATE_HAZARD",
-              "trigger": "ON_TAKE_SEVERE_DAMAGE",
-              "target": "AREA",
-              "range": "Very Close",
-              "details": {
-                "hazard_effect": "all creatures other than the Burrower who move through it take 1d6 direct physical damage"
-              }
-            }
-          ]
-        }
+          }
+        ]
       }
-    ]
-  },
+    },
+    {
+      "name": "Spit Acid",
+      "type": "action",
+      "cost": null,
+      "value": null,
+      "effect": "Make an attack against all targets in front of the Burrower within Close range",
+      "parsed_effect": {
+        "actions": [
+          {
+            "action_type": "ATTACK_ROLL",
+            "target": "ALL_IN_RANGE_FRONT",
+            "range": "Close",
+            "details": {
+              "on_success": [
+                {
+                  "action_type": "DEAL_DAMAGE",
+                  "damage_string": "2d6 phy"
+                },
+                {
+                  "action_type": "FORCE_MARK_ARMOR_SLOT",
+                  "details": "without receiving its benefits",
+                  "on_fail": {
+                    "actions": [
+                      {
+                        "action_type": "DEAL_DAMAGE",
+                        "damage_string": "1 HP",
+                        "is_direct": true,
+                        "special_rule": "This is an 'additional' HP"
+                      },
+                      {
+                        "action_type": "GAIN_FEAR",
+                        "value": 1
+                      }
+                    ]
+                  }
+                }
+              ],
+              "on_success_multi_target": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Acid Bath",
+      "type": "reaction",
+      "cost": null,
+      "value": null,
+      "effect": "When the Burrower takes Severe damage, all creatures within Close range take 1d10 physical damage. The area within Very Close range of the Burrower becomes a hazardous acid bath: all creatures other than the Burrower who move through it take 1d6 physical damage.",
+      "parsed_effect": {
+        "actions": [
+          {
+            "action_type": "DEAL_DAMAGE",
+            "trigger": "ON_TAKE_SEVERE_DAMAGE",
+            "target": "ALL_IN_RANGE",
+            "range": "Close",
+            "details": {
+              "damage_string": "1d10 phy",
+              "is_direct": false
+            }
+          },
+          {
+            "action_type": "CREATE_HAZARD",
+            "trigger": "ON_TAKE_SEVERE_DAMAGE",
+            "target": "AREA",
+            "range": "Very Close",
+            "details": {
+              "hazard_effect": "all creatures other than the Burrower who move through it take 1d6 physical damage",
+              "is_direct": false
+            }
+          }
+        ]
+      }
+    }
+  ]
+},
   {
     "name": "Bear",
     "tier": 1,
@@ -664,99 +670,91 @@
       }
     ]
   },
-  {
-    "name": "Deeproot Defender",
-    "tier": 1,
-    "type": "Bruiser",
-    "difficulty": 10,
-    "thresholds": {
-      "major": 8,
-      "severe": 14
-    },
-    "hp": 7,
-    "stress": 3,
-    "attack": {
-      "name": "Vines",
-      "range": "Close",
-      "damage": "1d8+3 phy",
-      "modifier": "+2"
-    },
-    "features": [
-      {
-        "name": "Ground Slam",
-        "type": "action",
-        "cost": null,
-        "value": null,
-        "effect": "Slam the ground, knocking all targets within Very Close range back to Far range and causing them to mark a Stress.",
-        "parsed_effect": {
-          "actions": [
-            {
-              "action_type": "KNOCKBACK",
-              "target": "ALL_IN_RANGE",
-              "range": "Far",
-              "details": {
-                "from_range": "Very Close"
-              }
-            },
-            {
-              "action_type": "DEAL_STRESS",
-              "target": "ALL_AFFECTED",
-              "range": null,
-              "details": {
-                "value": 1
-              }
-            }
-          ]
-        }
-      },
-      {
-        "name": "Grab and Drag",
-        "type": "action",
-        "cost": null,
-        "value": null,
-        "effect": "Make an attack against a target within Close range. On a success, spend a Fear to pull them into Melee range, deal 1d6+2 physical damage, and make them Restrained until the Defender takes Severe damage.",
-        "parsed_effect": {
-          "actions": [
-            {
-              "action_type": "ATTACK_ROLL",
-              "target": "PRIMARY_TARGET",
-              "range": "Close",
-              "details": {
-                "on_success": [
-                  {
-                    "action_type": "PULL",
-                    "cost": {
-                      "type": "fear",
-                      "value": 1
-                    },
-                    "range": "Melee"
-                  },
-                  {
-                    "action_type": "DEAL_DAMAGE",
-                    "cost": {
-                      "type": "fear",
-                      "value": 1
-                    },
-                    "damage_string": "1d6+2 phy",
-                    "is_direct": false
-                  },
-                  {
-                    "action_type": "APPLY_CONDITION",
-                    "cost": {
-                      "type": "fear",
-                      "value": 1
-                    },
-                    "condition": "Restrained",
-                    "duration_text": "until the Defender takes Severe damage"
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      }
-    ]
+ {
+  "name": "Deeproot Defender",
+  "tier": 1,
+  "type": "Bruiser",
+  "difficulty": 10,
+  "thresholds": {
+    "major": 8,
+    "severe": 14
   },
+  "hp": 7,
+  "stress": 3,
+  "attack": {
+    "name": "Vines",
+    "range": "Close",
+    "damage": "1d8+3 phy",
+    "modifier": "+2"
+  },
+  "features": [
+    {
+      "name": "Ground Slam",
+      "type": "action",
+      "cost": null,
+      "value": null,
+      "effect": "Slam the ground, knocking all targets within Very Close range back to Far range and causing them to mark a Stress.",
+      "parsed_effect": {
+        "actions": [
+          {
+            "action_type": "KNOCKBACK",
+            "target": "ALL_IN_RANGE",
+            "range": "Far",
+            "details": {
+              "from_range": "Very Close"
+            }
+          },
+          {
+            "action_type": "DEAL_STRESS",
+            "target": "ALL_AFFECTED",
+            "range": null,
+            "details": {
+              "value": 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Grab and Drag",
+      "type": "action",
+      "cost": null,
+      "value": null,
+      "effect": "Make an attack against a target within Close range. On a success, spend a Fear to pull them into Melee range, deal 1d6+2 physical damage, and make them Restrained until the Defender takes Severe damage.",
+      "parsed_effect": {
+        "actions": [
+          {
+            "action_type": "ATTACK_ROLL",
+            "target": "PRIMARY_TARGET",
+            "range": "Close",
+            "details": {
+              "cost": {
+                "type": "fear",
+                "value": 1
+              },
+              "on_success": [
+                {
+                  "action_type": "PULL",
+                  "range": "Melee"
+                },
+                {
+                  "action_type": "DEAL_DAMAGE",
+                  "damage_string": "1d6+2 phy",
+                  "is_direct": false
+                },
+                {
+                  "action_type": "APPLY_CONDITION",
+                  "condition": "Restrained",
+                  "duration_text": "until the Defender takes Severe damage"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+},
   {
     "name": "Dire Wolf",
     "tier": 1,

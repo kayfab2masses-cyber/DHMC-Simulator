@@ -788,6 +788,229 @@
       "evasion": 12,
       "majorThreshold": 5,
       "severeThreshold": 11
+    },
+    {
+  "name": "3 - Seraph",
+  "thresholdBonus": 2,
+  "domainCards": [
+    {
+      "name": "Bare Bones",
+      "domain": "Valor",
+      "level": 1,
+      "type": "Ability",
+      "recall_cost": 0,
+      "description": "When you choose not to equip armor, you have a base Armor Score of 3 + your Strength and use the following as your base damage thresholds:\n* Tier 1: 9/19.\n* Tier 2: 11/24.\n* Tier 3: 13/31.\n* Tier 4: 15/38."
+    },
+    {
+      "name": "Mending Touch",
+      "domain": "Splendor",
+      "level": 1,
+      "type": "Spell",
+      "recall_cost": 1,
+      "description": "You lay your hands upon a creature and channel healing magic to close their wounds. When you can take a few minutes to focus on the target you're helping, you can spend 2 Hope to clear a Hit Point or a Stress on them. Once per long rest, when you spend this healing time learning something new about them or revealing something about yourself, you can clear 2 Hit Points or 2 Stress on them instead."
+    },
+    {
+      "name": "I Am Your Shield",
+      "domain": "Valor",
+      "level": 1,
+      "type": "Ability",
+      "recall_cost": 1,
+      "description": "When an ally within Very Close range would take damage, you can mark a Stress to stand in the way and make yourself the target of the attack instead. When you take damage from this attack, you can mark any number of Armor Slots."
+    },
+    {
+      "name": "Healing Hands",
+      "domain": "Splendor",
+      "level": 2,
+      "type": "Spell",
+      "recall_cost": 1,
+      "description": "Make a Spellcast Roll (13) and target a creature other than yourself within Melee range. On a success, mark a Stress to clear 2 Hit Points or 2 Stress on the target. On a failure, mark a Stress to clear a Hit Point or a Stress on the target. You can't heal the same target again until your next long rest."
     }
+  ],
+  "loadout": [
+    "Bare Bones",
+    "Mending Touch",
+    "I Am Your Shield",
+    "Healing Hands",
+    null
+  ],
+  "level": 3,
+  "equipment": {
+    "primary": {
+      "name": "Battleaxe",
+      "tier": 1,
+      "type": "Physical",
+      "trait": "Strength",
+      "range": "Melee",
+      "damage": "d10+3 phy",
+      "burden": "Two-Handed",
+      "feature": null
+    }
+  },
+  "advancementsTakenThisTier": {
+    "increase_traits": 1,
+    "add_stress": 1,
+    "increase_experience": 1,
+    "take_domain_card_t2": 1
+  },
+  "traitBoostsByTier": {
+    "tier2": [
+      "instinct",
+      "finesse"
+    ],
+    "tier3": [],
+    "tier4": []
+  },
+  "advancementsTaken": {
+    "increase_traits": 1,
+    "add_stress": 1,
+    "increase_experience": 1,
+    "take_domain_card_t2": 1
+  },
+  "multiclass": null,
+  "multiclassDomain": null,
+  "multiclassFoundationFeature": null,
+  "class_feature_multiclass": null,
+  "multiclassSpecializationFeature": null,
+  "class": {
+    "name": "Seraph",
+    "description": "Seraphs are divine fighters and healers imbued with sacred purpose, appointed by a wide array of deities.",
+    "domains": [
+      "Splendor",
+      "Valor"
+    ],
+    "starting_evasion": 9,
+    "starting_hp": 7,
+    "class_items": "A bundle of offerings or a sigil of your god",
+    "suggested_traits": {
+      "Strength": 2,
+      "Agility": -1,
+      "Finesse": 0,
+      "Instinct": 1,
+      "Presence": 1,
+      "Knowledge": 0
+    },
+    "hope_feature": {
+      "name": "Life Support",
+      "description": "Spend 3 Hope to clear a Hit Point on an ally within Close range."
+    },
+    "class_feature": {
+      "name": "Prayer Dice",
+      "description": "At the start of each session, roll a number of d4s equal to your subclass's Spellcast trait. You can spend these dice to reduce incoming damage, add to a roll's result after the roll is made, or gain Hope equal to the result."
+    },
+    "subclasses": [
+      {
+        "name": "Divine Wielder",
+        "description": "Play the Divine Wielder if you want to dominate the battlefield with a legendary weapon.",
+        "spellcast_trait": "Strength",
+        "foundation_feature": {
+          "name": "Spirit Weapon & Sparing Touch",
+          "description": "\n* Spirit Weapon: Your equipped Melee or Very Close range weapon can fly to attack a target within Close range. You can mark a Stress to target an additional adversary.\n* Sparing Touch: Once per long rest, touch a creature and clear 2 Hit Points or 2 Stress from them."
+        },
+        "specialization_feature": {
+          "name": "Devout",
+          "description": "When you roll your Prayer Dice, you can roll an additional die and discard the lowest result. Additionally, you can use your 'Sparing Touch' feature twice instead of once per long rest."
+        },
+        "mastery_feature": {
+          "name": "Sacred Resonance",
+          "description": "When you roll damage for your 'Spirit Weapon' feature, if any of the die results match, double the value of each matching die."
+        }
+      },
+      {
+        "name": "Winged Sentinel",
+        "description": "Play the Winged Sentinel if you want to take flight and strike crushing blows from the sky.",
+        "spellcast_trait": "Strength",
+        "foundation_feature": {
+          "name": "Wings of Light",
+          "description": "You can fly. While flying, you can:\n* Mark a Stress to carry another willing creature.\n* Spend a Hope to deal an extra 1d8 damage on a successful attack."
+        },
+        "specialization_feature": {
+          "name": "Ethereal Visage",
+          "description": "Your supernatural visage strikes awe and fear. While flying, you have advantage on Presence Rolls. When you succeed with Hope on a Presence Roll, you can remove a Fear from the GM's Fear pool instead of gaining Hope."
+        },
+        "mastery_feature": {
+          "name": "Ascendant & Power of the Gods",
+          "description": "\n* Ascendant: Gain a permanent +4 bonus to your Severe damage threshold.\n* Power of the Gods: While flying, you deal an extra 1d12 damage instead of 1d8 from your 'Wings of Light' feature."
+        }
+      }
+    ]
+  },
+  "subclass": {
+    "name": "Winged Sentinel",
+    "description": "Play the Winged Sentinel if you want to take flight and strike crushing blows from the sky.",
+    "spellcast_trait": "Strength",
+    "foundation_feature": {
+      "name": "Wings of Light",
+      "description": "You can fly. While flying, you can:\n* Mark a Stress to carry another willing creature.\n* Spend a Hope to deal an extra 1d8 damage on a successful attack."
+    },
+    "specialization_feature": {
+      "name": "Ethereal Visage",
+      "description": "Your supernatural visage strikes awe and fear. While flying, you have advantage on Presence Rolls. When you succeed with Hope on a Presence Roll, you can remove a Fear from the GM's Fear pool instead of gaining Hope."
+    },
+    "mastery_feature": {
+      "name": "Ascendant & Power of the Gods",
+      "description": "\n* Ascendant: Gain a permanent +4 bonus to your Severe damage threshold.\n* Power of the Gods: While flying, you deal an extra 1d12 damage instead of 1d8 from your 'Wings of Light' feature."
+    }
+  },
+  "ancestry": {
+    "name": "Infernis",
+    "description": "Descendants of demons, possessing horns, pointed ears, and a 'dread visage' they can manifest.",
+    "features": [
+      {
+        "name": "Fearless",
+        "description": "When you roll with Fear, you can mark 2 Stress to change it into a roll with Hope instead."
+      },
+      {
+        "name": "Dread Visage",
+        "description": "You have advantage on rolls to intimidate hostile creatures."
+      }
+    ]
+  },
+  "community": {
+    "name": "Ridgeborne",
+    "description": "You've called the rocky peaks and sharp cliffs of the mountainside home, making you sturdy and strong-willed.",
+    "adjectives": [
+      "Bold",
+      "Hardy",
+      "Indomitable",
+      "Loyal",
+      "Reserved",
+      "Stubborn"
+    ],
+    "feature": {
+      "name": "Steady",
+      "description": "You have advantage on rolls to traverse dangerous cliffs and ledges, navigate harsh environments, and use your survival knowledge."
+    }
+  },
+  "traits": {
+    "strength": 2,
+    "agility": -1,
+    "finesse": 1,
+    "instinct": 2,
+    "presence": 1,
+    "knowledge": 0
+  },
+  "experiences": [
+    {
+      "name": "Friend to All",
+      "description": "No description.",
+      "modifier": 2
+    },
+    {
+      "name": "Sharpshooter",
+      "description": "No description.",
+      "modifier": 3
+    },
+    {
+      "name": "Tracker",
+      "description": "No description.",
+      "modifier": 3
+    }
+  ],
+  "proficiency": 2,
+  "evasion": 9,
+  "majorThreshold": 13,
+  "severeThreshold": 26
+}
   ]
+  
 }
