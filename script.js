@@ -600,11 +600,10 @@ function applyPassiveFeatures(agent) {
 // --- SPOTLIGHT SIMULATION ENGINE ---
 async function runMultipleSimulations(count) {
     logToScreen(`\n===== STARTING BATCH OF ${count} SIMULATION(S) =====`);
-    const isVisualizing = document.getElementById('visualize-checkbox').checked;
     
-    // --- NEW PATCH: TRUE BLAST MODE FOR ALL NON-VISUAL RUNS ---
-    // isBlastMode is TRUE if visuals are OFF (i.e., we are logging text to memory)
-    const isBlastMode = !isVisualizing; 
+    // --- NEW PATCH: "Blast Mode" is now default ---
+    // We will ONLY record playback data if count === 1
+    const isBlastMode = true; 
     // --- END NEW PATCH ---
 
     // Reset log and history for the start of a batch
@@ -616,11 +615,8 @@ async function runMultipleSimulations(count) {
         
         await runSimulation(count, isBlastMode); // Pass total count and blast status
         
-        // --- NEW ARCHITECTURE: No delay needed in this loop since the inner loop is synchronous ---
-        if (isBlastMode) {
-            // "Breathe" to prevent freezing after a very fast synchronous run
-            await new Promise(resolve => setTimeout(resolve, 0));
-        }
+        // "Breathe" to prevent freezing after a very fast synchronous run
+        await new Promise(resolve => setTimeout(resolve, 0));
     }
     logToScreen(`\n===== BATCH COMPLETE =====`);
     
@@ -658,18 +654,13 @@ async function runSimulation(count, isBlastMode = false) {
     logToScreen('======================================');
 
     const mapSize = document.getElementById('map-size-select').value;
-    const isVisualizing = document.getElementById('visualize-checkbox').checked;
     
     CURRENT_BATTLEFIELD = {
         ...DAGGERHEART_RANGES,
         ...MAP_CONFIGS[mapSize] 
     };
 
-    if (isVisualizing) {
-        logToScreen(`Visualizing on ${mapSize} map (${CURRENT_BATTLEFIELD.MAX_X}x${CURRENT_BATTLEFIELD.MAX_Y})...`);
-    } else if (!isBlastMode) { 
-        logToScreen(`Simulating on ${mapSize} map (${CURRENT_BATTLEFIELD.MAX_X}x${CURRENT_BATTLEFIELD.MAX_Y}) (Visuals disabled)...`);
-    }
+    logToScreen(`Simulating on ${mapSize} map (${CURRENT_BATTLEFIELD.MAX_X}x${CURRENT_BATTLEFIELD.MAX_Y})...`);
 
     if (activeParty.length === 0) { 
         logToScreen('--- ERROR --- \nAdd a player to the Active Scene.'); 
@@ -804,8 +795,6 @@ async function playBackSimulation(historyIndex) {
     // 1. Prepare UI for playback
     mapContainer.classList.remove('hidden');
     logContainer.classList.remove('full-width');
-    
-    // Temporarily hide actual game agents and use the visualizer map
     
     logToScreen(`\n\n=== STARTING REPLAY OF SIMULATION #${simData.id} ===`);
 
@@ -2179,6 +2168,14 @@ function initializeBattlemap(gameState) {
     tokenCache = {}; // Reset token cache for visualization
 
     // 1. Draw the grid cells ONCE
+    // --- FIX: Initialize CURRENT_BATTLEFIELD before use ---
+    const mapSize = document.getElementById('map-size-select').value;
+    CURRENT_BATTLEFIELD = {
+        ...DAGGERHEART_RANGES,
+        ...MAP_CONFIGS[mapSize] 
+    };
+    // --- END FIX ---
+
     map.style.gridTemplateColumns = `repeat(${CURRENT_BATTLEFIELD.MAX_X}, 1fr)`;
     map.style.gridTemplateRows = `repeat(${CURRENT_BATTLEFIELD.MAX_Y}, 1fr)`;
     
@@ -2189,7 +2186,24 @@ function initializeBattlemap(gameState) {
     }
     map.innerHTML = gridHtml;
 
-    // 2. Create tokens ONCE and add to cache
+    // 2. Create tokens ONCE (if gameState is provided)
+    if (gameState) {
+        initializeTokens(gameState);
+    }
+}
+
+// --- NEW FUNCTION: initializeTokens ---
+function initializeTokens(gameState) {
+    const map = document.getElementById('battlemap-grid');
+    if (!map) return;
+
+    // Clear old tokens from cache and map
+    for (const tokenId in tokenCache) {
+        tokenCache[tokenId].remove();
+    }
+    tokenCache = {};
+
+    // Create new tokens and add to cache
     for (const player of gameState.players) {
         const token = document.createElement('div');
         token.className = 'token player-token';
@@ -2205,8 +2219,8 @@ function initializeBattlemap(gameState) {
         map.appendChild(token);
         tokenCache[adv.id] = token;
     }
-
-    // 3. Do initial render
+    
+    // Do initial render
     renderBattlemap(gameState);
 }
 
