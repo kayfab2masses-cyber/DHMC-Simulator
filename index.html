@@ -19,7 +19,7 @@
     
     <div class="simulator-layout">
         <div class="layout-column" id="input-column">
-            <h3><span class="col-number">1</span> Add to Pool</h3>
+            <h3><span class="col-number">1</span> Add to Pool (Manual)</h3>
             <div class="json-input-box">
                 <label for="character-json">Paste Player JSON:</label>
                 <textarea id="character-json" rows="8" placeholder="Paste player JSON here..."></textarea>
@@ -43,14 +43,29 @@
             <div class="pool-container">
                 <div class="pool-header">
                     <h4>Player Pool</h4>
-                    <button id="open-pc-modal" class="srd-button">PC Catalog</button>
+                    <div class="pool-filters">
+                        <select id="pc-pool-class-filter">
+                            <option value="all">All Classes</option>
+                        </select>
+                        <select id="pc-pool-level-filter">
+                            <option value="all">All Levels</option>
+                        </select>
+                    </div>
                 </div>
                 <div id="player-pool-list" class="agent-list"></div>
             </div>
             <div class="pool-container">
                 <div class="pool-header">
                     <h4>Adversary Pool</h4>
-                    <button id="open-srd-modal" class="srd-button">SRD Adversaries</button>
+                     <div class="pool-filters">
+                        <select id="adv-pool-tier-filter">
+                            <option value="all">All Tiers</option>
+                            <option value="1">Tier 1</option>
+                            <option value="2">Tier 2</option>
+                            <option value="3">Tier 3</option>
+                            <option value="4">Tier 4</option>
+                        </select>
+                    </div>
                 </div>
                 <div id="adversary-pool-list" class="agent-list"></div>
             </div>
@@ -74,12 +89,12 @@
             <div class="log-header">
                 <h3>Simulation Log:</h3>
                 <div class="controls-main">
-                <button id="run-button" class="action-button">Run Simulation</button>
-                <button id="run-multiple-button" class="action-button">Run 5 Sims</button>
-                <button id="run-ten-button" class="action-button">Run 10 Sims</button>
-                <button id="playback-button" class="action-button" disabled>Play Back Last Sim</button>
-                <button id="export-log-button" class="action-button">Export Log</button>
-                 </div>
+                    <button id="run-button" class="action-button">Run Simulation</button>
+                    <button id="run-multiple-button" class="action-button">Run 5 Sims</button>
+                    <button id="run-ten-button" class="action-button">Run 10 Sims</button>
+                    <button id="playback-button" class="action-button" disabled>Play Back Last Sim</button>
+                    <button id="export-log-button" class="action-button">Export Log</button>
+                </div>
             </div>
             <pre id="log-output"></pre>
         </div>
@@ -97,50 +112,6 @@
                 </div>
             </div>
             <div id="battlemap-grid">
-                </div>
-        </div>
-    </div>
-
-    <div id="srd-modal-overlay" class="modal-overlay hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>SRD Adversary Catalog</h3>
-                <button id="close-srd-modal" class="close-button">X</button>
-            </div>
-            <div class="modal-filters">
-                <select id="srd-tier-filter">
-                    <option value="any">Any Tier</option>
-                    <option value="1">Tier 1</option>
-                    <option value="2">Tier 2</option>
-                    <option value="3">Tier 3</option>
-                    <option value="4">Tier 4</option>
-                </select>
-                <select id="srd-type-filter">
-                    <option value="any">Any Type</option>
-                    <option value="Standard">Standard</option>
-                    <option value="Skulk">Skulk</option>
-                    <option value="Ranged">Ranged</option>
-                    <option value="Bruiser">Bruiser</option>
-                    <option value="Horde">Horde</option>
-                    <option value="Leader">Leader</option>
-                    <option value="Solo">Solo</option>
-                    <option value="Minion">Minion</option>
-                    <option value="Social">Social</option>
-                    <option value="Support">Support</option>
-                </select>
-            </div>
-            <div id="srd-adversary-list" class="agent-list">
-                </div>
-        </div>
-    </div>
-
-    <div id="pc-modal-overlay" class="modal-overlay hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Premade PC Catalog</h3>
-                <button id="close-pc-modal" class="close-button">X</button>
-            </div>
-            <div id="pc-catalog-list" class="agent-list">
                 </div>
         </div>
     </div>

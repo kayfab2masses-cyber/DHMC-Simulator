@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('run-ten-button').addEventListener('click', () => runMultipleSimulations(10));
     document.getElementById('export-log-button').addEventListener('click', exportLog);
     
-    // --- NEW: Playback Button Listener ---
+    // --- Playback Button Listener ---
     const playbackButton = document.getElementById('playback-button');
     if (playbackButton) {
         playbackButton.addEventListener('click', () => {
@@ -57,7 +57,6 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         console.error("CRITICAL: Playback button not found in index.html");
     }
-    // --- END NEW ---
 
     // Column 2 & 3 Buttons
     document.getElementById('pool-column').addEventListener('click', handlePoolClick);
@@ -65,56 +64,56 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('remove-character-button').addEventListener('click', removeLastCharacter);
     document.getElementById('remove-adversary-button').addEventListener('click', removeLastAdversary);
 
-    // SRD Modal Listeners
-    document.getElementById('open-srd-modal').addEventListener('click', openSRDModal);
-    document.getElementById('close-srd-modal').addEventListener('click', closeSRDModal);
-    document.getElementById('srd-modal-overlay').addEventListener('click', (e) => {
-        if (e.target.id === 'srd-modal-overlay') closeSRDModal();
-    });
-    document.getElementById('srd-tier-filter').addEventListener('change', renderSRDAdversaries);
-    document.getElementById('srd-type-filter').addEventListener('change', renderSRDAdversaries);
-    document.getElementById('srd-adversary-list').addEventListener('click', handleSRDListClick);
-
-    // PC Modal Listeners
-    document.getElementById('open-pc-modal').addEventListener('click', openPCModal);
-    document.getElementById('close-pc-modal').addEventListener('click', closePCModal);
-    document.getElementById('pc-modal-overlay').addEventListener('click', (e) => {
-        if (e.target.id === 'pc-modal-overlay') closePCModal();
-    });
-    document.getElementById('pc-catalog-list').addEventListener('click', handlePCListClick);
+    // --- NEW: Pool Filter Listeners ---
+    document.getElementById('pc-pool-class-filter').addEventListener('change', renderPools);
+    document.getElementById('pc-pool-level-filter').addEventListener('change', renderPools);
+    document.getElementById('adv-pool-tier-filter').addEventListener('change', renderPools);
+    // --- END NEW ---
 
     // --- VISUALIZER TOGGLE (Functionality moved to Playback Button) ---
     const visualizeToggle = document.getElementById('visualize-checkbox');
     if(visualizeToggle) visualizeToggle.style.display = 'none'; // Hide the original checkbox
     // --- END VISUALIZER TOGGLE ---
 
-    // --- CRITICAL FIX: Restore load functions to populate modals ---
-    loadSRDDatabase();
-    loadPCDatabase();
-    // --- END CRITICAL FIX ---
+    // Load databases and auto-populate pools
+    loadAndPopulateDatabases();
     
-    renderPools();
     renderActiveScene();
     initializeBattlemap(); // Initialize the empty map grid
 });
 
 // --- DATA & POOL MANAGEMENT ---
+
+// NEW: Combined loader function
+async function loadAndPopulateDatabases() {
+    await loadPCDatabase();
+    await loadSRDDatabase();
+    
+    // After both are loaded, populate filters and render pools
+    populatePCFilters();
+    renderPools();
+}
+
 async function loadSRDDatabase() {
     try {
         const response = await fetch('data/srd_adversaries.json');
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        const data = await response.json();
+        const data = await response.json(); 
         
         if (Array.isArray(data)) {
             SRD_ADVERSARIES = data;
+            // NEW: Auto-populate the adversary pool from the database
+            adversaryPool = SRD_ADVERSARIES.map((adv, index) => ({
+                ...adv,
+                simId: `adv-master-${Date.now()}-${index}` // Ensure unique ID
+            }));
         } else {
             throw new Error("Invalid JSON structure. Expected a top-level array '[...]'");
         }
 
-        logToScreen(`Successfully loaded ${SRD_ADVERSARIES.length} adversaries from SRD catalog.`);
-        renderSRDAdversaries();
+        logToScreen(`Successfully loaded and populated ${adversaryPool.length} adversaries.`);
     } catch (error) {
         logToScreen(`--- FATAL ERROR --- Could not load SRD Adversary JSON: ${error.message}`);
         console.error("Failed to fetch SRD data:", error);
@@ -131,16 +130,60 @@ async function loadPCDatabase() {
         
         if (data && Array.isArray(data.players)) {
             PREMADE_CHARACTERS = data.players;
+            // NEW: Auto-populate the player pool from the database
+            playerPool = PREMADE_CHARACTERS.map((pc, index) => ({
+                ...pc,
+                simId: `player-${Date.now()}-${index}` // Ensure unique ID
+            }));
         } else {
             throw new Error("Invalid JSON structure. Expected an object with a top-level 'players' array.");
         }
 
-        logToScreen(`Successfully loaded ${PREMADE_CHARACTERS.length} PCs from catalog.`);
-        renderPCModalList();
+        logToScreen(`Successfully loaded and populated ${playerPool.length} PCs.`);
     } catch (error) {
         logToScreen(`--- FATAL ERROR --- Could not load Premade PC JSON: ${error.message}`);
         console.error("Failed to fetch PC data:", error);
     }
+}
+
+// NEW: Function to dynamically create filter options
+function populatePCFilters() {
+    const classFilter = document.getElementById('pc-pool-class-filter');
+    const levelFilter = document.getElementById('pc-pool-level-filter');
+
+    const classes = new Set();
+    const levels = new Set();
+
+    PREMADE_CHARACTERS.forEach(pc => {
+        classes.add(pc.class.name);
+        levels.add(pc.level);
+    });
+
+    const sortedClasses = [...classes].sort();
+    const sortedLevels = [...levels].sort((a, b) => a - b);
+
+    sortedClasses.forEach(className => {
+        const option = document.createElement('option');
+        option.value = className;
+        option.textContent = className;
+        classFilter.appendChild(option);
+    });
+
+    sortedLevels.forEach(level => {
+        const option = document.createElement('option');
+        option.value = level;
+        option.textContent = `Lvl ${level}`;
+        levelFilter.appendChild(option);
+    });
+}
+
+// NEW: Helper function to calculate complexity
+function getAdversaryComplexity(adv) {
+    if (!adv.features) return 0;
+    const featureCount = adv.features.length;
+    if (featureCount <= 2) return 1;
+    if (featureCount <= 4) return 2;
+    return 3;
 }
 
 
@@ -150,17 +193,11 @@ function addCharacterToPool() {
         const newCharacter = JSON.parse(jsonTextBox.value);
         if (!newCharacter.name || !newCharacter.traits) throw new Error('JSON missing "name" or "traits"');
         
-        const isDuplicate = playerPool.some(p => p.name === newCharacter.name);
-        if (isDuplicate) {
-            logToScreen(`--- ERROR --- \nA player named '${newCharacter.name}' is already in the pool.`);
-            return;
-        }
-        
         newCharacter.simId = `player-${Date.now()}`;
-        playerPool.push(newCharacter);
+        playerPool.push(newCharacter); // Add to the master pool
         logToScreen(`Added ${newCharacter.name} to Player Pool.`);
         jsonTextBox.value = '';
-        renderPools();
+        renderPools(); // Re-render the pool
     } catch (e) { logToScreen(`--- ERROR --- \nInvalid Character JSON. ${e.message}`); }
 }
 
@@ -169,35 +206,45 @@ function addAdversaryToPool() {
     try {
         const newAdversary = JSON.parse(jsonTextBox.value);
         if (!newAdversary.name || !newAdversary.difficulty) throw new Error('JSON missing "name" or "difficulty"');
-        
-        const isDuplicate = adversaryPool.some(a => a.name === newAdversary.name);
-        if (isDuplicate) {
-            logToScreen(`--- ERROR --- \nAn adversary named '${newAdversary.name}' is already in the pool.`);
-            return;
-        }
 
         newAdversary.simId = `adv-master-${Date.now()}`;
-        adversaryPool.push(newAdversary);
+        adversaryPool.push(newAdversary); // Add to the master pool
         logToScreen(`Added ${newAdversary.name} to Adversary Pool.`);
         jsonTextBox.value = '';
-        renderPools();
+        renderPools(); // Re-render the pool
     } catch (e) { logToScreen(`--- ERROR --- \nInvalid Adversary JSON. ${e.message}`); }
 }
 
 function removeLastCharacter() {
-    if (playerPool.length > 0) {
-        const removedChar = playerPool.pop();
-        logToScreen(`Removed ${removedChar.name} from player pool.`);
-        renderPools();
-    } else { logToScreen("Player pool is already empty."); }
+    if (activeParty.length > 0) {
+         logToScreen("Please remove characters from the Active Scene first.");
+         return;
+    }
+    const charName = playerPool.length > 0 ? playerPool[playerPool.length - 1].name : "";
+    logToScreen(`Flushing all manually added characters from pool... (Last was: ${charName})`);
+    
+    // Resets pool to only be database characters
+    playerPool = PREMADE_CHARACTERS.map((pc, index) => ({
+        ...pc,
+        simId: `player-${Date.now()}-${index}`
+    }));
+    renderPools();
 }
 
 function removeLastAdversary() {
-    if (adversaryPool.length > 0) {
-        const removedAdv = adversaryPool.pop();
-        logToScreen(`Removed ${removedAdv.name} from adversary pool.`);
-        renderPools();
-    } else { logToScreen("Adversary pool is already empty."); }
+     if (activeAdversaries.length > 0) {
+         logToScreen("Please remove adversaries from the Active Scene first.");
+         return;
+    }
+    const advName = adversaryPool.length > 0 ? adversaryPool[adversaryPool.length - 1].name : "";
+    logToScreen(`Flushing all manually added adversaries from pool... (Last was: ${advName})`);
+
+    // Resets pool to only be database characters
+    adversaryPool = SRD_ADVERSARIES.map((adv, index) => ({
+        ...adv,
+        simId: `adv-master-${Date.now()}-${index}`
+    }));
+    renderPools();
 }
 
 // --- DYNAMIC CLICK HANDLERS ---
@@ -210,16 +257,18 @@ function handlePoolClick(event) {
     if (!agentId) return; 
 
     if (target.classList.contains('move-button')) {
-        let playerIndex = playerPool.findIndex(p => p.simId === agentId);
-        if (playerIndex > -1) {
-            const agent = playerPool.splice(playerIndex, 1)[0];
-            activeParty.push(agent);
-            logToScreen(`Moved ${agent.name} to Active Scene.`);
+        let player = playerPool.find(p => p.simId === agentId);
+        if (player) {
+            // Find by ID, but push a *copy* to the active scene
+            const newPlayerInstance = JSON.parse(JSON.stringify(player));
+            newPlayerInstance.simId = `player-instance-${Date.now()}-${Math.random()}`;
+            activeParty.push(newPlayerInstance);
+            logToScreen(`Copied ${newPlayerInstance.name} to Active Scene.`);
         } else {
             const agentTemplate = adversaryPool.find(a => a.simId === agentId);
             if (agentTemplate) {
                 const newAgentInstance = JSON.parse(JSON.stringify(agentTemplate));
-                newAgentInstance.simId = `adv-instance-${Date.now()}`; 
+                newAgentInstance.simId = `adv-instance-${Date.now()}-${Math.random()}`; 
                 activeAdversaries.push(newAgentInstance);
                 logToScreen(`Copied ${newAgentInstance.name} to Active Scene.`);
             }
@@ -227,6 +276,7 @@ function handlePoolClick(event) {
     }
 
     if (target.classList.contains('flush-button')) {
+        // This button now removes the master copy from the pool
         let playerIndex = playerPool.findIndex(p => p.simId === agentId);
         if (playerIndex > -1) {
             logToScreen(`Flushed ${playerPool.splice(playerIndex, 1)[0].name} from pool.`);
@@ -236,8 +286,10 @@ function handlePoolClick(event) {
                 logToScreen(`Flushed ${adversaryPool.splice(adversaryIndex, 1)[0].name} from pool.`);
             }
         }
+        renderPools(); // Re-render the pool list
     }
-    renderPools();
+    
+    // Only render the scene, no need to re-render the whole pool
     renderActiveScene();
 }
 
@@ -253,8 +305,7 @@ function handleSceneClick(event) {
     let playerIndex = activeParty.findIndex(p => p.simId === agentId);
     if (playerIndex > -1) {
         const agent = activeParty.splice(playerIndex, 1)[0];
-        playerPool.push(agent);
-        logToScreen(`Moved ${agent.name} back to Player Pool.`);
+        logToScreen(`Removed ${agent.name} instance from Active Scene.`);
     } else {
         let adversaryIndex = activeAdversaries.findIndex(a => a.simId === agentId);
         if (adversaryIndex > -1) {
@@ -262,42 +313,44 @@ function handleSceneClick(event) {
             logToScreen(`Removed ${agent.name} instance from Active Scene.`);
         }
     }
-    renderPools();
+    // No need to renderPools(), just render the scene
     renderActiveScene();
 }
 
-function handleSRDListClick(event) {
-    const target = event.target.closest('.srd-item');
-    if (!target) return;
-    
-    if (event.target.classList.contains('move-button')) {
-        const advName = target.dataset.name;
-        addAdversaryFromSRD(advName);
-    }
-}
-
-function handlePCListClick(event) {
-    const target = event.target.closest('.pc-item');
-    if (!target) return;
-    
-    if (event.target.classList.contains('move-button')) {
-        const pcName = target.dataset.name;
-        addPlayerFromCatalog(pcName);
-    }
-}
-
-
 // --- DYNAMIC UI RENDERING ---
+
+// --- HEAVILY MODIFIED renderPools() ---
 function renderPools() {
     const playerListDiv = document.getElementById('player-pool-list');
     const adversaryListDiv = document.getElementById('adversary-pool-list');
     playerListDiv.innerHTML = '';
     adversaryListDiv.innerHTML = '';
 
-    playerPool.forEach(char => {
+    // 1. Get Filter Values
+    const pcClassFilter = document.getElementById('pc-pool-class-filter').value;
+    const pcLevelFilter = document.getElementById('pc-pool-level-filter').value;
+    const advTierFilter = document.getElementById('adv-pool-tier-filter').value;
+
+    // 2. Filter Player Pool
+    const filteredPlayers = playerPool.filter(char => {
+        if (!char.class || !char.level) return true; // Keep manually added JSON
+        const classMatch = (pcClassFilter === 'all' || char.class.name === pcClassFilter);
+        const levelMatch = (pcLevelFilter === 'all' || char.level == pcLevelFilter);
+        return classMatch && levelMatch;
+    });
+
+    // 3. Filter Adversary Pool
+    const filteredAdversaries = adversaryPool.filter(adv => {
+        if (!adv.tier) return true; // Keep manually added JSON
+        return (advTierFilter === 'all' || adv.tier == advTierFilter);
+    });
+
+    // 4. Render Filtered Players
+    filteredPlayers.forEach(char => {
+        const level = char.level || 'N/A';
         playerListDiv.innerHTML += `
         <div class="pool-item" data-id="${char.simId}">
-            <span class="agent-name">${char.name} (Lvl ${char.level})</span>
+            <span class="agent-name">${char.name} (Lvl ${level})</span>
             <div class="pool-item-controls">
                 <button class="flush-button" title="Remove from Pool">X</button>
                 <button class="move-button" title="Add to Active Scene">&gt;</button>
@@ -306,10 +359,18 @@ function renderPools() {
         `;
     });
 
-    adversaryPool.forEach(adv => {
+    // 5. Render Filtered Adversaries
+    filteredAdversaries.forEach(adv => {
+        const difficulty = adv.difficulty || 'N/A';
+        const complexity = getAdversaryComplexity(adv); // Get new complexity rating
+        let features = "No features listed.";
+        if (adv.features && adv.features.length > 0) {
+             features = adv.features.map(f => `• ${f.name} (${f.type})`).join('\n');
+        }
+
         adversaryListDiv.innerHTML += `
-        <div class="pool-item" data-id="${adv.simId}">
-            <span class="agent-name">${adv.name} (Diff ${adv.difficulty})</span>
+        <div class="pool-item" data-id="${adv.simId}" title="${features}">
+            <span class="agent-name">${adv.name} (Diff ${difficulty}) (Comp ${complexity}/3)</span>
             <div class="pool-item-controls">
                 <button class="flush-button" title="Remove from Pool">X</button>
                 <button class="move-button" title="Add to Active Scene">&gt;</button>
@@ -317,7 +378,15 @@ function renderPools() {
         </div>
         `;
     });
+
+    if (filteredPlayers.length === 0) {
+        playerListDiv.innerHTML = `<div class="pool-item"><span>No players match filters.</span></div>`;
+    }
+    if (filteredAdversaries.length === 0) {
+        adversaryListDiv.innerHTML = `<div class="pool-item"><span>No adversaries match filters.</span></div>`;
+    }
 }
+
 
 function renderActiveScene() {
     const partyListDiv = document.getElementById('active-party-list');
@@ -344,113 +413,8 @@ function renderActiveScene() {
     });
 }
 
-// --- SRD Modal Functions ---
-function openSRDModal() {
-    document.getElementById('srd-modal-overlay').classList.remove('hidden');
-}
-
-function closeSRDModal() {
-    document.getElementById('srd-modal-overlay').classList.add('hidden');
-}
-
-function renderSRDAdversaries() {
-    const tier = document.getElementById('srd-tier-filter').value;
-    const type = document.getElementById('srd-type-filter').value;
-    const listDiv = document.getElementById('srd-adversary-list');
-    listDiv.innerHTML = ''; 
-
-    if (SRD_ADVERSARIES.length === 0) {
-        listDiv.innerHTML = '<div class="pool-item"><span>Loading database...</span></div>';
-        return;
-    }
-
-    const filteredList = SRD_ADVERSARIES.filter(adv => {
-        const tierMatch = (tier === 'any' || adv.tier == tier);
-        const typeMatch = (type === 'any' || adv.type.startsWith(type));
-        return tierMatch && typeMatch;
-    });
-
-    if (filteredList.length === 0) {
-        listDiv.innerHTML = '<div class="pool-item"><span>No adversaries match filters.</span></div>';
-        return;
-    }
-
-    filteredList.forEach(adv => {
-        let features = adv.features.map(f => `• ${f.name} (${f.type})`).join('\n');
-        listDiv.innerHTML += `
-        <div class="srd-item" data-name="${adv.name}">
-            <span class="agent-name" title="${features}">${adv.name} (T${adv.tier})</span>
-            <button class="move-button" title="Add to Adversary Pool">Add</button>
-        </div>
-        `;
-    });
-}
-
-function addAdversaryFromSRD(name) {
-    const advData = SRD_ADVERSARIES.find(a => a.name === name);
-    if (!advData) return;
-    
-    const isDuplicate = adversaryPool.some(a => a.name === advData.name);
-    if (isDuplicate) {
-        logToScreen(`--- ERROR --- \n'${advData.name}' is already in the Adversary Pool.`);
-        return;
-    }
-
-    const newAdversary = JSON.parse(JSON.stringify(advData));
-    newAdversary.simId = `adv-master-${Date.now()}`;
-    
-    adversaryPool.push(newAdversary);
-    logToScreen(`Added ${newAdversary.name} from SRD to Adversary Pool.`);
-    renderPools(); 
-    closeSRDModal(); 
-}
-
-// --- NEW: PC Modal Functions ---
-function openPCModal() {
-    document.getElementById('pc-modal-overlay').classList.remove('hidden');
-}
-
-function closePCModal() {
-    document.getElementById('pc-modal-overlay').classList.add('hidden');
-}
-
-function renderPCModalList() {
-    const listDiv = document.getElementById('pc-catalog-list');
-    listDiv.innerHTML = ''; 
-
-    if (PREMADE_CHARACTERS.length === 0) {
-        listDiv.innerHTML = '<div class="pc-item"><span>Loading database...</span></div>';
-        return;
-    }
-
-    PREMADE_CHARACTERS.forEach(pc => {
-        listDiv.innerHTML += `
-        <div class="pc-item" data-name="${pc.name}">
-            <span class="agent-name">${pc.name} (Lvl ${pc.level} ${pc.class.name})</span>
-            <button class="move-button" title="Add to Player Pool">Add</button>
-        </div>
-        `;
-    });
-}
-
-function addPlayerFromCatalog(name) {
-    const pcData = PREMADE_CHARACTERS.find(p => p.name === name);
-    if (!pcData) return;
-    
-    const isDuplicate = playerPool.some(p => p.name === pcData.name);
-    if (isDuplicate) {
-        logToScreen(`--- ERROR --- \n'${pcData.name}' is already in the Player Pool.`);
-        return;
-    }
-
-    const newPlayer = JSON.parse(JSON.stringify(pcData));
-    newPlayer.simId = `player-${Date.now()}`;
-    
-    playerPool.push(newPlayer);
-    logToScreen(`Added ${newPlayer.name} from Catalog to Player Pool.`);
-    renderPools(); 
-    closePCModal(); 
-}
+// --- ALL MODAL FUNCTIONS (openSRDModal, closeSRDModal, renderSRDAdversaries, addAdversaryFromSRD, openPCModal, closePCModal, renderPCModalList, addPlayerFromCatalog) ---
+// --- ARE NOW DELETED ---
 
 
 // --- PARSING & INSTANTIATION FUNCTIONS ---
@@ -595,21 +559,35 @@ async function runMultipleSimulations(count) {
 
     // Reset log and history for the start of a batch
     simHistory = [];
-    document.getElementById('playback-button').disabled = true;
+    
+    // --- FIXED: Find the button by ID and disable it ---
+    const playbackBtn = document.getElementById('playback-button');
+    if (playbackBtn) {
+        playbackBtn.disabled = true;
+    }
+    // --- END FIX ---
 
     for (let i = 1; i <= count; i++) {
         logToScreen(`\n--- SIMULATION ${i} OF ${count} ---`);
         
-        await runSimulation(count, isBlastMode); // Pass total count and blast status
+        // --- MODIFIED: Removed 'await' ---
+        // Run the simulation synchronously. 
+        // We'll add the async "breathe" *after* to prevent UI freeze
+        runSimulation(count, isBlastMode); // Pass total count and blast status
         
         // "Breathe" to prevent freezing after a very fast synchronous run
-        await new Promise(resolve => setTimeout(resolve, 0));
+        // This is important for batch runs (y > 1)
+        if (count > 1) {
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
     }
     logToScreen(`\n===== BATCH COMPLETE =====`);
     
     // Enable playback button if only 1 run was executed
     if (count === 1 && simHistory.length === 1 && simHistory[0].playbackLog) {
-        document.getElementById('playback-button').disabled = false;
+        if (playbackBtn) {
+            playbackBtn.disabled = false;
+        }
     }
 }
 
@@ -627,10 +605,15 @@ function exportLog() {
     logToScreen(`\n--- Log exported! ---`);
 }
 
-// --- NEW SIGNATURE: runSimulation accepts count ---
-async function runSimulation(count, isBlastMode = false) {
+// --- MODIFIED: Removed 'async' ---
+function runSimulation(count, isBlastMode = false) {
     // Determine if we need to record map data (Only for single runs)
     const recordPlayback = (count === 1); 
+    
+    // For batch runs (y > 1), we hijack the logger
+    if (count > 1) { 
+        isBlastMode = true; 
+    }
     
     if (isBlastMode) {
         BATCH_LOG = []; // Hijack the logger
@@ -705,7 +688,11 @@ async function runSimulation(count, isBlastMode = false) {
     // Log initial state setup (not full details, just summary)
 
     // --- SYNCHRONOUS SIMULATION LOOP ---
-    while (!isCombatOver(gameState)) {
+    // NEW: Added a safety break for infinite loops
+    let roundCounter = 0; 
+    const maxRounds = 100; // Safety break
+
+    while (!isCombatOver(gameState) && roundCounter < maxRounds) {
         let lastOutcome = '';
         
         // Record snapshot before the turn starts
@@ -715,6 +702,8 @@ async function runSimulation(count, isBlastMode = false) {
 
         if (gameState.spotlight === 'GM') {
             lastOutcome = executeGMTurn(gameState);
+            roundCounter++; // A GM turn counts as a full round
+            logToScreen(` --- Round ${roundCounter} ---`);
         } else {
             const actingPlayer = gameState.players[gameState.spotlight];
             if (actingPlayer.current_hp > 0) {
@@ -731,6 +720,10 @@ async function runSimulation(count, isBlastMode = false) {
             break;
         }
     }
+    
+    if (roundCounter >= maxRounds) {
+         logToScreen(`--- SIMULATION HALTED --- \nReached max round limit (100). Combat may be in an infinite loop.`);
+    }
     // --- END SYNCHRONOUS SIMULATION LOOP ---
 
     const endTime = Date.now();
@@ -742,24 +735,36 @@ async function runSimulation(count, isBlastMode = false) {
         recordSnapshot(gameState, currentPlaybackLog);
     }
 
-    const finalLogText = BATCH_LOG ? BATCH_LOG.join('\n') : `(No detailed log recorded for batch run, duration: ${duration}s)`;
+    // Determine winner
+    const playersAlive = gameState.players.some(p => p.current_hp > 0);
+    const winner = playersAlive ? "Players" : "Adversaries";
+    logToScreen(`\n--- SIMULATION COMPLETE ---`);
+    logToScreen(`Winner: ${winner} in ${roundCounter} rounds.`);
+    logToScreen(`Duration: ${duration.toFixed(3)}s`);
+
+
+    const finalLogText = BATCH_LOG ? BATCH_LOG.join('\n') : `(No detailed log for single run, see main log.)`;
     
     // Save final results to history
     simHistory.push({
         id: simHistory.length + 1,
+        winner: winner,
+        rounds: roundCounter,
         duration: duration,
-        logText: finalLogText,
+        logText: isBlastMode ? finalLogText : "See main log.", // Only store log for batch runs
         players: gameState.players.map(p => ({ name: p.name, hp: p.current_hp, stress: p.current_stress })),
         adversaries: gameState.adversaries.map(a => ({ name: a.name, hp: a.current_hp, stress: a.current_stress })),
         playbackLog: currentPlaybackLog.length > 0 ? currentPlaybackLog : null
     });
     
-    // Dump results if in blast mode (or this is the final sim in a long run)
+    // Dump results if in blast mode
     if (isBlastMode) {
         const logOutput = document.getElementById('log-output');
         if (logOutput) {
-             // For batches > 1, we still want the summary to appear instantly
-             logOutput.textContent += finalLogText + '\n';
+             // For batches, we only want the summary, not the whole log
+             const summaryLog = simHistory[simHistory.length - 1];
+             logOutput.textContent += `--- SIM ${summaryLog.id} Summary --- \n`;
+             logOutput.textContent += `Winner: ${summaryLog.winner} in ${summaryLog.rounds} rounds. (${summaryLog.duration.toFixed(3)}s)\n`;
              logOutput.scrollTop = logOutput.scrollHeight;
         }
         BATCH_LOG = null; // Release the hijack
@@ -799,7 +804,8 @@ async function playBackSimulation(historyIndex) {
     
     // 1. Prepare UI for playback
     mapContainer.classList.remove('hidden');
-    logContainer.classList.remove('full-width');
+    logContainer.classList.add('full-width'); // Make log full width
+    logContainer.classList.remove('full-width'); // Then remove it to share space
     
     logToScreen(`\n\n=== STARTING REPLAY OF SIMULATION #${simData.id} ===`);
 
