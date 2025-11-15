@@ -1,29 +1,31 @@
 // --- GLOBAL STATE ---
-let playerPool = []; // Column 2: Player Library
-let adversaryPool = []; // Column 2: Adversary Library
-let activeParty = []; // Column 3: Players in the next sim
-let activeAdversaries = []; // Column 3: Adversaries in the next sim
-let SRD_ADVERSARIES = []; // This will hold our loaded SRD database
-let PREMADE_CHARACTERS = []; // This will hold our loaded PC database
+let playerPool = [];
+let adversaryPool = [];
+let environmentPool = []; // NEW
+let activeParty = [];
+let activeAdversaries = [];
+let activeEnvironment = null; // NEW: Singular active environment
+let SRD_ADVERSARIES = [];
+let PREMADE_CHARACTERS = [];
+let PLACEHOLDER_ENVIRONMENTS = []; // NEW
 
-let BATCH_LOG = []; // This will now *always* be used to capture sim logs
-let tokenCache = {}; // For high-speed visualizer
-
-// --- History System ---
-let simHistory = []; // Stores objects: { id, playbackLog: [], finalState }
+let BATCH_LOG = []; // Global log capture
+let tokenCache = {}; 
+let simHistory = [];
 
 // --- BATTLEFIELD & RANGE CONFIGS ---
 const DAGGERHEART_RANGES = {
     RANGE_MELEE: 1,
     RANGE_VERY_CLOSE: 3,
-    RANGE_CLOSE: 6,      // Standard "free move" distance
-    RANGE_FAR: 12        // "Full Action Move" distance
+    RANGE_CLOSE: 6,
+    RANGE_FAR: 12,
+    RANGE_VERY_FAR: 24 // Added Very Far for rules completeness
 };
 
 const MAP_CONFIGS = {
     small: { MAX_X: 15, MAX_Y: 15 },
     medium: { MAX_X: 20, MAX_Y: 20 },
-    large: { MAX_X: 30, MAX_Y: 30 } // Our default
+    large: { MAX_X: 30, MAX_Y: 30 }
 };
 
 let CURRENT_BATTLEFIELD = {
@@ -37,14 +39,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // Column 1 Buttons
     document.getElementById('add-character-button').addEventListener('click', addCharacterToPool);
     document.getElementById('add-adversary-button').addEventListener('click', addAdversaryToPool);
+    document.getElementById('add-environment-button').addEventListener('click', addEnvironmentToPool); // NEW
 
-    // Main Run Button
+    // Main Run Buttons
     document.getElementById('run-button').addEventListener('click', () => runMultipleSimulations(1));
     document.getElementById('run-multiple-button').addEventListener('click', () => runMultipleSimulations(5));
     document.getElementById('run-ten-button').addEventListener('click', () => runMultipleSimulations(10));
     document.getElementById('export-log-button').addEventListener('click', exportLog);
     
-    // --- Playback Button Listener ---
+    // Playback Button Listener
     const playbackButton = document.getElementById('playback-button');
     if (playbackButton) {
         playbackButton.addEventListener('click', () => {
@@ -56,41 +59,39 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error("CRITICAL: Playback button not found in index.html");
     }
 
-    // Column 2 & 3 Buttons
+    // Column 2 & 3 Click Handlers
     document.getElementById('pool-column').addEventListener('click', handlePoolClick);
     document.getElementById('scene-column').addEventListener('click', handleSceneClick);
     
-    // --- REMOVED 'remove' button listeners ---
-
-    // --- NEW: Pool Filter Listeners ---
+    // Pool Filter Listeners
     document.getElementById('pc-pool-class-filter').addEventListener('change', renderPools);
     document.getElementById('pc-pool-level-filter').addEventListener('change', renderPools);
     document.getElementById('adv-pool-tier-filter').addEventListener('change', renderPools);
     document.getElementById('adv-pool-type-filter').addEventListener('change', renderPools);
-    // --- END NEW ---
-    
-    // --- REMOVED Modal Listeners ---
 
-    // --- VISUALIZER TOGGLE ---
+    // Hide old visualize checkbox
     const visualizeToggle = document.getElementById('visualize-checkbox');
     if(visualizeToggle) visualizeToggle.style.display = 'none';
     
-    // Load databases and auto-populate pools
+    // Load all data
     loadAndPopulateDatabases();
     
+    // Initial Renders
     renderActiveScene();
-    initializeBattlemap(); // Initialize the empty map grid
+    renderActiveEnvironment(); // NEW
+    initializeBattlemap();
 });
 
 // --- DATA & POOL MANAGEMENT ---
 
-// NEW: Combined loader function
 async function loadAndPopulateDatabases() {
     await loadPCDatabase();
     await loadSRDDatabase();
+    await loadEnvironmentDatabase(); // NEW
     
-    // After both are loaded, render the pools
+    // After all are loaded, render pools
     renderPools();
+    renderEnvironmentPool(); // NEW
 }
 
 async function loadSRDDatabase() {
@@ -100,18 +101,15 @@ async function loadSRDDatabase() {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json(); 
-        
         if (Array.isArray(data)) {
             SRD_ADVERSARIES = data;
-            // NEW: Auto-populate the adversary pool from the database
             adversaryPool = SRD_ADVERSARIES.map((adv, index) => ({
                 ...adv,
-                simId: `adv-master-${Date.now()}-${index}` // Ensure unique ID
+                simId: `adv-master-${Date.now()}-${index}`
             }));
         } else {
             throw new Error("Invalid JSON structure. Expected a top-level array '[...]'");
         }
-
         printToLog(`Successfully loaded and populated ${adversaryPool.length} adversaries.`);
     } catch (error) {
         printToLog(`--- FATAL ERROR --- Could not load SRD Adversary JSON: ${error.message}`);
@@ -126,24 +124,36 @@ async function loadPCDatabase() {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json(); 
-        
         if (data && Array.isArray(data.players)) {
             PREMADE_CHARACTERS = data.players;
-            // NEW: Auto-populate the player pool from the database
             playerPool = PREMADE_CHARACTERS.map((pc, index) => ({
                 ...pc,
-                simId: `player-${Date.now()}-${index}` // Ensure unique ID
+                simId: `player-${Date.now()}-${index}`
             }));
         } else {
             throw new Error("Invalid JSON structure. Expected an object with a 'players' array.");
         }
-
         printToLog(`Successfully loaded and populated ${playerPool.length} PCs.`);
     } catch (error) {
         printToLog(`--- FATAL ERROR --- Could not load Premade PC JSON: ${error.message}`);
         console.error("Failed to fetch PC data:", error);
     }
 }
+
+// NEW: Load Environments
+async function loadEnvironmentDatabase() {
+    // TODO: Load from environments.json when it exists
+    // For now, create placeholders
+    PLACEHOLDER_ENVIRONMENTS = [
+        { name: "Placeholder: Tier 1", difficulty: 11, tier: 1, simId: `env-${Date.now()}-1` },
+        { name: "Placeholder: Tier 2", difficulty: 14, tier: 2, simId: `env-${Date.now()}-2` },
+        { name: "Placeholder: Tier 3", difficulty: 17, tier: 3, simId: `env-${Date.now()}-3` },
+        { name: "Placeholder: Tier 4", difficulty: 20, tier: 4, simId: `env-${Date.now()}-4` }
+    ];
+    environmentPool = [...PLACEHOLDER_ENVIRONMENTS];
+    printToLog(`Successfully loaded ${environmentPool.length} placeholder environments.`);
+}
+
 
 // NEW: Helper function to calculate complexity
 function getAdversaryComplexity(adv) {
@@ -154,6 +164,19 @@ function getAdversaryComplexity(adv) {
     return 3;
 }
 
+// NEW: Helper to render complexity stars
+function renderComplexityStars(complexity) {
+    let stars = '';
+    for (let i = 1; i <= 3; i++) {
+        if (i <= complexity) {
+            stars += `<span class="star filled">★</span>`;
+        } else {
+            stars += `<span class="star">☆</span>`;
+        }
+    }
+    return `<span class="complexity-stars">${stars}</span>`;
+}
+
 
 function addCharacterToPool() {
     const jsonTextBox = document.getElementById('character-json');
@@ -161,11 +184,11 @@ function addCharacterToPool() {
         const newCharacter = JSON.parse(jsonTextBox.value);
         if (!newCharacter.name || !newCharacter.traits) throw new Error('JSON missing "name" or "traits"');
         
-        newCharacter.simId = `player-${Date.now()}`;
-        playerPool.push(newCharacter); // Add to the master pool
+        newCharacter.simId = `player-manual-${Date.now()}`;
+        playerPool.push(newCharacter); 
         printToLog(`Added ${newCharacter.name} to Player Pool.`);
         jsonTextBox.value = '';
-        renderPools(); // Re-render the pool
+        renderPools(); 
     } catch (e) { printToLog(`--- ERROR --- \nInvalid Character JSON. ${e.message}`); }
 }
 
@@ -175,49 +198,72 @@ function addAdversaryToPool() {
         const newAdversary = JSON.parse(jsonTextBox.value);
         if (!newAdversary.name || !newAdversary.difficulty) throw new Error('JSON missing "name" or "difficulty"');
 
-        newAdversary.simId = `adv-master-${Date.now()}`;
-        adversaryPool.push(newAdversary); // Add to the master pool
+        newAdversary.simId = `adv-manual-${Date.now()}`;
+        adversaryPool.push(newAdversary); 
         printToLog(`Added ${newAdversary.name} to Adversary Pool.`);
         jsonTextBox.value = '';
-        renderPools(); // Re-render the pool
+        renderPools();
     } catch (e) { printToLog(`--- ERROR --- \nInvalid Adversary JSON. ${e.message}`); }
 }
 
-// --- REMOVED removeLastCharacter & removeLastAdversary ---
+// NEW: Add Environment
+function addEnvironmentToPool() {
+    const jsonTextBox = document.getElementById('environment-json');
+    try {
+        const newEnv = JSON.parse(jsonTextBox.value);
+        if (!newEnv.name || !newEnv.difficulty) throw new Error('JSON missing "name" or "difficulty"');
+
+        newEnv.simId = `env-manual-${Date.now()}`;
+        environmentPool.push(newEnv); 
+        printToLog(`Added ${newEnv.name} to Environment Pool.`);
+        jsonTextBox.value = '';
+        renderEnvironmentPool();
+    } catch (e) { printToLog(`--- ERROR --- \nInvalid Environment JSON. ${e.message}`); }
+}
 
 
 // --- DYNAMIC CLICK HANDLERS ---
 function handlePoolClick(event) {
     const target = event.target;
-    if (!target.closest('button')) return; 
+    if (!target.closest('button.move-button')) return; 
+    
     const agentItem = target.closest('.pool-item');
     if (!agentItem) return;
+    
     const agentId = agentItem.dataset.id;
     if (!agentId) return; 
 
-    if (target.classList.contains('move-button')) {
-        let player = playerPool.find(p => p.simId === agentId);
-        if (player) {
-            // Find by ID, but push a *copy* to the active scene
-            const newPlayerInstance = JSON.parse(JSON.stringify(player));
-            newPlayerInstance.simId = `player-instance-${Date.now()}-${Math.random()}`;
-            activeParty.push(newPlayerInstance);
-            printToLog(`Copied ${newPlayerInstance.name} to Active Scene.`);
-        } else {
-            const agentTemplate = adversaryPool.find(a => a.simId === agentId);
-            if (agentTemplate) {
-                const newAgentInstance = JSON.parse(JSON.stringify(agentTemplate));
-                newAgentInstance.simId = `adv-instance-${Date.now()}-${Math.random()}`; 
-                activeAdversaries.push(newAgentInstance);
-                printToLog(`Copied ${newAgentInstance.name} to Active Scene.`);
-            }
-        }
+    // Player Pool
+    let player = playerPool.find(p => p.simId === agentId);
+    if (player) {
+        const newPlayerInstance = JSON.parse(JSON.stringify(player));
+        newPlayerInstance.simId = `player-instance-${Date.now()}-${Math.random()}`;
+        activeParty.push(newPlayerInstance);
+        printToLog(`Copied ${newPlayerInstance.name} to Active Scene.`);
+        renderActiveScene();
+        return;
     }
 
-    // --- REMOVED 'flush-button' logic ---
-    
-    // Only render the scene, no need to re-render the whole pool
-    renderActiveScene();
+    // Adversary Pool
+    let agentTemplate = adversaryPool.find(a => a.simId === agentId);
+    if (agentTemplate) {
+        const newAgentInstance = JSON.parse(JSON.stringify(agentTemplate));
+        newAgentInstance.simId = `adv-instance-${Date.now()}-${Math.random()}`; 
+        activeAdversaries.push(newAgentInstance);
+        printToLog(`Copied ${newAgentInstance.name} to Active Scene.`);
+        renderActiveScene();
+        return;
+    }
+
+    // Environment Pool
+    let envTemplate = environmentPool.find(e => e.simId === agentId);
+    if (envTemplate) {
+        activeEnvironment = JSON.parse(JSON.stringify(envTemplate)); // Set as active (singular)
+        activeEnvironment.simId = `env-instance-${Date.now()}-${Math.random()}`;
+        printToLog(`Set Active Environment to: ${activeEnvironment.name}.`);
+        renderActiveEnvironment();
+        return;
+    }
 }
 
 function handleSceneClick(event) {
@@ -229,23 +275,35 @@ function handleSceneClick(event) {
     const agentId = agentItem.dataset.id;
     if (!agentId) return;
 
+    // Check Party
     let playerIndex = activeParty.findIndex(p => p.simId === agentId);
     if (playerIndex > -1) {
         const agent = activeParty.splice(playerIndex, 1)[0];
         printToLog(`Removed ${agent.name} instance from Active Scene.`);
-    } else {
-        let adversaryIndex = activeAdversaries.findIndex(a => a.simId === agentId);
-        if (adversaryIndex > -1) {
-            const agent = activeAdversaries.splice(adversaryIndex, 1)[0];
-            printToLog(`Removed ${agent.name} instance from Active Scene.`);
-        }
+        renderActiveScene();
+        return;
     }
-    renderActiveScene();
+
+    // Check Adversaries
+    let adversaryIndex = activeAdversaries.findIndex(a => a.simId === agentId);
+    if (adversaryIndex > -1) {
+        const agent = activeAdversaries.splice(adversaryIndex, 1)[0];
+        printToLog(`Removed ${agent.name} instance from Active Scene.`);
+        renderActiveScene();
+        return;
+    }
+
+    // Check Environment
+    if (activeEnvironment && activeEnvironment.simId === agentId) {
+        printToLog(`Removed ${activeEnvironment.name} from Active Scene.`);
+        activeEnvironment = null;
+        renderActiveEnvironment();
+        return;
+    }
 }
 
 // --- DYNAMIC UI RENDERING ---
 
-// --- HEAVILY MODIFIED renderPools() ---
 function renderPools() {
     const playerListDiv = document.getElementById('player-pool-list');
     const adversaryListDiv = document.getElementById('adversary-pool-list');
@@ -260,9 +318,9 @@ function renderPools() {
 
     // 2. Filter Player Pool
     const filteredPlayers = playerPool.filter(char => {
-        const isManual = !char.class || !char.level; // Keep manually added JSON
+        const isManual = !char.class || !char.level;
         if (isManual) {
-            return (pcClassFilter === 'all' && pcLevelFilter === 'all');
+            return (pcClassFilter === 'all' && pcLevelFilter === 'all'); // Only show manual adds if no filter
         }
         const classMatch = (pcClassFilter === 'all' || char.class.name === pcClassFilter);
         const levelMatch = (pcLevelFilter === 'all' || char.level == pcLevelFilter);
@@ -271,9 +329,9 @@ function renderPools() {
 
     // 3. Filter Adversary Pool
     const filteredAdversaries = adversaryPool.filter(adv => {
-        const isManual = !adv.tier || !adv.type; // Keep manually added JSON
+        const isManual = !adv.tier || !adv.type;
         if (isManual) {
-             return (advTierFilter === 'all' && advTypeFilter === 'all');
+             return (advTierFilter === 'all' && advTypeFilter === 'all'); // Only show manual adds if no filter
         }
         const tierMatch = (advTierFilter === 'all' || adv.tier == advTierFilter);
         const typeMatch = (advTypeFilter === 'all' || adv.type === advTypeFilter);
@@ -298,6 +356,7 @@ function renderPools() {
     filteredAdversaries.forEach(adv => {
         const difficulty = adv.difficulty || 'N/A';
         const complexity = getAdversaryComplexity(adv);
+        const complexityStars = renderComplexityStars(complexity); // Get stars
         let features = "No features listed.";
         if (adv.features && adv.features.length > 0) {
              features = adv.features.map(f => `• ${f.name} (${f.type})`).join('\n');
@@ -305,7 +364,7 @@ function renderPools() {
 
         adversaryListDiv.innerHTML += `
         <div class="pool-item" data-id="${adv.simId}" title="${features}">
-            <span class="agent-name">${adv.name} (Diff ${difficulty}) (Comp ${complexity}/3)</span>
+            <span class="agent-name">${adv.name} (Diff ${difficulty}) ${complexityStars}</span>
             <div class="pool-item-controls">
                 <button class="move-button" title="Add to Active Scene">&gt;</button>
             </div>
@@ -321,6 +380,22 @@ function renderPools() {
     }
 }
 
+// NEW: Render Environment Pool
+function renderEnvironmentPool() {
+    const envListDiv = document.getElementById('environment-pool-list');
+    envListDiv.innerHTML = '';
+
+    environmentPool.forEach(env => {
+        envListDiv.innerHTML += `
+        <div class="pool-item" data-id="${env.simId}">
+            <span class="agent-name">${env.name} (Diff ${env.difficulty})</span>
+            <div class="pool-item-controls">
+                <button class="move-button" title="Set as Active Environment">&gt;</button>
+            </div>
+        </div>
+        `;
+    });
+}
 
 function renderActiveScene() {
     const partyListDiv = document.getElementById('active-party-list');
@@ -347,7 +422,20 @@ function renderActiveScene() {
     });
 }
 
-// --- ALL MODAL FUNCTIONS ARE REMOVED ---
+// NEW: Render Active Environment
+function renderActiveEnvironment() {
+    const activeEnvDiv = document.getElementById('active-environment');
+    activeEnvDiv.innerHTML = '';
+
+    if (activeEnvironment) {
+        activeEnvDiv.innerHTML += `
+        <div class="scene-item" data-id="${activeEnvironment.simId}">
+            <button class="move-button" title="Remove from Scene">&lt;</button>
+            <span class="agent-name">${activeEnvironment.name} (Diff ${activeEnvironment.difficulty})</span>
+        </div>
+        `;
+    }
+}
 
 
 // --- PARSING & INSTANTIATION FUNCTIONS ---
@@ -373,7 +461,7 @@ function instantiatePlayerAgent(data) {
         id: data.simId,
         name: data.name,
         type: 'player',
-        class: data.class.name, // Store class name
+        class: data.class.name,
         current_hp: max_hp,
         max_hp: max_hp,
         current_stress: 0,
@@ -421,8 +509,14 @@ function instantiateAdversaryAgent(data) {
             ...data.attack,
             modifier: attackBonus
         },
+        // --- BUG FIX: Create the thresholds object ---
+        thresholds: {
+            major: data.major,
+            severe: data.severe
+        },
+        // --- END BUG FIX ---
         conditions: [],
-        passives: {}, // --- NEW: Initialize passives object ---
+        passives: {},
         position: {
             x: CURRENT_BATTLEFIELD.MAX_X - Math.floor(Math.random() * 3),
             y: Math.floor(Math.random() * CURRENT_BATTLEFIELD.MAX_Y) + 1
@@ -438,23 +532,18 @@ function applyPassiveFeatures(agent) {
     for (const feature of agent.features) {
         if (feature.type === 'passive' && feature.parsed_effect) {
             for (const action of feature.parsed_effect.actions) {
-                // Generic "All Attacks are Direct" (e.g., Cave Ogre)
                 if (action.action_type === 'MODIFY_DAMAGE' && action.target === 'ALL_ATTACKS' && action.details.is_direct) {
                     simLog(` (Passive Applied: ${agent.name} has ${feature.name}. All attacks are DIRECT.)`);
                     agent.passives.allAttacksAreDirect = true;
                 }
-                // Generic "Resistance"
                 if (action.action_type === 'MODIFY_STAT' && action.details.stat === 'resistance') {
                     simLog(` (Passive Applied: ${agent.name} has ${feature.name}.)`);
                     agent.passives.resistance = action.details.value;
                 }
-                // --- NEW LOGIC FOR OUR 6 ADVERSARIES ---
-                // "Relentless" (Acid Burrower, Construct)
                 if (action.action_type === 'MODIFY_STAT' && action.details.stat === 'max_spotlights_per_turn') {
                     simLog(` (Passive Applied: ${agent.name} has ${feature.name}. Can be spotlighted ${action.details.value} times.)`);
                     agent.maxSpotlights = action.details.value;
                 }
-                // "Ramp Up" (Cave Ogre)
                 if (action.action_type === 'MODIFY_ACTION' && action.details.action === 'SPOTLIGHT') {
                     simLog(` (Passive Applied: ${agent.name} has ${feature.name}. Spotlight cost modified.)`);
                     agent.passives.spotlightCost = action.details.cost.value;
@@ -463,19 +552,16 @@ function applyPassiveFeatures(agent) {
                     simLog(` (Passive Applied: ${agent.name} has ${feature.name}. Standard attack is modified.)`);
                     agent.passives.attackAllInRange = (action.details.new_target === 'ALL_IN_RANGE');
                 }
-                // "Weak Structure" (Construct)
                 if (action.action_type === 'MODIFY_DAMAGE_TAKEN' && action.trigger === 'ON_TAKE_HP_PHY') {
                      simLog(` (Passive Applied: ${agent.name} has ${feature.name}. Takes extra HP from Physical.)`);
                      agent.passives.takeExtraPhysicalHP = action.details.increase_hp_marked;
                 }
-                // "Overwhelming Force" (Bear)
                 if (action.action_type === 'KNOCKBACK' && action.trigger === 'ON_DEAL_HP_STANDARD_ATTACK') {
                     simLog(` (Passive Applied: ${agent.name} has ${feature.name}.)`);
                     agent.passives.knockbackOnHP = {
-                        range: action.range // Store the knockback range
+                        range: action.range
                     };
                 }
-                // --- END NEW LOGIC ---
             }
         }
     }
@@ -485,9 +571,6 @@ function applyPassiveFeatures(agent) {
 async function runMultipleSimulations(count) {
     printToLog(`\n===== STARTING BATCH OF ${count} SIMULATION(S) =====`);
     
-    // We will ONLY record playback data if count === 1
-    
-    // Reset log and history for the start of a batch
     simHistory = [];
     const playbackBtn = document.getElementById('playback-button');
     if (playbackBtn) {
@@ -495,20 +578,16 @@ async function runMultipleSimulations(count) {
     }
 
     for (let i = 1; i <= count; i++) {
-        simLog(`\n--- SIMULATION ${i} OF ${count} ---`);
-        
         // Run the simulation synchronously.
         runSimulation(count); 
         
         // "Breathe" to prevent freezing after a very fast synchronous run
-        // This is important for batch runs (y > 1)
         if (count > 1) {
             await new Promise(resolve => setTimeout(resolve, 0));
         }
     }
     printToLog(`\n===== BATCH COMPLETE =====`);
     
-    // Enable playback button if only 1 run was executed
     if (count === 1 && simHistory.length === 1 && simHistory[0].playbackLog) {
         if (playbackBtn) {
             playbackBtn.disabled = false;
@@ -517,7 +596,6 @@ async function runMultipleSimulations(count) {
 }
 
 function exportLog() {
-    // MODIFIED to export from the div's innerText
     const logOutput = document.getElementById('log-output');
     const logContent = logOutput.innerText; // Use innerText to get formatted text
     
@@ -531,12 +609,9 @@ function exportLog() {
     printToLog(`\n--- Log exported! ---`);
 }
 
-// --- MODIFIED: No longer async, no longer takes isBlastMode ---
 function runSimulation(count) {
-    // Determine if we need to record map data (Only for single runs)
     const recordPlayback = (count === 1); 
-    
-    BATCH_LOG = []; // Always hijack the logger
+    BATCH_LOG = []; // Always reset the log for a new sim
 
     simLog('======================================');
     simLog('INITIALIZING NEW SIMULATION...');
@@ -551,22 +626,23 @@ function runSimulation(count) {
 
     simLog(`Simulating on ${mapSize} map (${CURRENT_BATTLEFIELD.MAX_X}x${CURRENT_BATTLEFIELD.MAX_Y})...`);
 
-    // --- Error handling no longer needs complex BATCH_LOG logic ---
+    // NEW: Get active environment difficulty
+    const sceneDifficulty = activeEnvironment ? activeEnvironment.difficulty : 10;
+    simLog(`Active Environment Difficulty set to: ${sceneDifficulty}`);
+
+
     if (activeParty.length === 0) { 
         simLog('--- ERROR --- \nAdd a player to the Active Scene.');
-        // Dump the log we have so far
         printToLog(BATCH_LOG.join('\n'));
-        BATCH_LOG = []; // Clear for next run
+        BATCH_LOG = [];
         return; 
     }
     if (activeAdversaries.length === 0) { 
         simLog('--- ERROR --- \nAdd an adversary to the Active Scene.'); 
-        // Dump the log we have so far
         printToLog(BATCH_LOG.join('\n'));
-        BATCH_LOG = []; // Clear for next run
+        BATCH_LOG = [];
         return; 
     }
-    // --- END FIX ---
 
     let playerAgents, adversaryAgents;
     try {
@@ -580,8 +656,8 @@ function runSimulation(count) {
         return; 
     }
 
-    let currentPlaybackLog = []; // Local array for map snapshots
-    const startTime = Date.now(); // Start timer for stats
+    let currentPlaybackLog = [];
+    const startTime = Date.now();
 
     const gameState = {
         players: playerAgents,
@@ -589,14 +665,14 @@ function runSimulation(count) {
         hope: 2 * playerAgents.length,
         fear: 1 * playerAgents.length,
         spotlight: 0,
-        lastPlayerSpotlight: 0
+        lastPlayerSpotlight: 0,
+        sceneDifficulty: sceneDifficulty // NEW
     };
 
     simLog(`Simulation Initialized. Hope: ${gameState.hope}, Fear: ${gameState.fear}`);
     
-    // --- SYNCHRONOUS SIMULATION LOOP ---
     let roundCounter = 0; 
-    const maxRounds = 100; // Safety break
+    const maxRounds = 100;
 
     while (!isCombatOver(gameState) && roundCounter < maxRounds) {
         let lastOutcome = '';
@@ -607,7 +683,7 @@ function runSimulation(count) {
 
         if (gameState.spotlight === 'GM') {
             lastOutcome = executeGMTurn(gameState);
-            roundCounter++; // A GM turn counts as a full round
+            roundCounter++;
             simLog(` --- Round ${roundCounter} ---`);
         } else {
             const actingPlayer = gameState.players[gameState.spotlight];
@@ -629,40 +705,33 @@ function runSimulation(count) {
     if (roundCounter >= maxRounds) {
          simLog(`--- SIMULATION HALTED --- \nReached max round limit (100). Combat may be in an infinite loop.`);
     }
-    // --- END SYNCHRONOUS SIMULATION LOOP ---
 
     const endTime = Date.now();
     const duration = (endTime - startTime) / 1000;
 
-    // --- FINAL LOG DUMP & HISTORY SAVE ---
     if (recordPlayback) {
         recordSnapshot(gameState, currentPlaybackLog);
     }
 
-    // Determine winner
     const playersAlive = gameState.players.some(p => p.current_hp > 0);
     const winner = playersAlive ? "Players" : "Adversaries";
     simLog(`\n--- SIMULATION COMPLETE ---`);
     simLog(`Winner: ${winner} in ${roundCounter} rounds.`);
     simLog(`Duration: ${duration.toFixed(3)}s`);
 
-    // NEW: Generate Scoreboard
     const scoreboard = generateScoreboard(gameState, winner);
     const winnerClass = winner === "Players" ? "scoreboard-win" : "scoreboard-loss";
     
-    // Save final results to history
     simHistory.push({
         id: simHistory.length + 1,
         winner: winner,
         rounds: roundCounter,
         duration: duration,
-        // No need to store logText, it's printed
         players: gameState.players.map(p => ({ name: p.name, hp: p.current_hp, stress: p.current_stress })),
         adversaries: gameState.adversaries.map(a => ({ name: a.name, hp: a.current_hp, stress: a.current_stress })),
         playbackLog: currentPlaybackLog.length > 0 ? currentPlaybackLog : null
     });
     
-    // --- NEW: Dump BATCH_LOG to screen, then print scoreboard ---
     const finalLogText = BATCH_LOG.join('\n');
     BATCH_LOG = []; // Clear log for next run
     
@@ -670,32 +739,29 @@ function runSimulation(count) {
     printToLog(scoreboard, winnerClass); // Print the color-coded scoreboard
 }
 
-// --- NEW: SCOREBOARD GENERATOR ---
+// --- NEW: SCOREBOARD GENERATOR (Condensed) ---
 function generateScoreboard(gameState, winner) {
     let board = [];
-    board.push(`========== FINAL SCOREBOARD (Winner: ${winner}) ==========`);
     board.push(`\n--- PLAYER CHARACTERS (Hope: ${gameState.hope}) ---`);
     
     gameState.players.forEach(p => {
         const status = p.current_hp > 0 ? "ALIVE" : "DEFEATED";
-        board.push(`  ${p.name} (${p.class}): ${status}`);
-        board.push(`    HP: ${p.current_hp} / ${p.max_hp} | Stress: ${p.current_stress} / ${p.max_stress}`);
+        const line = `  ${p.name} (${p.class}):`.padEnd(30) + `${status.padEnd(10)} HP: ${String(p.current_hp).padStart(2)} / ${p.max_hp} | Stress: ${p.current_stress} / ${p.max_stress}`;
+        board.push(line);
     });
 
     board.push(`\n--- ADVERSARIES (Fear: ${gameState.fear}) ---`);
     gameState.adversaries.forEach(a => {
         const status = a.current_hp > 0 ? "ALIVE" : "DEFEATED";
-         board.push(`  ${a.name} (${a.type}): ${status}`);
-        board.push(`    HP: ${a.current_hp} / ${a.max_hp}`);
+        const line = `  ${a.name} (${a.type}):`.padEnd(30) + `${status.padEnd(10)} HP: ${String(a.current_hp).padStart(2)} / ${a.max_hp}`;
+        board.push(line);
     });
-    board.push(`\n======================================================`);
+    board.push(`\n========== FINAL SCOREBOARD (Winner: ${winner}) ==========`);
     return board.join('\n');
 }
 
 
-// --- NEW FUNCTION: RECORDS STATE SNAPSHOT ---
 function recordSnapshot(gameState, playbackLog) {
-    // Deep copy current state for the playback 'tape'
     const snapshot = {
         players: gameState.players.map(p => ({
             id: p.id,
@@ -713,7 +779,6 @@ function recordSnapshot(gameState, playbackLog) {
     playbackLog.push(snapshot);
 }
 
-// --- NEW FUNCTION: PLAYS BACK SAVED SIMULATION ---
 async function playBackSimulation(historyIndex) {
     const simData = simHistory[historyIndex];
     if (!simData || !simData.playbackLog) {
@@ -724,16 +789,14 @@ async function playBackSimulation(historyIndex) {
     const mapContainer = document.getElementById('visualizer-container');
     const logContainer = document.getElementById('log-container');
     
-    // 1. Prepare UI for playback
     mapContainer.classList.remove('hidden');
     logContainer.classList.remove('full-width');
     
     printToLog(`\n\n=== STARTING REPLAY OF SIMULATION #${simData.id} ===`);
 
-    // 2. Clear old state and set up for playback
     const map = document.getElementById('battlemap-grid');
     map.innerHTML = '';
-    tokenCache = {}; // Reset token cache for replay
+    tokenCache = {}; 
     
     const initialState = simData.playbackLog[0];
 
@@ -747,7 +810,6 @@ async function playBackSimulation(historyIndex) {
     }
     map.innerHTML = gridHtml;
 
-    // Create tokens based on initial state
     const allAgents = [...initialState.players, ...initialState.adversaries];
     for (const agent of allAgents) {
         const token = document.createElement('div');
@@ -757,7 +819,6 @@ async function playBackSimulation(historyIndex) {
         tokenCache[agent.id] = token;
     }
     
-    // 3. Play back the frames
     for (let i = 0; i < simData.playbackLog.length; i++) {
         const snapshot = simData.playbackLog[i];
         
@@ -775,7 +836,6 @@ async function playBackSimulation(historyIndex) {
             }
         }
         
-        // Pause for playback speed
         await new Promise(resolve => setTimeout(resolve, 100));
     }
     
@@ -848,12 +908,10 @@ function determineNextSpotlight(lastOutcome, gameState) {
     }
 }
 
-// --- *** PC "SMART" BRAIN *** ---
 function executePCTurn(player, gameState) {
     let targets = gameState.adversaries.filter(a => a.current_hp > 0);
     if (targets.length === 0) return 'COMBAT_OVER';
     
-    // 1. Find the closest, living adversary
     const target = targets.sort((a, b) => {
         let distA = getAgentDistance(player, a);
         let distB = getAgentDistance(player, b);
@@ -862,11 +920,9 @@ function executePCTurn(player, gameState) {
 
     simLog(`> ${player.name}'s turn (targeting ${target.name} at (${target.position.x}, ${target.position.y}))...`);
 
-    // 2. Ask the "Smart Brain" what to do
     const chosenAction = choosePCAction(player, target, gameState);
     let result;
 
-    // 3. Execute the chosen action
     if (chosenAction) {
         switch (chosenAction.type) {
             case 'SPELL':
@@ -880,57 +936,49 @@ function executePCTurn(player, gameState) {
                 result = { outcome: 'FAILURE_WITH_FEAR' }; // Failsafe
         }
     } else {
-        // 4. If no action was chosen, the only option is to move
-        simLog(` -> ${target.name} is out of range of all options. Moving closer.`);
-        moveAgentTowards(player, target, gameState); 
+        simLog(` -> ${target.name} is out of range of all options. Moving closer (Agility Roll).`);
+        // NEW: This is a "Sprint" action and must use scene difficulty
+        moveAgentTowards(player, target, gameState, true); // true = isSprint
         
         simLog(` -> Making Agility roll to move...`);
-        result = executeActionRoll(10, player.traits.agility || 0, 0); 
-        simLog(` Roll: agility (0) | Total ${result.total} vs Diff 10 (${result.outcome})`);
+        result = executeActionRoll(gameState.sceneDifficulty, player.traits.agility || 0, 0); 
+        simLog(` Roll: agility (${player.traits.agility || 0}) | Total ${result.total} vs Diff ${gameState.sceneDifficulty} (${result.outcome})`);
     }
     
     processRollResources(result, gameState, player);
     return result.outcome;
 }
 
-/**
- * --- *** PC "DECISION" BRAIN *** ---
- */
 function choosePCAction(player, target, gameState) {
     let possibleActions = [];
 
-    // 1. Check Domain Cards
     for (const card of player.domainCards) {
         switch (card.name) {
-            case "Vicious Entangle": // Ranger
+            case "Vicious Entangle":
                 if (isTargetInRange(player, target, "Far")) {
                     possibleActions.push({ type: 'SPELL', card: card, priority: 1, name: "Vicious Entangle" });
                 }
                 break;
-            case "Bolt Beacon": // Wizard
+            case "Bolt Beacon":
                 if (player.current_hope >= 1 && isTargetInRange(player, target, "Far")) {
                     possibleActions.push({ type: 'SPELL', card: card, priority: 1, name: "Bolt Beacon" });
                 }
                 break;
-            case "Book Of Illiat": // Bard / Wizard
-                // AI will try to use "Slumber"
+            case "Book Of Illiat":
                 if (isTargetInRange(player, target, "Very Close")) {
                     possibleActions.push({ type: 'SPELL', card: card, priority: 2, name: "Slumber" });
                 }
                 break;
-            // TODO: Add more 'case' statements here for other cards
         }
     }
 
-    // 2. Check Basic Attack
     const weaponRange = player.primary_weapon.range;
     if (isTargetInRange(player, target, weaponRange)) {
         possibleActions.push({ type: 'ATTACK', priority: 0, name: `Basic Attack (${player.primary_weapon.name})` });
     }
 
-    // 3. Decide which action to take
     if (possibleActions.length === 0) {
-        return null; // No actions possible, must move
+        return null;
     }
 
     possibleActions.sort((a, b) => b.priority - a.priority);
@@ -942,9 +990,6 @@ function choosePCAction(player, target, gameState) {
     return bestAction;
 }
 
-/**
- * --- *** PC "ACTION LEXICON" (Attack) *** ---
- */
 function executePCBasicAttack(player, target, gameState) {
     simLog(` -> Attacking with ${player.primary_weapon.name}!`);
     const traitName = player.primary_weapon.trait.toLowerCase();
@@ -976,9 +1021,6 @@ function executePCBasicAttack(player, target, gameState) {
     return result;
 }
 
-/**
- * --- *** PC "ACTION LEXICON" (Spells) *** ---
- */
 function executePCSpell(player, card, target, gameState) {
     const traitMod = player.traits[player.spellcastTrait];
     let result;
@@ -990,7 +1032,7 @@ function executePCSpell(player, card, target, gameState) {
             simLog(` Roll: ${player.spellcastTrait} (${traitMod}) | Total ${result.total} vs Diff ${target.difficulty} (${result.outcome})`);
             
             if (result.outcome === 'CRITICAL_SUCCESS' || result.outcome === 'SUCCESS_WITH_HOPE' || result.outcome === 'SUCCESS_WITH_FEAR') {
-                const damageTotal = rollDamage("1d8+1", 1, 0); // 1d8+1 phy
+                const damageTotal = rollDamage("1d8+1", 1, 0);
                 const damageInfo = { amount: damageTotal, isDirect: false, isPhysical: true, isStandardAttack: false };
                 applyDamage(damageInfo, player, target, gameState);
                 applyCondition(target, "Restrained");
@@ -1001,16 +1043,16 @@ function executePCSpell(player, card, target, gameState) {
             simLog(` -> Casting "Bolt Beacon" on ${target.name}!`);
             if (player.current_hope < 1) {
                 simLog(` -> Not enough Hope to cast! (Cost: 1)`);
-                return { outcome: 'FAILURE_WITH_FEAR' }; // Failed action
+                return { outcome: 'FAILURE_WITH_FEAR' };
             }
-            player.current_hope--; // Pay cost
+            player.current_hope--;
             simLog(` -> Spent 1 Hope (Total: ${player.current_hope})`);
             
             result = executeActionRoll(target.difficulty, traitMod, 0);
             simLog(` Roll: ${player.spellcastTrait} (${traitMod}) | Total ${result.total} vs Diff ${target.difficulty} (${result.outcome})`);
             
             if (result.outcome === 'CRITICAL_SUCCESS' || result.outcome === 'SUCCESS_WITH_HOPE' || result.outcome === 'SUCCESS_WITH_FEAR') {
-                const damageTotal = rollDamage("1d8+2", player.proficiency, 0); // d8+2 magic, uses proficiency
+                const damageTotal = rollDamage("1d8+2", player.proficiency, 0);
                 const damageInfo = { amount: damageTotal, isDirect: false, isPhysical: false, isStandardAttack: false };
                 applyDamage(damageInfo, player, target, gameState);
                 applyCondition(target, "Vulnerable");
@@ -1018,7 +1060,6 @@ function executePCSpell(player, card, target, gameState) {
             break;
 
         case "Book Of Illiat":
-            // AI is using "Slumber"
             simLog(` -> Casting "Slumber" (from Book of Illiat) on ${target.name}!`);
             result = executeActionRoll(target.difficulty, traitMod, 0);
             simLog(` Roll: ${player.spellcastTrait} (${traitMod}) | Total ${result.total} vs Diff ${target.difficulty} (${result.outcome})`);
@@ -1030,9 +1071,8 @@ function executePCSpell(player, card, target, gameState) {
         
         default:
             simLog(`(ERROR: AI does not know how to cast spell: ${card.name})`);
-            return { outcome: 'FAILURE_WITH_FEAR' }; // Failsafe
+            return { outcome: 'FAILURE_WITH_FEAR' };
     }
-
     return result;
 }
 
@@ -1053,7 +1093,7 @@ function executeGMTurn(gameState) {
         if (Math.random() < 0.5) { 
             simLog(` GM decides to spend Fear for an *additional* spotlight...`);
 
-            let spotlightCost = 1; // Default cost
+            let spotlightCost = 1;
             const potentialNextAdversary = getAdversaryToAct(gameState, spotlightedAdversaries);
             if (potentialNextAdversary && potentialNextAdversary.adversary.passives.spotlightCost) {
                 spotlightCost = potentialNextAdversary.adversary.passives.spotlightCost;
@@ -1062,10 +1102,10 @@ function executeGMTurn(gameState) {
 
             if (gameState.fear < spotlightCost) {
                 simLog(` (GM lacks the ${spotlightCost} Fear to continue.)`);
-                break; // Break the loop
+                break;
             }
             
-            gameState.fear -= spotlightCost; // Use the variable cost
+            gameState.fear -= spotlightCost;
             simLog(` GM Fear: ${gameState.fear}`);
             
             let additionalAdversary = getAdversaryToAct(gameState, spotlightedAdversaries);
@@ -1074,7 +1114,7 @@ function executeGMTurn(gameState) {
                 performAdversaryAction(additionalAdversary.adversary, additionalAdversary.target, gameState);
             } else {
                 simLog(` (No more available adversaries to act.)`);
-                break; // Break the loop
+                break;
             }
         } else {
             simLog(` GM chooses to hold their Fear and pass the spotlight.`);
@@ -1096,14 +1136,14 @@ function getAdversaryToAct(gameState, actedThisTurn = []) {
         if (actedThisTurn.includes(a.id)) {
             const max = a.maxSpotlights || 1;
             const acted = actedThisTurn.filter(id => id === a.id).length;
-            return acted < max; // Can act again if not at max
+            return acted < max;
         }
-        return true; // Hasn't acted, is available
+        return true;
     });
 
     if (availableAdversaries.length === 0) {
         simLog(` (All available adversaries have acted their max times this turn.)`);
-        return null; // This will gracefully end the GM turn
+        return null;
     }
 
     let adversary;
@@ -1130,12 +1170,8 @@ function performAdversaryAction(adversary, target, gameState) {
 
     const affordableAndInRangeActions = allActions.filter(f => {
         if (f.cost) {
-            if (f.cost.type === 'stress' && (adversary.current_stress + f.cost.value > adversary.max_stress)) {
-                return false; 
-            }
-            if (f.cost.type === 'fear' && (gameState.fear < f.cost.value)) {
-                return false; 
-            }
+            if (f.cost.type === 'stress' && (adversary.current_stress + f.cost.value > adversary.max_stress)) return false; 
+            if (f.cost.type === 'fear' && (gameState.fear < f.cost.value)) return false; 
         }
         
         const firstEffect = f.parsed_effect.actions[0];
@@ -1162,18 +1198,14 @@ function performAdversaryAction(adversary, target, gameState) {
         affordableAndInRangeActions.sort((a, b) => {
             let priorityA = 0;
             let priorityB = 0;
-
             if (a.cost?.type === 'fear') priorityA = 3;
             else if (a.cost?.type === 'stress') priorityA = 2;
             else priorityA = 1;
-
             if (b.cost?.type === 'fear') priorityB = 3;
             else if (b.cost?.type === 'stress') priorityB = 2;
             else priorityB = 1;
-            
-            return priorityB - priorityA; // Sort high-to-low
+            return priorityB - priorityA;
         });
-
         chosenAction = affordableAndInRangeActions[0];
     }
 
@@ -1198,8 +1230,9 @@ function performAdversaryAction(adversary, target, gameState) {
             simLog(` -> No features available. Target is in ${weaponRange} range. Defaulting to basic attack.`);
             executeGMBasicAttack(adversary, target, gameState);
         } else {
-            simLog(` -> No features available. Target is out of ${weaponRange} range.`);
-            moveAgentTowards(adversary, target, gameState);
+            // NEW: This is now a "Sprint" action
+            simLog(` -> No features available. Target is out of ${weaponRange} range. Sprinting closer.`);
+            moveAgentTowards(adversary, target, gameState, true); // true = isSprint
         }
     }
 }
@@ -1572,18 +1605,17 @@ function isCombatOver(gameState) {
 }
 
 function checkForPCDamageReactions(player, hpToMark, gameState) {
-    // Check for Guardian's "Get Back Up"
-    if (player.class === "Guardian" && hpToMark === 3) { // 3 HP = Severe Damage
+    if (player.class === "Guardian" && hpToMark === 3) {
         const getBackUpCard = player.domainCards.find(c => c.name === "Get Back Up");
         if (getBackUpCard && player.current_stress < player.max_stress) {
             player.current_stress++;
             simLog(` -> ${player.name} uses "Get Back Up"!`);
             simLog(` -> ${player.name} marks 1 Stress (Total: ${player.current_stress})`);
-            return true; // Damage severity was successfully reduced
+            return true;
         }
     }
     
-    return false; // No reaction taken
+    return false;
 }
 
 function checkAdversaryReactions(trigger, agent, target, gameState, damageInfo = {}) {
@@ -1654,11 +1686,11 @@ function processRollResources(result, gameState, player) {
             simLog(` Resource: +1 Hope (Total: ${gameState.hope})`);
             break;
         case 'SUCCESS_WITH_FEAR':
-            gameState.fear = Math.min(12, gameState.fear + 1); // --- FEAR CAP ---
+            gameState.fear = Math.min(12, gameState.fear + 1);
             simLog(` Resource: +1 Fear (Total: ${gameState.fear})`);
             break;
         case 'FAILURE_WITH_FEAR':
-            gameState.fear = Math.min(12, gameState.fear + 1); // --- FEAR CAP ---
+            gameState.fear = Math.min(12, gameState.fear + 1);
             simLog(` Resource: +1 Fear (Total: ${gameState.fear})`);
             break;
     }
@@ -1682,18 +1714,19 @@ function applyDamage(damageInfo, attacker, target, gameState) {
     let isMajor = false;
     let isSevere = false;
     
-    if (!finalTarget.thresholds) {
-        simLog(` (ERROR: Target ${finalTarget.name} has no thresholds defined!)`);
+    // --- BUG FIX: Check if thresholds object and properties exist ---
+    const majorThreshold = finalTarget.thresholds?.major;
+    const severeThreshold = finalTarget.thresholds?.severe;
+
+    if (!majorThreshold || !severeThreshold) {
+        simLog(` (WARNING: Target ${finalTarget.name} has N/A thresholds! Defaulting to 1 HP.)`);
         if (amount > 0) hpToMark = 1; 
     } else {
-        const severe = finalTarget.thresholds.severe || (finalTarget.thresholds.major ? finalTarget.thresholds.major * 2 : 999);
-        const major = finalTarget.thresholds.major || (finalTarget.thresholds.severe ? finalTarget.thresholds.severe / 2 : 998);
-        
-        if (amount >= severe) {
+        if (amount >= severeThreshold) {
             hpToMark = 3;
             isSevere = true;
             isMajor = true;
-        } else if (amount >= major) {
+        } else if (amount >= majorThreshold) {
             hpToMark = 2;
             isMajor = true;
         } else if (amount > 0) {
@@ -1707,7 +1740,7 @@ function applyDamage(damageInfo, attacker, target, gameState) {
     }
 
     let originalHPMark = hpToMark;
-    simLog(` Damage: ${amount} (dealt by ${attacker.name}) vs ${finalTarget.name}'s Thresholds (${finalTarget.thresholds.major || 'N/A'}/${finalTarget.thresholds.severe || 'N/A'})`);
+    simLog(` Damage: ${amount} (dealt by ${attacker.name}) vs ${finalTarget.name}'s Thresholds (${majorThreshold || 'N/A'}/${severeThreshold || 'N/A'})`);
     simLog(` Calculated Severity: ${originalHPMark} HP`);
     
     if (finalTarget.type === 'player' && hpToMark > 0) {
@@ -1808,7 +1841,7 @@ function checkForPCReactions(damageTotal, attacker, target, isDirectDamage, game
         }
     }
 
-    return null; // No one reacted
+    return null;
 }
 
 
@@ -1919,21 +1952,26 @@ function isTargetInRange(attacker, target, weaponRangeName) {
         case 'self':
             return true;
         case 'melee':
-            return distance <= CURRENT_BATTLEFIELD.RANGE_MELEE; // 1
+            return distance <= CURRENT_BATTLEFIELD.RANGE_MELEE;
         case 'very close':
-            return distance <= CURRENT_BATTLEFIELD.RANGE_VERY_CLOSE; // 3
+            return distance <= CURRENT_BATTLEFIELD.RANGE_VERY_CLOSE;
         case 'close':
-            return distance <= CURRENT_BATTLEFIELD.RANGE_CLOSE; // 6
+            return distance <= CURRENT_BATTLEFIELD.RANGE_CLOSE;
         case 'far':
-            return distance <= CURRENT_BATTLEFIELD.RANGE_FAR; // 12
+            return distance <= CURRENT_BATTLEFIELD.RANGE_FAR;
+        case 'very far':
+             return distance <= CURRENT_BATTLEFIELD.RANGE_VERY_FAR;
         default:
             simLog(`(Warning: Unknown range name '${weaponRangeName}')`);
             return false;
     }
 }
 
-function moveAgentTowards(agent, target, gameState) {
-    let budget = agent.speed; 
+// --- MODIFIED: Added 'isSprint' flag ---
+function moveAgentTowards(agent, target, gameState, isSprint = false) {
+    // Sprints are a full Far range move, otherwise use agent's speed (Close)
+    let budget = isSprint ? DAGGERHEART_RANGES.RANGE_FAR : agent.speed; 
+    
     let currentX = agent.position.x;
     let currentY = agent.position.y;
     let moved = false;
@@ -1944,7 +1982,7 @@ function moveAgentTowards(agent, target, gameState) {
         const dy = target.position.y - currentY;
 
         if (getAgentDistance({position: {x: currentX, y: currentY}}, target) <= 1) {
-            break;
+            break; // Already in Melee
         }
 
         if (Math.abs(dx) > Math.abs(dy)) {
@@ -1961,7 +1999,7 @@ function moveAgentTowards(agent, target, gameState) {
             }
         }
 
-        if (!movedThisStep) {
+        if (!movedThisStep) { // Try diagonal/secondary axis if blocked
             if (Math.abs(dx) > Math.abs(dy)) { 
                 let nextY = currentY + Math.sign(dy);
                 if (dy !== 0 && !isCellOccupied(currentX, nextY, gameState, agent.id)) {
@@ -2005,27 +2043,24 @@ function simLog(message) {
 function printToLog(message, className = null) {
     const logOutput = document.getElementById('log-output');
     if (logOutput) {
+        const el = document.createElement('div');
         if (className) {
-            // Sanitize message for innerHTML to prevent XSS from log content
-            const sanitizedMessage = message.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            logOutput.innerHTML += `<div class="${className}">${sanitizedMessage.replace(/\n/g, '<br>')}</div>`;
-        } else {
-            // For regular logs, create a text node (safest)
-            const textNode = document.createTextNode(message + '\n');
-            logOutput.appendChild(textNode);
+            el.className = className;
         }
+        el.innerText = message; // Use innerText to preserve line breaks from scoreboard
+        logOutput.appendChild(el);
         logOutput.scrollTop = logOutput.scrollHeight; 
     }
 }
 // --- *** END NEW LOGGING SYSTEM *** ---
 
 
-// --- VISUALIZER RENDER FUNCTION (NEW OPTIMIZED VERSION) ---
+// --- VISUALIZER RENDER FUNCTION ---
 function initializeBattlemap(gameState) {
     const map = document.getElementById('battlemap-grid');
     if (!map) return;
     map.innerHTML = '';
-    tokenCache = {}; // Reset token cache for visualization
+    tokenCache = {};
 
     const mapSize = document.getElementById('map-size-select').value;
     CURRENT_BATTLEFIELD = {
@@ -2048,7 +2083,6 @@ function initializeBattlemap(gameState) {
     }
 }
 
-// --- NEW FUNCTION: initializeTokens ---
 function initializeTokens(gameState) {
     const map = document.getElementById('battlemap-grid');
     if (!map) return;
@@ -2078,8 +2112,6 @@ function initializeTokens(gameState) {
 }
 
 function renderBattlemap(gameState) {
-    // This function NOW ONLY moves tokens
-    
     for (const player of gameState.players) {
         const token = tokenCache[player.id];
         if (!token) continue;

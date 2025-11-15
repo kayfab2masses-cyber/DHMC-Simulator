@@ -22,16 +22,23 @@
             <h3><span class="col-number">1</span> Add to Pool (Manual)</h3>
             <div class="json-input-box">
                 <label for="character-json">Paste Player JSON:</label>
-                <textarea id="character-json" rows="8" placeholder="Paste player JSON here..."></textarea>
+                <textarea id="character-json" rows="6" placeholder="Paste player JSON here..."></textarea>
                 <div class="button-row">
                     <button id="add-character-button" class="add-button">Add Player to Pool</button>
                 </div>
             </div>
             <div class="json-input-box">
                 <label for="adversary-json">Paste Adversary JSON:</label>
-                <textarea id="adversary-json" rows="8" placeholder="Paste adversary JSON here..."></textarea>
+                <textarea id="adversary-json" rows="6" placeholder="Paste adversary JSON here..."></textarea>
                 <div class="button-row">
                     <button id="add-adversary-button" class="add-button">Add Adversary to Pool</button>
+                </div>
+            </div>
+            <div class="json-input-box">
+                <label for="environment-json">Paste Environment JSON:</label>
+                <textarea id="environment-json" rows="6" placeholder="Paste environment JSON here..."></textarea>
+                <div class="button-row">
+                    <button id="add-environment-button" class="add-button">Add Environment to Pool</button>
                 </div>
             </div>
         </div>
@@ -74,7 +81,7 @@
             <div class="pool-container">
                 <div class="pool-header">
                     <h4>Adversary Pool</h4>
-                     <div class="pool-filters">
+                    <div class="pool-filters">
                         <select id="adv-pool-tier-filter">
                             <option value="all">All Tiers</option>
                             <option value="1">Tier 1</option>
@@ -99,6 +106,12 @@
                 </div>
                 <div id="adversary-pool-list" class="agent-list"></div>
             </div>
+            <div class="pool-container">
+                <div class="pool-header">
+                    <h4>Environment Pool</h4>
+                </div>
+                <div id="environment-pool-list" class="agent-list"></div>
+            </div>
         </div>
 
         <div class="layout-column" id="scene-column">
@@ -110,6 +123,12 @@
             <div class="pool-container">
                 <h4>Active Adversaries</h4>
                 <div id="active-adversary-list" class="agent-list"></div>
+            </div>
+            <div class="pool-container">
+                <div class="pool-header">
+                    <h4>Active Environment</h4>
+                </div>
+                <div id="active-environment" class="agent-list"></div>
             </div>
         </div>
     </div>
