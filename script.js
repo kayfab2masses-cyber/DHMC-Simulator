@@ -98,7 +98,8 @@ async function loadAndPopulateDatabases() {
 
 async function loadSRDDatabase() {
     try {
-        const response = await fetch('data/srd_adversaries.json');
+        // --- FIX: Removed 'data/' prefix ---
+        const response = await fetch('srd_adversaries.json');
         if (!response.ok) { throw new Error(`HTTP error! status: ${response.status}`); }
         const data = await response.json(); 
         if (Array.isArray(data)) {
@@ -116,7 +117,8 @@ async function loadSRDDatabase() {
 
 async function loadPCDatabase() {
     try {
-        const response = await fetch('data/premade_characters.json'); 
+        // --- FIX: Removed 'data/' prefix ---
+        const response = await fetch('premade_characters.json'); 
         if (!response.ok) { throw new Error(`HTTP error! status: ${response.status}`); }
         const data = await response.json(); 
         if (data && Array.isArray(data.players)) {
@@ -133,14 +135,22 @@ async function loadPCDatabase() {
 }
 
 async function loadEnvironmentDatabase() {
-    PLACEHOLDER_ENVIRONMENTS = [
-        { name: "Placeholder: Tier 1", difficulty: 11, tier: 1, simId: `env-${Date.now()}-1` },
-        { name: "Placeholder: Tier 2", difficulty: 14, tier: 2, simId: `env-${Date.now()}-2` },
-        { name: "Placeholder: Tier 3", difficulty: 17, tier: 3, simId: `env-${Date.now()}-3` },
-        { name: "Placeholder: Tier 4", difficulty: 20, tier: 4, simId: `env-${Date.now()}-4` }
-    ];
-    environmentPool = [...PLACEHOLDER_ENVIRONMENTS];
-    printToLog(`Successfully loaded ${environmentPool.length} placeholder environments.`);
+    try {
+        // --- FIX: Changed from placeholders to fetch environments.json ---
+        const response = await fetch('environments.json');
+        if (!response.ok) { throw new Error(`HTTP error! status: ${response.status}`); }
+        const data = await response.json();
+        if (Array.isArray(data)) {
+            PLACEHOLDER_ENVIRONMENTS = data; // You can rename this variable later
+            environmentPool = PLACEHOLDER_ENVIRONMENTS.map((env, index) => ({
+                ...env,
+                simId: env.simId || `env-master-${Date.now()}-${index}`
+            }));
+        } else { throw new Error("Invalid JSON structure. Expected a top-level array '[...]'"); }
+        printToLog(`Successfully loaded ${environmentPool.length} environments.`);
+    } catch (error) {
+        printToLog(`--- FATAL ERROR --- Could not load Environment JSON: ${error.message}`);
+    }
 }
 
 // --- NEW: Battle Point Functions ---
@@ -168,6 +178,7 @@ function getAdversaryBattlePoints(advType) {
 
 function calculateTargetBP() {
     if (activeParty.length === 0) return 0;
+    // SRD Rule: (3 * # of PCs) + 2
     return (3 * activeParty.length) + 2;
 }
 
@@ -182,6 +193,7 @@ function updateBPCounter() {
         });
     });
 
+    document.getElementById('pc-count').textContent = activeParty.length;
     document.getElementById('bp-target-display').textContent = `Target BP: ${targetBP} / Short Rest`;
     const trackerDisplay = document.getElementById('bp-tracker-display');
     trackerDisplay.textContent = `Spent BP: ${spentBP} / ${targetBP}`;
@@ -450,7 +462,6 @@ function renderActiveScene() {
             <span class="agent-name">${char.name} (Lvl ${char.level})</span>
         </div>`;
     });
-    document.getElementById('pc-count').textContent = activeParty.length;
 
     // Render All Adversary Encounters
     Object.keys(activeAdversaries).forEach(encounterKey => {
@@ -923,6 +934,28 @@ function runSingleEncounter(encounterIndex, title, existingGameState = null, isB
 // --- *** END OF CORE SIMULATION FUNCTION *** ---
 
 
+// --- NEW: SCOREBOARD GENERATOR (Condensed) ---
+function generateScoreboard(gameState, winner) {
+    let board = [];
+    board.push(`\n--- PLAYER CHARACTERS (Hope: ${gameState.hope}) ---`);
+    
+    gameState.players.forEach(p => {
+        const status = p.current_hp > 0 ? "ALIVE" : "DEFEATED";
+        const line = `  ${p.name} (${p.class}):`.padEnd(30) + `${status.padEnd(10)} HP: ${String(p.current_hp).padStart(2)} / ${p.max_hp} | Stress: ${p.current_stress} / ${p.max_stress}`;
+        board.push(line);
+    });
+
+    board.push(`\n--- ADVERSARIES (Fear: ${gameState.fear}) ---`);
+    gameState.adversaries.forEach(a => {
+        const status = a.current_hp > 0 ? "ALIVE" : "DEFEATED";
+        const line = `  ${a.name} (${a.type}):`.padEnd(30) + `${status.padEnd(10)} HP: ${String(a.current_hp).padStart(2)} / ${a.max_hp}`;
+        board.push(line);
+    });
+    board.push(`\n========== FINAL SCOREBOARD (Winner: ${winner}) ==========`);
+    return board.join('\n');
+}
+
+
 // --- MODIFIED: Uses simLog ---
 function recordSnapshot(gameState, playbackLog) {
     const snapshot = {
@@ -1073,7 +1106,7 @@ function executePCTurn(player, gameState) {
 
     if (chosenAction) {
         // --- PC MOVE & ACTION (Close Range) ---
-        // Per SRD, "you can move to a location within Close range as part of that action." [cite: 20646]
+        [cite_start]// Per SRD, "you can move to a location within Close range as part of that action." [cite: 20466]
         // We assume the PC moves into range for their chosen action if they aren't already.
         if (!isTargetInRange(player, target, chosenAction.range)) {
             simLog(` -> Moving to ${chosenAction.range} range...`);
@@ -1093,12 +1126,12 @@ function executePCTurn(player, gameState) {
         }
     } else {
         // --- PC SPRINT (Far/Very Far Range) ---
-        // Per SRD, "you need to succeed on an Agility Roll to safely reposition yourself." [cite: 20647]
+        [cite_start]// Per SRD, "you need to succeed on an Agility Roll to safely reposition yourself." [cite: 20467]
         simLog(` -> ${target.name} is out of range of all options. Sprinting closer (Agility Roll).`);
         moveAgentTowards(player, target, gameState, true); // true = isSprint
         
         simLog(` -> Making Agility roll to move...`);
-        result = executeActionRoll(gameState.sceneDifficulty, player.traits.agility || 0, 0); 
+        result = executeActionRoll(gameState.sceneDifficulty, player.traits.agility || 0, 0); //
         simLog(` Roll: agility (${player.traits.agility || 0}) | Total ${result.total} vs Diff ${gameState.sceneDifficulty} (${result.outcome})`);
     }
     
@@ -1307,7 +1340,7 @@ function getAdversaryToAct(gameState, actedThisTurn = []) {
 function performAdversaryAction(adversary, target, gameState) {
     simLog(` Spotlight is on: ${adversary.name} (targeting ${target.name} at (${target.position.x}, ${target.position.y}))...`);
     
-    // Standard move is "Close" range [cite: 20648]
+    [cite_start]// Standard move is "Close" range [cite: 20473]
     moveAgentTowards(adversary, target, gameState, false); // false = not a sprint
 
     const allActions = adversary.features.filter(f => f.type === 'action' && f.parsed_effect);
@@ -1366,9 +1399,9 @@ function performAdversaryAction(adversary, target, gameState) {
             simLog(` -> No features in range. Defaulting to basic attack.`);
             executeGMBasicAttack(adversary, target, gameState);
         } else {
-            simLog(` -> Target is out of range for all actions. Turn ends.`);
-            // Per SRD, if an adversary is out of range, they can use their action to "Sprint" [cite: 20648]
-            // We already did a "Close" move. We'll assume for now this turn is just movement.
+            [cite_start]// SRD: "An adversary can move within Close range for free as part of an action, or within Very Far range as a separate action." [cite: 20473, 20474, 20468]
+            simLog(` -> Target is out of range for all actions. Sprinting closer.`);
+            moveAgentTowards(adversary, target, gameState, true); // true = isSprint
         }
     }
 }
@@ -1677,369 +1710,374 @@ function isCombatOver(gameState) {
 
 // --- MODIFIED: Uses simLog ---
 function checkForPCDamageReactions(player, hpToMark, gameState) {
-    if (player.class === "Guardian" && hpToMark === 3) { // [cite: 14541]
-        const getBackUpCard = player.domainCards.find(c => c.name === "Get Back Up"); // [cite: 14543]
-        if (getBackUpCard && player.current_stress < player.max_stress) { // [cite: 14544]
-            player.current_stress++; // [cite: 14545]
-            simLog(` -> ${player.name} uses "Get Back Up"!`); // [cite: 14546]
-            simLog(` -> ${player.name} marks 1 Stress (Total: ${player.current_stress})`); // [cite: 14547]
-            return true; // [cite: 14549]
+    if (player.class === "Guardian" && hpToMark === 3) { //
+        const getBackUpCard = player.domainCards.find(c => c.name === "Get Back Up"); //
+        if (getBackUpCard && player.current_stress < player.max_stress) { //
+            player.current_stress++; //
+            simLog(` -> ${player.name} uses "Get Back Up"!`); //
+            simLog(` -> ${player.name} marks 1 Stress (Total: ${player.current_stress})`); //
+            return true; //
         }
     }
-    return false; // [cite: 14553]
+    return false; //
 }
 
 // --- MODIFIED: Uses simLog ---
 function checkAdversaryReactions(trigger, agent, target, gameState, damageInfo = {}) {
-    if (!agent.features) return { damageBonus: 0, takeSpotlight: false }; // [cite: 14556]
-    if (agent.current_hp <= 0 && trigger !== "ON_DEFEAT") return { damageBonus: 0, takeSpotlight: false };  // [cite: 14557]
-    let reactionBonus = 0; // [cite: 14558]
-    let reactionSpotlight = false; // [cite: 14559]
+    if (!agent.features) return { damageBonus: 0, takeSpotlight: false }; //
+    if (agent.current_hp <= 0 && trigger !== "ON_DEFEAT") return { damageBonus: 0, takeSpotlight: false };  //
+    let reactionBonus = 0; //
+    let reactionSpotlight = false; //
     for (const feature of agent.features) {
-        if (feature.type !== 'reaction' || !feature.parsed_effect) continue; // [cite: 14562]
-        for (const action of feature.parsed_effect.actions) { // [cite: 14563]
-            if (action.trigger === trigger) { // [cite: 14564]
-                if (trigger === "ON_TAKE_DAMAGE") { // [cite: 14566]
-                    const hpThreshold = (action.trigger_details?.match(/(\d+)_HP_OR_MORE/) || [])[1]; // [cite: 14567]
-                    if (hpThreshold && damageInfo.hpMarked < parseInt(hpThreshold)) { // [cite: 14568]
-                        continue; // [cite: 14569]
+        if (feature.type !== 'reaction' || !feature.parsed_effect) continue; //
+        for (const action of feature.parsed_effect.actions) { //
+            if (action.trigger === trigger) { //
+                if (trigger === "ON_TAKE_DAMAGE") { //
+                    const hpThreshold = (action.trigger_details?.match(/(\d+)_HP_OR_MORE/) || [])[1]; //
+                    if (hpThreshold && damageInfo.hpMarked < parseInt(hpThreshold)) { //
+                        continue; //
                     }
                 }
-                if (action.cost) { // [cite: 14576]
-                    if (action.cost.type === 'stress') { // [cite: 14577]
-                        if (agent.current_stress < agent.max_stress) { // [cite: 14578]
-                            agent.current_stress += action.cost.value; // [cite: 14579]
-                            simLog(` -> ${agent.name} marks ${action.cost.value} Stress for ${feature.name} (Total: ${agent.current_stress})`); // [cite: 14580, 14583]
+                if (action.cost) { //
+                    if (action.cost.type === 'stress') { //
+                        if (agent.current_stress < agent.max_stress) { //
+                            agent.current_stress += action.cost.value; //
+                            simLog(` -> ${agent.name} marks ${action.cost.value} Stress for ${feature.name} (Total: ${agent.current_stress})`); //
                         } else {
-                            simLog(` -> ${agent.name} cannot afford Stress for ${feature.name}.`); // [cite: 14582, 14584]
-                            continue; // [cite: 14586]
+                            simLog(` -> ${agent.name} cannot afford Stress for ${feature.name}.`); //
+                            continue; //
                         }
                     }
                 }
-                simLog(` -> ${agent.name}'s REACTION triggers: ${feature.name}!`); // [cite: 14589]
-                if (trigger === "BEFORE_DEALING_DAMAGE") { // [cite: 14591]
-                    if (action.action_type === 'MODIFY_DAMAGE') { // [cite: 14592]
-                        reactionBonus += action.details.bonus || 0; // [cite: 14594]
+                simLog(` -> ${agent.name}'s REACTION triggers: ${feature.name}!`); //
+                if (trigger === "BEFORE_DEALING_DAMAGE") { //
+                    if (action.action_type === 'MODIFY_DAMAGE') { //
+                        reactionBonus += action.details.bonus || 0; //
                     }
-                    if (action.action_type === 'TAKE_SPOTLIGHT') { // [cite: 14595]
-                        reactionSpotlight = true; // [cite: 14596]
+                    if (action.action_type === 'TAKE_SPOTLIGHT') { //
+                        reactionSpotlight = true; //
                     }
                 } else {
-                    executeParsedEffect(action, agent, target, gameState); // [cite: 14599]
+                    executeParsedEffect(action, agent, target, gameState); //
                 }
             }
         }
     }
-    return { damageBonus: reactionBonus, takeSpotlight: reactionSpotlight }; // [cite: 14601]
+    return { damageBonus: reactionBonus, takeSpotlight: reactionSpotlight }; //
 }
 
 // --- MODIFIED: Uses simLog ---
 function processRollResources(result, gameState, player) {
     switch (result.outcome) {
         case 'CRITICAL_SUCCESS':
-            gameState.hope = Math.min(player.max_hope, gameState.hope + 1); // [cite: 14605]
-            player.current_stress = Math.max(0, player.current_stress - 1);  // [cite: 14606]
-            simLog(` Resource: +1 Hope (Total: ${gameState.hope}), ${player.name} clears 1 Stress.`); // [cite: 14607]
+            gameState.hope = Math.min(player.max_hope, gameState.hope + 1); //
+            player.current_stress = Math.max(0, player.current_stress - 1);  //
+            simLog(` Resource: +1 Hope (Total: ${gameState.hope}), ${player.name} clears 1 Stress.`); //
             break;
         case 'SUCCESS_WITH_HOPE':
-            gameState.hope = Math.min(player.max_hope, gameState.hope + 1); // [cite: 14609]
-            simLog(` Resource: +1 Hope (Total: ${gameState.hope})`); // [cite: 14611]
+            gameState.hope = Math.min(player.max_hope, gameState.hope + 1); //
+            simLog(` Resource: +1 Hope (Total: ${gameState.hope})`); //
             break;
         case 'FAILURE_WITH_HOPE':
-            gameState.hope = Math.min(player.max_hope, gameState.hope + 1); // [cite: 14615]
-            simLog(` Resource: +1 Hope (Total: ${gameState.hope})`); // [cite: 14615]
+            gameState.hope = Math.min(player.max_hope, gameState.hope + 1); //
+            simLog(` Resource: +1 Hope (Total: ${gameState.hope})`); //
             break;
         case 'SUCCESS_WITH_FEAR':
-            gameState.fear = Math.min(12, gameState.fear + 1); // [cite: 14617]
-            simLog(` Resource: +1 Fear (Total: ${gameState.fear})`); // [cite: 14617]
+            gameState.fear = Math.min(12, gameState.fear + 1); //
+            simLog(` Resource: +1 Fear (Total: ${gameState.fear})`); //
             break;
         case 'FAILURE_WITH_FEAR':
-            gameState.fear = Math.min(12, gameState.fear + 1); // [cite: 14620]
-            simLog(` Resource: +1 Fear (Total: ${gameState.fear})`); // [cite: 14620]
+            gameState.fear = Math.min(12, gameState.fear + 1); //
+            simLog(` Resource: +1 Fear (Total: ${gameState.fear})`); //
             break;
     }
 }
 
 // --- MODIFIED: Uses simLog & Threshold Bug Fix ---
 function applyDamage(damageInfo, attacker, target, gameState) {
-    let finalTarget = target; // [cite: 14625]
-    let isIntercepted = false; // [cite: 14629]
-    let { amount, isDirect, isPhysical, isStandardAttack } = damageInfo; // [cite: 14631]
-    if (gameState && target.type === 'player') {  // [cite: 14635]
-        const interceptingPlayer = checkForPCReactions(amount, attacker, target, isDirect, gameState); // [cite: 14636]
-        if (interceptingPlayer) { // [cite: 14637]
-            finalTarget = interceptingPlayer;  // [cite: 14638]
-            isIntercepted = true; // [cite: 14640]
+    let finalTarget = target; //
+    let isIntercepted = false; //
+    let { amount, isDirect, isPhysical, isStandardAttack } = damageInfo; //
+    if (gameState && target.type === 'player') {  //
+        const interceptingPlayer = checkForPCReactions(amount, attacker, target, isDirect, gameState); //
+        if (interceptingPlayer) { //
+            finalTarget = interceptingPlayer;  //
+            isIntercepted = true; //
         }
     }
-    let hpToMark = 0; // [cite: 14642]
-    let isMajor = false; // [cite: 14643]
-    let isSevere = false; // [cite: 14644]
+    let hpToMark = 0; //
+    let isMajor = false; //
+    let isSevere = false; //
     
     // --- BUG FIX: Check if thresholds object and properties exist ---
-    const majorThreshold = finalTarget.thresholds?.major; // [cite: 14649]
-    const severeThreshold = finalTarget.thresholds?.severe; // [cite: 14649]
+    const majorThreshold = finalTarget.thresholds?.major; //
+    const severeThreshold = finalTarget.thresholds?.severe; //
 
     if (!majorThreshold || !severeThreshold) {
-        simLog(` (WARNING: Target ${finalTarget.name} has N/A thresholds! Defaulting to 1 HP.)`); // [cite: 14646]
-        if (amount > 0) hpToMark = 1;  // [cite: 14647]
+        simLog(` (WARNING: Target ${finalTarget.name} has N/A thresholds! Defaulting to 1 HP.)`); //
+        if (amount > 0) hpToMark = 1;  //
     } else {
-        if (amount >= severeThreshold) { // [cite: 14650]
-            hpToMark = 3; // [cite: 14651]
-            isSevere = true; // [cite: 14653]
-            isMajor = true; // [cite: 14654]
-        } else if (amount >= majorThreshold) { // [cite: 14656]
-            hpToMark = 2; // [cite: 14657]
-            isMajor = true; // [cite: 14658]
-        } else if (amount > 0) { // [cite: 14659]
-            hpToMark = 1; // [cite: 14660]
+        if (amount >= severeThreshold) { //
+            hpToMark = 3; //
+            isSevere = true; //
+            isMajor = true; //
+        } else if (amount >= majorThreshold) { //
+            hpToMark = 2; //
+            isMajor = true; //
+        } else if (amount > 0) { //
+            hpToMark = 1; //
         }
     }
     
-    if (finalTarget.type === 'adversary' && finalTarget.passives.takeExtraPhysicalHP && isPhysical && hpToMark > 0) { // [cite: 14662]
-        simLog(` -> ${finalTarget.name}'s 'Weak Structure' passive applies!`); // [cite: 14664]
-        hpToMark += finalTarget.passives.takeExtraPhysicalHP; // [cite: 14665]
+    if (finalTarget.type === 'adversary' && finalTarget.passives.takeExtraPhysicalHP && isPhysical && hpToMark > 0) { //
+        simLog(` -> ${finalTarget.name}'s 'Weak Structure' passive applies!`); //
+        hpToMark += finalTarget.passives.takeExtraPhysicalHP; //
     }
-    let originalHPMark = hpToMark; // [cite: 14666]
-    simLog(` Damage: ${amount} (dealt by ${attacker.name}) vs ${finalTarget.name}'s Thresholds (${majorThreshold || 'N/A'}/${severeThreshold || 'N/A'})`); // [cite: 14667]
-    simLog(` Calculated Severity: ${originalHPMark} HP`); // [cite: 14667]
+    let originalHPMark = hpToMark; //
+    simLog(` Damage: ${amount} (dealt by ${attacker.name}) vs ${finalTarget.name}'s Thresholds (${majorThreshold || 'N/A'}/${severeThreshold || 'N/A'})`); //
+    simLog(` Calculated Severity: ${originalHPMark} HP`); //
     
-    if (finalTarget.type === 'player' && hpToMark > 0) { // [cite: 14669]
-        const severityReduced = checkForPCDamageReactions(finalTarget, hpToMark, gameState); // [cite: 14670]
-        if (severityReduced) { // [cite: 14670]
-            hpToMark--; // [cite: 14671]
-            simLog(` -> Severity reduced by reaction! New HP to mark: ${hpToMark}`); // [cite: 14672]
-            if (originalHPMark === 3) isSevere = false; // [cite: 14672]
-            if (originalHPMark === 2 && hpToMark < 2) isMajor = false; // [cite: 14673]
+    if (finalTarget.type === 'player' && hpToMark > 0) { //
+        const severityReduced = checkForPCDamageReactions(finalTarget, hpToMark, gameState); //
+        if (severityReduced) { //
+            hpToMark--; //
+            simLog(` -> Severity reduced by reaction! New HP to mark: ${hpToMark}`); //
+            if (originalHPMark === 3) isSevere = false; //
+            if (originalHPMark === 2 && hpToMark < 2) isMajor = false; //
         }
     }
-    if (isIntercepted && finalTarget.class === "Guardian") { // [cite: 14676]
-        simLog(` -> Guardian "I Am Your Shield" applies!`); // [cite: 14677]
-        while (hpToMark > 0 && finalTarget.current_armor_slots > 0) { // [cite: 14678]
-            finalTarget.current_armor_slots--; // [cite: 14679]
-            hpToMark--; // [cite: 14680]
-            simLog(` ${finalTarget.name} marks 1 Armor Slot! (Slots left: ${finalTarget.current_armor_slots})`); // [cite: 14681]
+    if (isIntercepted && finalTarget.class === "Guardian") { //
+        simLog(` -> Guardian "I Am Your Shield" applies!`); //
+        while (hpToMark > 0 && finalTarget.current_armor_slots > 0) { //
+            finalTarget.current_armor_slots--; //
+            hpToMark--; //
+            simLog(` ${finalTarget.name} marks 1 Armor Slot! (Slots left: ${finalTarget.current_armor_slots})`); //
         }
     } 
-    else if (finalTarget.type === 'player' && finalTarget.current_armor_slots > 0 && hpToMark > 0 && !isDirect) { // [cite: 14684]
-        finalTarget.current_armor_slots--; // [cite: 14685]
-        hpToMark--; // [cite: 14686]
-        simLog(` ${finalTarget.name} marks 1 Armor Slot! (Slots left: ${finalTarget.current_armor_slots})`); // [cite: 14694]
-    } else if (isDirect && finalTarget.type === 'player') { // [cite: 14694]
-        simLog(` This is DIRECT damage and cannot be mitigated by armor!`); // [cite: 14695]
+    else if (finalTarget.type === 'player' && finalTarget.current_armor_slots > 0 && hpToMark > 0 && !isDirect) { //
+        finalTarget.current_armor_slots--; //
+        hpToMark--; //
+        simLog(` ${finalTarget.name} marks 1 Armor Slot! (Slots left: ${finalTarget.current_armor_slots})`); //
+    } else if (isDirect && finalTarget.type === 'player') { //
+        simLog(` This is DIRECT damage and cannot be mitigated by armor!`); //
     }
-    finalTarget.current_hp -= hpToMark; // [cite: 14697]
-    if (originalHPMark > hpToMark) { // [cite: 14699]
-        simLog(` Final HP marked: ${hpToMark}.`); // [cite: 14700]
-    } else if (originalHPMark > 0) { // [cite: 14701]
-        simLog(` Final HP marked: ${hpToMark}.`); // [cite: 14702]
+    finalTarget.current_hp -= hpToMark; //
+    if (originalHPMark > hpToMark) { //
+        simLog(` Final HP marked: ${hpToMark}.`); //
+    } else if (originalHPMark > 0) { //
+        simLog(` Final HP marked: ${hpToMark}.`); //
     }
-    simLog(` ${finalTarget.name} HP: ${finalTarget.current_hp} / ${finalTarget.max_hp}`); // [cite: 14704]
-    const damageEventInfo = { // [cite: 14706]
-        amount, hpMarked: hpToMark, isMajor, isSevere, isPhysical, isStandardAttack // [cite: 14707-14712]
+    simLog(` ${finalTarget.name} HP: ${finalTarget.current_hp} / ${finalTarget.max_hp}`); //
+    const damageEventInfo = {
+        amount: amount,
+        hpMarked: hpToMark,
+        isMajor: isMajor,
+        isSevere: isSevere,
+        isPhysical: isPhysical,
+        isStandardAttack: isStandardAttack // [cite: 14707-14712]
     };
-    if (finalTarget.type === 'adversary') { // [cite: 14714]
-        checkAdversaryReactions("ON_TAKE_DAMAGE", finalTarget, attacker, gameState, damageEventInfo); // [cite: 14716]
-        if (damageEventInfo.isSevere) { // [cite: 14717]
-            checkAdversaryReactions("ON_TAKE_SEVERE_DAMAGE", finalTarget, attacker, gameState, damageEventInfo); // [cite: 14718]
+    if (finalTarget.type === 'adversary') { //
+        checkAdversaryReactions("ON_TAKE_DAMAGE", finalTarget, attacker, gameState, damageEventInfo); //
+        if (damageEventInfo.isSevere) { //
+            checkAdversaryReactions("ON_TAKE_SEVERE_DAMAGE", finalTarget, attacker, gameState, damageEventInfo); //
         }
     }
-    if (attacker.type === 'adversary' && hpToMark > 0) { // [cite: 14721]
-        checkAdversaryReactions("ON_DEAL_HP", attacker, finalTarget, gameState, damageEventInfo); // [cite: 14723]
+    if (attacker.type === 'adversary' && hpToMark > 0) { //
+        checkAdversaryReactions("ON_DEAL_HP", attacker, finalTarget, gameState, damageEventInfo); //
     }
-    if (attacker.type === 'adversary' && hpToMark > 0) { // [cite: 14726]
-        if (damageInfo.isStandardAttack && attacker.passives.knockbackOnHP) { // [cite: 14729]
-             simLog(` -> ${attacker.name}'s PASSIVE triggers: Overwhelming Force!`); // [cite: 14730]
-             const knockbackEffect = { action_type: 'KNOCKBACK', range: attacker.passives.knockbackOnHP.range, is_direct: false }; // [cite: 14732-14737]
-             executeParsedEffect(knockbackEffect, attacker, finalTarget, gameState); // [cite: 14738]
+    if (attacker.type === 'adversary' && hpToMark > 0) { //
+        if (damageInfo.isStandardAttack && attacker.passives.knockbackOnHP) { //
+             simLog(` -> ${attacker.name}'s PASSIVE triggers: Overwhelming Force!`); //
+             const knockbackEffect = { action_type: 'KNOCKBACK', range: attacker.passives.knockbackOnHP.range, is_direct: false }; [cite_start]// [cite: 14732-14737]
+             executeParsedEffect(knockbackEffect, attacker, finalTarget, gameState); //
         }
     }
-    if (finalTarget.current_hp <= 0) { // [cite: 14740]
-        simLog(` *** ${finalTarget.name} has been defeated! ***`); // [cite: 14741]
-        if (finalTarget.type === 'adversary') { // [cite: 14742]
-            checkAdversaryReactions("ON_DEFEAT", finalTarget, attacker, gameState, damageEventInfo); // [cite: 14743]
+    if (finalTarget.current_hp <= 0) { //
+        simLog(` *** ${finalTarget.name} has been defeated! ***`); //
+        if (finalTarget.type === 'adversary') { //
+            checkAdversaryReactions("ON_DEFEAT", finalTarget, attacker, gameState, damageEventInfo); //
         }
     }
 }
 
 // --- MODIFIED: Uses simLog ---
 function checkForPCReactions(damageTotal, attacker, target, isDirectDamage, gameState) {
-    for (const potentialProtector of gameState.players) { // [cite: 14745]
-        if (potentialProtector.current_hp <= 0 || potentialProtector.id === target.id) { // [cite: 14746]
-            continue; // [cite: 14747]
+    for (const potentialProtector of gameState.players) { //
+        if (potentialProtector.current_hp <= 0 || potentialProtector.id === target.id) { //
+            continue; //
         }
-        if (potentialProtector.class === "Guardian") { // [cite: 14751]
-            const shieldCard = potentialProtector.domainCards.find(c => c.name === "I Am Your Shield"); // [cite: 14752]
-            if (shieldCard) { // [cite: 14753]
-                if (potentialProtector.current_stress < potentialProtector.max_stress) { // [cite: 14755]
-                    if (isTargetInRange(potentialProtector, target, "Very Close")) { // [cite: 14756]
-                        potentialProtector.current_stress += 1;  // [cite: 14756]
-                        simLog(` -> ${potentialProtector.name} uses "I Am Your Shield"!`); // [cite: 14757]
-                        simLog(` -> ${potentialProtector.name} marks 1 Stress (Total: ${potentialProtector.current_stress})`); // [cite: 14758]
-                        return potentialProtector;  // [cite: 14759]
+        if (potentialProtector.class === "Guardian") { //
+            const shieldCard = potentialProtector.domainCards.find(c => c.name === "I Am Your Shield"); //
+            if (shieldCard) { //
+                if (potentialProtector.current_stress < potentialProtector.max_stress) { //
+                    if (isTargetInRange(potentialProtector, target, "Very Close")) { //
+                        potentialProtector.current_stress += 1;  //
+                        simLog(` -> ${potentialProtector.name} uses "I Am Your Shield"!`); //
+                        simLog(` -> ${potentialProtector.name} marks 1 Stress (Total: ${potentialProtector.current_stress})`); //
+                        return potentialProtector;  //
                     }
                 }
             }
         }
     }
-    return null; // [cite: 14762]
+    return null; //
 }
 
 // --- CORE DICE & PARSING UTILITIES (MODIFIED: Use simLog) ---
-function rollD20() { return Math.floor(Math.random() * 20) + 1; } // [cite: 14765]
-function rollD12() { return Math.floor(Math.random() * 12) + 1; } // [cite: 14767]
+function rollD20() { return Math.floor(Math.random() * 20) + 1; } //
+function rollD12() { return Math.floor(Math.random() * 12) + 1; } //
 function executeReactionRoll(target, trait, difficulty) {
-    const roll = rollD20(); // [cite: 14771]
-    const traitMod = target.traits[trait.toLowerCase()] || 0; // [cite: 14772]
-    const total = roll + traitMod; // [cite: 14774]
-    simLog(` ${target.name} makes a ${trait.toUpperCase()} Reaction Roll (Diff ${difficulty})`); // [cite: 14776]
-    simLog(` Roll: 1d20(${roll}) + ${trait}(${traitMod}) = ${total}`); // [cite: 14776]
-    return total >= difficulty; // [cite: 14776]
+    const roll = rollD20(); //
+    const traitMod = target.traits[trait.toLowerCase()] || 0; //
+    const total = roll + traitMod; //
+    simLog(` ${target.name} makes a ${trait.toUpperCase()} Reaction Roll (Diff ${difficulty})`); //
+    simLog(` Roll: 1d20(${roll}) + ${trait}(${traitMod}) = ${total}`); //
+    return total >= difficulty; //
 }
 function executeActionRoll(difficulty, traitModifier, otherModifiers) {
-    const hopeRoll = rollD12(); // [cite: 14778]
-    const fearRoll = rollD12(); // [cite: 14779]
-    const safeTraitModifier = typeof traitModifier === 'number' ? traitModifier : 0; // [cite: 14781]
-    const safeOtherModifiers = typeof otherModifiers === 'number' ? otherModifiers : 0; // [cite: 14782]
-    const baseSum = hopeRoll + fearRoll; // [cite: 14783]
-    const total = baseSum + safeTraitModifier + safeOtherModifiers; // [cite: 14787]
+    const hopeRoll = rollD12(); //
+    const fearRoll = rollD12(); //
+    const safeTraitModifier = typeof traitModifier === 'number' ? traitModifier : 0; //
+    const safeOtherModifiers = typeof otherModifiers === 'number' ? otherModifiers : 0; //
+    const baseSum = hopeRoll + fearRoll; //
+    const total = baseSum + safeTraitModifier + safeOtherModifiers; //
     let outcome = '';
-    if (hopeRoll === fearRoll) { outcome = 'CRITICAL_SUCCESS'; }  // [cite: 14793]
-    else if (total >= difficulty) { outcome = (hopeRoll > fearRoll) ? 'SUCCESS_WITH_HOPE' : 'SUCCESS_WITH_FEAR'; }  // [cite: 14794]
-    else { outcome = (hopeRoll > fearRoll) ? 'FAILURE_WITH_HOPE' : 'FAILURE_WITH_FEAR'; } // [cite: 14795]
-    return { hopeRoll, fearRoll, total, difficulty, outcome }; // [cite: 14796]
+    if (hopeRoll === fearRoll) { outcome = 'CRITICAL_SUCCESS'; }  //
+    else if (total >= difficulty) { outcome = (hopeRoll > fearRoll) ? 'SUCCESS_WITH_HOPE' : 'SUCCESS_WITH_FEAR'; }  //
+    else { outcome = (hopeRoll > fearRoll) ? 'FAILURE_WITH_HOPE' : 'FAILURE_WITH_FEAR'; } //
+    return { hopeRoll, fearRoll, total, difficulty, outcome }; //
 }
 function rollDamage(damageString, proficiency, critBonus = 0) {
-    const { numDice, dieType, modifier, maxDie } = parseDiceString(damageString); // [cite: 14804]
-    let totalDamage = 0; // [cite: 14805]
-    let diceToRoll = (proficiency > 1) ? (numDice * proficiency) : numDice; // [cite: 14807]
-    if (dieType > 0) { // [cite: 14808]
-        for (let i = 0; i < diceToRoll; i++) { // [cite: 14809]
-            totalDamage += Math.floor(Math.random() * dieType) + 1; // [cite: 14810]
+    const { numDice, dieType, modifier, maxDie } = parseDiceString(damageString); //
+    let totalDamage = 0; //
+    let diceToRoll = (proficiency > 1) ? (numDice * proficiency) : numDice; //
+    if (dieType > 0) { //
+        for (let i = 0; i < diceToRoll; i++) { //
+            totalDamage += Math.floor(Math.random() * dieType) + 1; //
         }
     }
-    totalDamage += modifier; // [cite: 14813]
-    totalDamage += critBonus;  // [cite: 14814]
-    return totalDamage; // [cite: 14815]
+    totalDamage += modifier; //
+    totalDamage += critBonus;  //
+    return totalDamage; //
 }
 function parseDiceString(damageString = "1d4") {
-    if (typeof damageString !== 'string') { // [cite: 14820]
-        simLog(`(ERROR: Invalid damage string: ${damageString})`); // [cite: 14823]
-        return { numDice: 0, dieType: 0, modifier: 0, maxDie: 0 }; // [cite: 14824]
+    if (typeof damageString !== 'string') { //
+        simLog(`(ERROR: Invalid damage string: ${damageString})`); //
+        return { numDice: 0, dieType: 0, modifier: 0, maxDie: 0 }; //
     }
-    damageString = damageString.split(' ')[0]; // [cite: 14825]
-    let numDice = 1, dieType = 4, modifier = 0; // [cite: 14827]
-    const modSplit = damageString.split('+'); // [cite: 14828]
-    if (modSplit.length > 1) modifier = parseInt(modSplit[1]) || 0; // [cite: 14829]
-    const dicePart = modSplit[0]; // [cite: 14830]
-    const dieSplit = dicePart.split('d'); // [cite: 14831]
-    if (dieSplit[0] === '') {  // [cite: 14833]
-        numDice = 1; // [cite: 14834]
-        dieType = parseInt(dieSplit[1]) || 4; // [cite: 14835]
-    } else if (dieSplit.length > 1) {  // [cite: 14836]
-        numDice = parseInt(dieSplit[0]) || 1; // [cite: 14837]
-        dieType = parseInt(dieSplit[1]) || 4; // [cite: 14839]
-    } else if (!damageString.includes('d')) {  // [cite: 14842]
-        numDice = 0; dieType = 0; // [cite: 14843]
-        modifier = parseInt(dieSplit[0]) || 0; // [cite: 14844]
+    damageString = damageString.split(' ')[0]; //
+    let numDice = 1, dieType = 4, modifier = 0; //
+    const modSplit = damageString.split('+'); //
+    if (modSplit.length > 1) modifier = parseInt(modSplit[1]) || 0; //
+    const dicePart = modSplit[0]; //
+    const dieSplit = dicePart.split('d'); //
+    if (dieSplit[0] === '') {  //
+        numDice = 1; //
+        dieType = parseInt(dieSplit[1]) || 4; //
+    } else if (dieSplit.length > 1) {  //
+        numDice = parseInt(dieSplit[0]) || 1; //
+        dieType = parseInt(dieSplit[1]) || 4; //
+    } else if (!damageString.includes('d')) {  //
+        numDice = 0; dieType = 0; //
+        modifier = parseInt(dieSplit[0]) || 0; //
     }
-    return { numDice, dieType, modifier, maxDie: dieType }; // [cite: 14846]
+    return { numDice, dieType, modifier, maxDie: dieType }; //
 }
 
 // --- MOVEMENT & RANGE HELPER FUNCTIONS (MODIFIED: Use simLog) ---
 function isCellOccupied(x, y, gameState, selfId) {
-    const allAgents = [...gameState.players, ...gameState.adversaries]; // [cite: 14849]
-    for (const agent of allAgents) { // [cite: 14850]
-        if (agent.id === selfId || agent.current_hp <= 0) { // [cite: 14851]
-            continue;  // [cite: 14852]
+    const allAgents = [...gameState.players, ...gameState.adversaries]; //
+    for (const agent of allAgents) { //
+        if (agent.id === selfId || agent.current_hp <= 0) { //
+            continue;  //
         }
-        if (agent.position.x === x && agent.position.y === y) { // [cite: 14853]
-            return true; // [cite: 14854]
+        if (agent.position.x === x && agent.position.y === y) { //
+            return true; //
         }
     }
-    return false; // [cite: 14856]
+    return false; //
 }
 function getAgentDistance(agentA, agentB) {
-    if (!agentA.position || !agentB.position) return 0; // [cite: 14858]
-    const dx = Math.abs(agentA.position.x - agentB.position.x); // [cite: 14859]
-    const dy = Math.abs(agentA.position.y - agentB.position.y); // [cite: 14860]
-    return dx + dy; // [cite: 14860]
+    if (!agentA.position || !agentB.position) return 0; //
+    const dx = Math.abs(agentA.position.x - agentB.position.x); //
+    const dy = Math.abs(agentA.position.y - agentB.position.y); //
+    return dx + dy; //
 }
 function isTargetInRange(attacker, target, weaponRangeName) {
-    const distance = getAgentDistance(attacker, target); // [cite: 14863]
-    const range = (weaponRangeName || 'Melee').trim().toLowerCase(); // [cite: 14864]
-    switch (range) { // [cite: 14865]
-        case 'self': return true; // [cite: 14867]
-        case 'melee': return distance <= CURRENT_BATTLEFIELD.RANGE_MELEE; // [cite: 14869]
-        case 'very close': return distance <= CURRENT_BATTLEFIELD.RANGE_VERY_CLOSE; // [cite: 14871]
-        case 'close': return distance <= CURRENT_BATTLEFIELD.RANGE_CLOSE; // [cite: 14873]
-        case 'far': return distance <= CURRENT_BATTLEFIELD.RANGE_FAR; // [cite: 14874]
+    const distance = getAgentDistance(attacker, target); //
+    const range = (weaponRangeName || 'Melee').trim().toLowerCase(); //
+    switch (range) { //
+        case 'self': return true; //
+        case 'melee': return distance <= CURRENT_BATTLEFIELD.RANGE_MELEE; //
+        case 'very close': return distance <= CURRENT_BATTLEFIELD.RANGE_VERY_CLOSE; //
+        case 'close': return distance <= CURRENT_BATTLEFIELD.RANGE_CLOSE; //
+        case 'far': return distance <= CURRENT_BATTLEFIELD.RANGE_FAR; //
         case 'very far': return distance <= CURRENT_BATTLEFIELD.RANGE_VERY_FAR;
         default:
-            simLog(`(Warning: Unknown range name '${weaponRangeName}')`); // [cite: 14876]
-            return false; // [cite: 14876]
+            simLog(`(Warning: Unknown range name '${weaponRangeName}')`); //
+            return false; //
     }
 }
 // --- MODIFIED: Added 'isSprint' flag ---
 function moveAgentTowards(agent, target, gameState, isSprint = false) {
-    // SRD: "a character can move to a location within Close range as part of that action." [cite: 20646]
-    // SRD: "An adversary can move within Close range for free as part of an action, or within Very Far range as a separate action." [cite: 20648]
+    [cite_start]// SRD: "a character can move to a location within Close range as part of that action." [cite: 20466]
+    [cite_start]// SRD: "An adversary can move within Close range for free as part of an action, or within Very Far range as a separate action." [cite: 20468]
     let budget;
     if (agent.type === 'player') {
-        budget = isSprint ? DAGGERHEART_RANGES.RANGE_FAR : DAGGERHEART_RANGES.RANGE_CLOSE; // [cite: 20646, 20647]
+        budget = isSprint ? DAGGERHEART_RANGES.RANGE_FAR : DAGGERHEART_RANGES.RANGE_CLOSE; //
     } else { // Adversary
-        budget = isSprint ? DAGGERHEART_RANGES.RANGE_VERY_FAR : DAGGERHEART_RANGES.RANGE_CLOSE; // [cite: 20648]
+        budget = isSprint ? DAGGERHEART_RANGES.RANGE_VERY_FAR : DAGGERHEART_RANGES.RANGE_CLOSE; //
     }
     
-    let currentX = agent.position.x; // [cite: 14883]
-    let currentY = agent.position.y; // [cite: 14886]
-    let moved = false; // [cite: 14887]
-    while (budget > 0) { // [cite: 14888]
-        let movedThisStep = false; // [cite: 14889]
-        const dx = target.position.x - currentX; // [cite: 14890]
-        const dy = target.position.y - currentY; // [cite: 14891]
-        if (getAgentDistance({position: {x: currentX, y: currentY}}, target) <= 1) { // [cite: 14894]
-            break; // [cite: 14895]
+    let currentX = agent.position.x; //
+    let currentY = agent.position.y; //
+    let moved = false; //
+    while (budget > 0) { //
+        let movedThisStep = false; //
+        const dx = target.position.x - currentX; //
+        const dy = target.position.y - currentY; //
+        if (getAgentDistance({position: {x: currentX, y: currentY}}, target) <= 1) { //
+            break; //
         }
-        if (Math.abs(dx) > Math.abs(dy)) { // [cite: 14896]
-            let nextX = currentX + Math.sign(dx); // [cite: 14897]
-            if (!isCellOccupied(nextX, currentY, gameState, agent.id)) { // [cite: 14898]
-                currentX = nextX; // [cite: 14900]
-                movedThisStep = true; // [cite: 14901]
+        if (Math.abs(dx) > Math.abs(dy)) { //
+            let nextX = currentX + Math.sign(dx); //
+            if (!isCellOccupied(nextX, currentY, gameState, agent.id)) { //
+                currentX = nextX; //
+                movedThisStep = true; //
             }
         } else {
-            let nextY = currentY + Math.sign(dy); // [cite: 14902]
-            if (!isCellOccupied(currentX, nextY, gameState, agent.id)) { // [cite: 14903]
-                currentY = nextY; // [cite: 14904]
-                movedThisStep = true; // [cite: 14905]
+            let nextY = currentY + Math.sign(dy); //
+            if (!isCellOccupied(currentX, nextY, gameState, agent.id)) { //
+                currentY = nextY; //
+                movedThisStep = true; //
             }
         }
-        if (!movedThisStep) { // [cite: 14906]
-            if (Math.abs(dx) > Math.abs(dy)) {  // [cite: 14907]
-                let nextY = currentY + Math.sign(dy); // [cite: 14908]
-                if (dy !== 0 && !isCellOccupied(currentX, nextY, gameState, agent.id)) { // [cite: 14909]
-                    currentY = nextY; // [cite: 14911]
-                    movedThisStep = true; // [cite: 14912]
+        if (!movedThisStep) { //
+            if (Math.abs(dx) > Math.abs(dy)) {  //
+                let nextY = currentY + Math.sign(dy); //
+                if (dy !== 0 && !isCellOccupied(currentX, nextY, gameState, agent.id)) { //
+                    currentY = nextY; //
+                    movedThisStep = true; //
                 }
             } else { 
-                let nextX = currentX + Math.sign(dx); // [cite: 14913]
-                if (dx !== 0 && !isCellOccupied(nextX, currentY, gameState, agent.id)) { // [cite: 14915]
-                    currentX = nextX; // [cite: 14916]
-                    movedThisStep = true; // [cite: 14917]
+                let nextX = currentX + Math.sign(dx); //
+                if (dx !== 0 && !isCellOccupied(nextX, currentY, gameState, agent.id)) { //
+                    currentX = nextX; //
+                    movedThisStep = true; //
                 }
             }
         }
-        if (!movedThisStep) { // [cite: 14919]
-            simLog(` -> ${agent.name} is blocked and cannot move further.`); // [cite: 14920]
-            break; // [cite: 14921]
+        if (!movedThisStep) { //
+            simLog(` -> ${agent.name} is blocked and cannot move further.`); //
+            break; //
         }
-        budget--; // [cite: 14922]
-        moved = true; // [cite: 14923]
+        budget--; //
+        moved = true; //
     }
-    if (moved) { // [cite: 14925]
-        agent.position.x = currentX; // [cite: 14926]
-        agent.position.y = currentY; // [cite: 14927]
-        simLog(` -> ${agent.name} moves to (${currentX}, ${currentY})`); // [cite: 14928]
+    if (moved) { //
+        agent.position.x = currentX; //
+        agent.position.y = currentY; //
+        simLog(` -> ${agent.name} moves to (${currentX}, ${currentY})`); //
     }
 }
 // --- END OF HELPER FUNCTIONS ---
@@ -2060,6 +2098,7 @@ function printToLog(message, className = null) {
         // Use innerText to preserve whitespace for scoreboard
         el.innerText = message; 
         logOutput.appendChild(el);
+        // *** THIS IS THE FIX ***
         logOutput.scrollTop = logOutput.scrollHeight; 
     }
 }
