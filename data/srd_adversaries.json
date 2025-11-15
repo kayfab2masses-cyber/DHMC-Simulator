@@ -1,147 +1,48 @@
 [
-  {
-  "name": "Acid Burrower",
-  "tier": 1,
-  "type": "Solo",
-  "difficulty": 14,
-  "thresholds": {},
-  "major": 8,
-  "severe": 15,
-  "hp": 8,
-  "stress": 3,
-  "attack": {
-    "name": "Claws",
-    "range": "Very Close",
-    "damage": "1d12+2 phy",
-    "modifier": "+3"
-  },
-  "features": [
-    {
-      "name": "Relentless (3)",
-      "type": "passive",
-      "cost": null,
-      "value": 3,
-      "effect": "The Burrower can be spotlighted up to three times per GM turn",
-      "parsed_effect": {
-        "actions": [
-          {
-            "action_type": "MODIFY_STAT",
-            "target": "SELF",
-            "range": null,
-            "details": {
-              "stat": "max_spotlights_per_turn",
-              "value": 3
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "Earth Eruption",
-      "type": "action",
-      "cost": {
-        "type": "stress",
-        "value": 1
-      },
-      "value": null,
-      "effect": "Mark a Stress to have the Burrower burst out of the ground",
-      "parsed_effect": {
-        "actions": [
-          {
-            "action_type": "FORCE_REACTION_ROLL",
-            "target": "ALL_IN_RANGE",
-            "range": "Very Close",
-            "details": {
-              "roll_type": "agility",
-              "difficulty_text": "succeed on",
-              "on_fail": [
-                {
-                  "action_type": "APPLY_CONDITION",
-                  "condition": "Vulnerable",
-                  "duration_text": "until they next act"
-                }
-              ]
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "Spit Acid",
-      "type": "action",
-      "cost": null,
-      "value": null,
-      "effect": "Make an attack against all targets in front of the Burrower within Close range",
-      "parsed_effect": {
-        "actions": [
-          {
-            "action_type": "ATTACK_ROLL",
-            "target": "ALL_IN_RANGE_FRONT",
-            "range": "Close",
-            "details": {
-              "on_success": [
-                {
-                  "action_type": "DEAL_DAMAGE",
-                  "damage_string": "2d6 phy"
-                },
-                {
-                  "action_type": "FORCE_MARK_ARMOR_SLOT",
-                  "details": "without receiving its benefits",
-                  "on_fail": {
-                    "actions": [
-                      {
-                        "action_type": "DEAL_DAMAGE",
-                        "damage_string": "1 HP",
-                        "is_direct": true,
-                        "special_rule": "This is an 'additional' HP"
-                      },
-                      {
-                        "action_type": "GAIN_FEAR",
-                        "value": 1
-                      }
-                    ]
+ {
+        "name": "Spit Acid",
+        "type": "action",
+        "cost": null,
+        "value": null,
+        "effect": "Make an attack against all targets in front of the Burrower within Close range",
+        "parsed_effect": {
+          "actions": [
+            {
+              "action_type": "ATTACK_ROLL",
+              "target": "ALL_IN_RANGE_FRONT",
+              "range": "Close",
+              "details": {
+                "on_success": [
+                  {
+                    "action_type": "DEAL_DAMAGE",
+                    "damage_string": "2d6 phy",
+                    "is_direct": false
+                  },
+                  {
+                    "action_type": "FORCE_MARK_ARMOR_SLOT",
+                    "details": "without receiving its benefits",
+                    "on_fail": {
+                      "actions": [
+                        {
+                          "action_type": "DEAL_DAMAGE",
+                          "damage_string": "1 HP",
+                          "is_direct": true,
+                          "special_rule": "This is an 'additional' HP"
+                        },
+                        {
+                          "action_type": "GAIN_FEAR",
+                          "value": 1
+                        }
+                      ]
+                    }
                   }
-                }
-              ],
-              "on_success_multi_target": null
+                ],
+                "on_success_multi_target": null
+              }
             }
-          }
-        ]
-      }
-    },
-    {
-      "name": "Acid Bath",
-      "type": "reaction",
-      "cost": null,
-      "value": null,
-      "effect": "When the Burrower takes Severe damage, all creatures within Close range take 1d10 physical damage. The area within Very Close range of the Burrower becomes a hazardous acid bath: all creatures other than the Burrower who move through it take 1d6 physical damage.",
-      "parsed_effect": {
-        "actions": [
-          {
-            "action_type": "DEAL_DAMAGE",
-            "trigger": "ON_TAKE_SEVERE_DAMAGE",
-            "target": "ALL_IN_RANGE",
-            "range": "Close",
-            "details": {
-              "damage_string": "1d10 phy",
-              "is_direct": false
-            }
-          },
-          {
-            "action_type": "CREATE_HAZARD",
-            "trigger": "ON_TAKE_SEVERE_DAMAGE",
-            "target": "AREA",
-            "range": "Very Close",
-            "details": {
-              "hazard_effect": "all creatures other than the Burrower who move through it take 1d6 physical damage",
-              "is_direct": false
-            }
-          }
-        ]
-      }
-    }
-  ]
-},
+          ]
+        }
+      },
   {
     "name": "Bear",
     "tier": 1,
